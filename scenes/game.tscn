@@ -1,0 +1,22 @@
+[gd_scene load_steps=3 format=3 uid="uid://65tcggo5c4sj"]
+
+[ext_resource type="Script" uid="uid://dynrc5c1axyc6" path="res://scripts/game_start.gd" id="1_sntyr"]
+[ext_resource type="Script" uid="uid://cs2ih7gbhjo03" path="res://scripts/networking/spawner_synchronizer.gd" id="2_21aad"]
+
+[node name="Game" type="Node"]
+script = ExtResource("1_sntyr")
+
+[node name="Spawnables" type="Node2D" parent="."]
+top_level = true
+
+[node name="Map" type="Node2D" parent="."]
+unique_name_in_owner = true
+
+[node name="Projectiles" type="Node2D" parent="."]
+
+[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="."]
+spawn_path = NodePath("../Spawnables")
+script = ExtResource("2_21aad")
+
+[node name="UICanvasLayer" type="CanvasLayer" parent="."]
+unique_name_in_owner = true

@@ -1,0 +1,30 @@
+[gd_scene load_steps=5 format=3 uid="uid://d3r010wlsrujn"]
+
+[ext_resource type="Script" uid="uid://22wrcten847a" path="res://scripts/UI/selectoin_box.gd" id="1_k2nho"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_l75mm"]
+size = Vector2(23.5, 21.5)
+
+[sub_resource type="Gradient" id="Gradient_6xxxn"]
+colors = PackedColorArray(1, 1, 1, 0.0392157, 0.882353, 0.882353, 0.882353, 0.368627)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_hxrtb"]
+gradient = SubResource("Gradient_6xxxn")
+width = 23
+height = 21
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 1)
+
+[node name="SelectoinBox" type="Area2D"]
+top_level = true
+script = ExtResource("1_k2nho")
+
+[node name="CollisionShape" type="CollisionShape2D" parent="."]
+unique_name_in_owner = true
+shape = SubResource("RectangleShape2D_l75mm")
+
+[node name="Sprite" type="Sprite2D" parent="CollisionShape"]
+unique_name_in_owner = true
+visible = false
+texture = SubResource("GradientTexture2D_hxrtb")

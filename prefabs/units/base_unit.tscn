@@ -1,0 +1,149 @@
+[gd_scene load_steps=15 format=3 uid="uid://d0wxbx62e3lg6"]
+
+[ext_resource type="Script" uid="uid://c7umfimqglbv8" path="res://scripts/base_unit.gd" id="1_tnhlo"]
+[ext_resource type="Texture2D" uid="uid://bp2kx504nnk4c" path="res://assets/units/selection_ring.png" id="2_o02ba"]
+[ext_resource type="Texture2D" uid="uid://4485x57dhdcs" path="res://assets/units/arrow.png" id="3_o3c7t"]
+[ext_resource type="Texture2D" uid="uid://fb0j5huhafry" path="res://assets/all_icons/circle-s.png" id="4_3coue"]
+[ext_resource type="Script" uid="uid://bjvv05dle175p" path="res://scripts/networking/synchronizer.gd" id="5_c8msn"]
+[ext_resource type="Texture2D" uid="uid://dwwvimsrx2f7h" path="res://assets/all_icons/rank-1.png" id="6_3coue"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_lxa7t"]
+radius = 22.561
+
+[sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_uoolu"]
+light_mode = 2
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_gofvq"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:rotation")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath(".:health")
+properties/2/spawn = true
+properties/2/replication_mode = 2
+properties/3/path = NodePath(".:owner_id")
+properties/3/spawn = true
+properties/3/replication_mode = 2
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_ryk4y"]
+radius = 512.0
+
+[sub_resource type="Gradient" id="Gradient_uwpg7"]
+offsets = PackedFloat32Array(0.994845, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_1p5b2"]
+gradient = SubResource("Gradient_uwpg7")
+width = 1024
+height = 1024
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(0.5, 0)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_62sb7"]
+bg_color = Color(0.376471, 0.376471, 0.486275, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_jsquf"]
+bg_color = Color(0.898039, 0.52549, 0.988235, 1)
+
+[node name="BaseUnit" type="CharacterBody2D"]
+show_behind_parent = true
+top_level = true
+z_index = 9
+input_pickable = true
+script = ExtResource("1_tnhlo")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+unique_name_in_owner = true
+shape = SubResource("CircleShape2D_lxa7t")
+
+[node name="UnitSelectionRing" type="Sprite2D" parent="."]
+unique_name_in_owner = true
+visible = false
+texture = ExtResource("2_o02ba")
+
+[node name="ArrowSprite" type="Sprite2D" parent="."]
+unique_name_in_owner = true
+visible = false
+texture = ExtResource("3_o3c7t")
+
+[node name="UnitSelfSprite" type="Sprite2D" parent="."]
+unique_name_in_owner = true
+material = SubResource("CanvasItemMaterial_uoolu")
+texture = ExtResource("4_3coue")
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+path_desired_distance = 5.0
+simplify_path = true
+avoidance_enabled = true
+debug_enabled = true
+debug_use_custom = true
+debug_path_custom_color = Color(0.843137, 0.109804, 0.109804, 1)
+
+[node name="DebugLabel" type="Label" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -50.0
+offset_right = 20.0
+offset_bottom = -27.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="DebugLabel2" type="Label" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -100.0
+offset_right = 20.0
+offset_bottom = -77.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+unique_name_in_owner = true
+replication_config = SubResource("SceneReplicationConfig_gofvq")
+script = ExtResource("5_c8msn")
+
+[node name="VisibilityArea" type="Area2D" parent="."]
+unique_name_in_owner = true
+visible = false
+
+[node name="VisibilityShape" type="CollisionShape2D" parent="VisibilityArea"]
+shape = SubResource("CircleShape2D_ryk4y")
+
+[node name="Light" type="PointLight2D" parent="."]
+unique_name_in_owner = true
+energy = 1.3
+blend_mode = 2
+range_item_cull_mask = 3
+texture = SubResource("GradientTexture2D_1p5b2")
+
+[node name="ProgressBar" type="ProgressBar" parent="."]
+material = SubResource("CanvasItemMaterial_uoolu")
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -35.0
+offset_top = -44.0
+offset_right = 35.0
+offset_bottom = -36.0
+grow_horizontal = 2
+size_flags_horizontal = 3
+theme_override_styles/background = SubResource("StyleBoxFlat_62sb7")
+theme_override_styles/fill = SubResource("StyleBoxFlat_jsquf")
+step = 1.0
+value = 90.0
+show_percentage = false
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(49, -40)
+texture = ExtResource("6_3coue")

@@ -1,0 +1,36 @@
+[gd_scene load_steps=4 format=3 uid="uid://bwp5hwlei615o"]
+
+[ext_resource type="Script" uid="uid://disni6i8y4hfe" path="res://scripts/UI/fob_panel.gd" id="1_qhmdu"]
+[ext_resource type="PackedScene" uid="uid://bchss6rum1oey" path="res://prefabs/ui/unit_card.tscn" id="1_rvpyp"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_x7peu"]
+bg_color = Color(0.252028, 0.252028, 0.252028, 0.34902)
+
+[node name="FobPanel" type="PanelContainer"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_x7peu")
+script = ExtResource("1_qhmdu")
+
+[node name="FobPanelMarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="MainRack" type="VBoxContainer" parent="FobPanelMarginContainer"]
+layout_mode = 2
+
+[node name="UnitsBoard" type="HBoxContainer" parent="FobPanelMarginContainer/MainRack"]
+layout_mode = 2
+
+[node name="UnitCard" parent="FobPanelMarginContainer/MainRack/UnitsBoard" instance=ExtResource("1_rvpyp")]
+layout_mode = 2
+mouse_filter = 1

@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3 uid="uid://bnnq5m4gisx8i"]
+
+[ext_resource type="Script" uid="uid://dfljsgvfuiti4" path="res://scripts/networking/server/server.gd" id="1_gcofl"]
+[ext_resource type="Script" uid="uid://dbp84xcl01wfe" path="res://scripts/game_system/team_system.gd" id="2_ig048"]
+
+[node name="Handlers" type="Node"]
+
+[node name="Network" type="Node" parent="."]
+script = ExtResource("1_gcofl")
+
+[node name="Timer" type="Timer" parent="Network"]
+
+[node name="TeamSystem" type="Node" parent="."]
+script = ExtResource("2_ig048")
+
+[connection signal="timeout" from="Network/Timer" to="Network" method="_on_update_info_timer_timeout"]

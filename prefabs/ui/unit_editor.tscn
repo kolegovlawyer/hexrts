@@ -1,0 +1,241 @@
+[gd_scene load_steps=7 format=3 uid="uid://bw3enpouyp31e"]
+
+[ext_resource type="StyleBox" uid="uid://dkdtwbvicdmyv" path="res://prefabs/ui/themes/main_style.tres" id="1_kgsmo"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_vq60a"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1hqq8"]
+
+[sub_resource type="Theme" id="Theme_t2ad6"]
+ProgressBar/styles/background = SubResource("StyleBoxEmpty_vq60a")
+ProgressBar/styles/fill = SubResource("StyleBoxFlat_1hqq8")
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_63f6l"]
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_left = 10
+border_width_top = 10
+border_width_right = 10
+border_width_bottom = 10
+border_color = Color(0.133333, 0.133333, 0.180392, 1)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+expand_margin_left = 15.0
+expand_margin_top = 15.0
+expand_margin_right = 15.0
+expand_margin_bottom = 15.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_re5vh"]
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_left = 5
+border_width_top = 5
+border_width_right = 5
+border_width_bottom = 5
+border_color = Color(0.376471, 0.376471, 0.486275, 1)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+expand_margin_left = 10.0
+expand_margin_top = 10.0
+expand_margin_right = 10.0
+expand_margin_bottom = 10.0
+
+[node name="Control" type="PanelContainer"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_right = 400.0
+offset_bottom = 206.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = SubResource("Theme_t2ad6")
+theme_override_styles/panel = ExtResource("1_kgsmo")
+
+[node name="MainContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="HeaderRack" type="HBoxContainer" parent="MainContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Button" type="Button" parent="MainContainer/HeaderRack"]
+layout_mode = 2
+text = "СБРОС"
+
+[node name="Button2" type="Button" parent="MainContainer/HeaderRack"]
+layout_mode = 2
+text = "?"
+
+[node name="Button3" type="Button" parent="MainContainer/HeaderRack"]
+layout_mode = 2
+text = "S"
+
+[node name="Button4" type="Button" parent="MainContainer/HeaderRack"]
+layout_mode = 2
+text = "E"
+
+[node name="Label" type="Label" parent="MainContainer/HeaderRack"]
+layout_mode = 2
+text = "НАГИБАТОР МК-1"
+
+[node name="HBoxContainer3" type="HBoxContainer" parent="MainContainer"]
+layout_mode = 2
+theme_override_constants/separation = 30
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MainContainer/HBoxContainer3"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MainContainer/HBoxContainer3/VBoxContainer"]
+layout_mode = 2
+
+[node name="Button" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "-"
+
+[node name="Label" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "ПРОЧНОСТЬ"
+
+[node name="Button2" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "+"
+
+[node name="ProgressBar" type="ProgressBar" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 20.0
+show_percentage = false
+
+[node name="Label2" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "25"
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="MainContainer/HBoxContainer3/VBoxContainer"]
+layout_mode = 2
+
+[node name="Button" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer2"]
+layout_mode = 2
+text = "-"
+
+[node name="Label" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer2"]
+layout_mode = 2
+text = "СКОРОСТЬ"
+
+[node name="Button2" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer2"]
+layout_mode = 2
+text = "+"
+
+[node name="ProgressBar" type="ProgressBar" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer2"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 100.0
+show_percentage = false
+
+[node name="Label2" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer2"]
+layout_mode = 2
+text = "25"
+
+[node name="HBoxContainer3" type="HBoxContainer" parent="MainContainer/HBoxContainer3/VBoxContainer"]
+layout_mode = 2
+
+[node name="Button" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer3"]
+layout_mode = 2
+text = "-"
+
+[node name="Label" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer3"]
+layout_mode = 2
+text = "АТАКА"
+
+[node name="Button2" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer3"]
+layout_mode = 2
+text = "+"
+
+[node name="ProgressBar" type="ProgressBar" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer3"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 100.0
+show_percentage = false
+
+[node name="Label2" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer3"]
+layout_mode = 2
+text = "25"
+
+[node name="HBoxContainer4" type="HBoxContainer" parent="MainContainer/HBoxContainer3/VBoxContainer"]
+layout_mode = 2
+
+[node name="Button" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer4"]
+layout_mode = 2
+text = "-"
+
+[node name="Label" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer4"]
+layout_mode = 2
+text = "ЩИТЫ"
+
+[node name="Button2" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer4"]
+layout_mode = 2
+text = "+"
+
+[node name="ProgressBar" type="ProgressBar" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer4"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 100.0
+show_percentage = false
+
+[node name="Label2" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer4"]
+layout_mode = 2
+text = "25"
+
+[node name="HBoxContainer5" type="HBoxContainer" parent="MainContainer/HBoxContainer3/VBoxContainer"]
+layout_mode = 2
+
+[node name="Button" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer5"]
+layout_mode = 2
+text = "-"
+
+[node name="Label" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer5"]
+layout_mode = 2
+text = "ОБЗОР"
+
+[node name="Button2" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer5"]
+layout_mode = 2
+text = "+"
+
+[node name="ProgressBar" type="ProgressBar" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer5"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 100.0
+show_percentage = false
+
+[node name="Label2" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer5"]
+layout_mode = 2
+text = "25"
+
+[node name="VBoxContainer2" type="VBoxContainer" parent="MainContainer/HBoxContainer3"]
+layout_mode = 2
+alignment = 2
+
+[node name="Label" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer2"]
+layout_mode = 2
+text = "Результат"
+
+[node name="Button" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer2"]
+layout_mode = 2
+text = "Закрыть"
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_63f6l")
+
+[node name="Panel2" type="Panel" parent="."]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_re5vh")

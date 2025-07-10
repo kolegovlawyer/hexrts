@@ -1,0 +1,1 @@
+class_name FOB_panel extends PanelContainer

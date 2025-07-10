@@ -1,0 +1,525 @@
+[gd_scene load_steps=29 format=3 uid="uid://ba0l1pr5dv2bx"]
+
+[ext_resource type="Script" uid="uid://4d6x1qmqxrcy" path="res://scripts/UI/base_ui.gd" id="1_euhh7"]
+[ext_resource type="Texture2D" uid="uid://bwtna2m5tej4e" path="res://assets/icons/icon-close.png" id="2_swtpc"]
+[ext_resource type="Texture2D" uid="uid://cq61e37bfqme1" path="res://assets/icons/icon-list.png" id="3_swdpp"]
+[ext_resource type="Texture2D" uid="uid://c472xcde4vt32" path="res://assets/icons/icon-home.png" id="4_ycjsq"]
+[ext_resource type="Texture2D" uid="uid://cjp1165phcj2a" path="res://assets/icons/icon-settings.png" id="5_k0xlx"]
+[ext_resource type="Texture2D" uid="uid://b3yvdstkhg07o" path="res://assets/icons/icon-help.png" id="6_djfhl"]
+[ext_resource type="Texture2D" uid="uid://gphdppkmj22m" path="res://assets/icons/icon-mark.png" id="7_7lyqf"]
+[ext_resource type="Script" uid="uid://cl5tty8f5vcxp" path="res://scripts/UI/unit_preview.gd" id="8_k0xlx"]
+[ext_resource type="Texture2D" uid="uid://cgdq7csii7ckg" path="res://assets/icons/icon-attack.png" id="8_wce3n"]
+[ext_resource type="Texture2D" uid="uid://xtpmtnqgkqlg" path="res://assets/all_icons/firing-no.png" id="9_djfhl"]
+[ext_resource type="Texture2D" uid="uid://25puk3jl0fgn" path="res://assets/icons/icon-stop.png" id="9_swtpc"]
+[ext_resource type="Texture2D" uid="uid://bgictbaui21g2" path="res://assets/all_icons/rank-4.png" id="10_7lyqf"]
+[ext_resource type="Texture2D" uid="uid://bhrjs6tixjhej" path="res://assets/icons/icon-path.png" id="10_swdpp"]
+[ext_resource type="Texture2D" uid="uid://bc8umjrm6jlcv" path="res://assets/all_icons/circle-l.png" id="11_qqbvp"]
+[ext_resource type="Texture2D" uid="uid://dsgnvbrceotps" path="res://assets/icons/icon-loop.png" id="11_ycjsq"]
+[ext_resource type="Texture2D" uid="uid://cs1se2d3w5hsj" path="res://assets/icons/icon-follow.png" id="12_k0xlx"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_u0edd"]
+
+[sub_resource type="Theme" id="Theme_xtg0l"]
+PanelContainer/styles/panel = SubResource("StyleBoxEmpty_u0edd")
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_27yfh"]
+bg_color = Color(0.133333, 0.133333, 0.180392, 1)
+corner_radius_top_right = 15
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_swdpp"]
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_top = 15
+border_width_right = 15
+border_color = Color(0.439216, 0.435294, 0.552941, 1)
+corner_radius_top_right = 20
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ycjsq"]
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_top = 10
+border_width_right = 10
+border_color = Color(0.376471, 0.372549, 0.505882, 1)
+corner_radius_top_right = 20
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_k0xlx"]
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_top = 3
+border_width_right = 3
+border_color = Color(0.133333, 0.133333, 0.180392, 1)
+corner_radius_top_right = 15
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_mn1js"]
+bg_color = Color(0.584314, 0.584314, 0.733333, 1)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_ho80l"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_qo58m"]
+bg_color = Color(0.133333, 0.133333, 0.180392, 1)
+corner_radius_top_left = 30
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_syol4"]
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_left = 15
+border_width_top = 15
+border_color = Color(0.439216, 0.435294, 0.552941, 1)
+corner_radius_top_left = 25
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_mj4vj"]
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_left = 10
+border_width_top = 10
+border_color = Color(0.376471, 0.372549, 0.505882, 1)
+corner_radius_top_left = 20
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ouqy7"]
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_left = 3
+border_width_top = 3
+border_color = Color(0.133333, 0.133333, 0.180392, 1)
+corner_radius_top_left = 15
+anti_aliasing = false
+
+[node name="BaseUI" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme = SubResource("Theme_xtg0l")
+script = ExtResource("1_euhh7")
+
+[node name="MainRack" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 15
+
+[node name="DebugBoard" type="HBoxContainer" parent="MainRack"]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MainRack/DebugBoard"]
+layout_mode = 2
+
+[node name="WindowSize" type="Label" parent="MainRack/DebugBoard/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Window size:"
+
+[node name="CurrentMousePos" type="Label" parent="MainRack/DebugBoard/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "TEXT"
+
+[node name="Control" type="Control" parent="MainRack"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 1
+
+[node name="HUDBoard" type="HBoxContainer" parent="MainRack"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="LeftButtonPanel" type="PanelContainer" parent="MainRack/HUDBoard"]
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 8
+theme_override_styles/panel = SubResource("StyleBoxFlat_27yfh")
+
+[node name="StylizedPanel_1" type="Panel" parent="MainRack/HUDBoard/LeftButtonPanel"]
+z_index = 4
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_swdpp")
+
+[node name="StylizedPanel_2" type="Panel" parent="MainRack/HUDBoard/LeftButtonPanel"]
+z_index = 4
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_ycjsq")
+
+[node name="StylizedPanel_3" type="Panel" parent="MainRack/HUDBoard/LeftButtonPanel"]
+z_index = 4
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_k0xlx")
+
+[node name="MarginContainer" type="MarginContainer" parent="MainRack/HUDBoard/LeftButtonPanel"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 16
+
+[node name="GridContainer" type="GridContainer" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer"]
+z_index = 1
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 16
+columns = 3
+
+[node name="HomeButton" type="TextureButton" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("2_swtpc")
+texture_pressed = ExtResource("2_swtpc")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer/GridContainer/HomeButton"]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="HomeButton2" type="TextureButton" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("3_swdpp")
+texture_pressed = ExtResource("3_swdpp")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer/GridContainer/HomeButton2"]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="HomeButton3" type="TextureButton" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("4_ycjsq")
+texture_pressed = ExtResource("4_ycjsq")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer/GridContainer/HomeButton3"]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="HomeButton4" type="TextureButton" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("5_k0xlx")
+texture_pressed = ExtResource("5_k0xlx")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer/GridContainer/HomeButton4"]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="HomeButton5" type="TextureButton" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("6_djfhl")
+texture_pressed = ExtResource("6_djfhl")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer/GridContainer/HomeButton5"]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="HomeButton6" type="TextureButton" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("7_7lyqf")
+texture_pressed = ExtResource("7_7lyqf")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MainRack/HUDBoard/LeftButtonPanel/MarginContainer/GridContainer/HomeButton6"]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="MarginContainer" type="MarginContainer" parent="MainRack/HUDBoard"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 15
+theme_override_constants/margin_top = 15
+theme_override_constants/margin_right = 15
+theme_override_constants/margin_bottom = 15
+
+[node name="UnitContainer" type="GridContainer" parent="MainRack/HUDBoard/MarginContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+columns = 2
+
+[node name="UnitPreview" type="PanelContainer" parent="MainRack/HUDBoard/MarginContainer/UnitContainer"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxEmpty_ho80l")
+script = ExtResource("8_k0xlx")
+metadata/_edit_use_anchors_ = true
+
+[node name="MainRack" type="VBoxContainer" parent="MainRack/HUDBoard/MarginContainer/UnitContainer/UnitPreview"]
+layout_mode = 2
+
+[node name="StatusBoard" type="HBoxContainer" parent="MainRack/HUDBoard/MarginContainer/UnitContainer/UnitPreview/MainRack"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 3
+
+[node name="FireStatusIcon" type="TextureRect" parent="MainRack/HUDBoard/MarginContainer/UnitContainer/UnitPreview/MainRack/StatusBoard"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture = ExtResource("9_djfhl")
+
+[node name="Control" type="PanelContainer" parent="MainRack/HUDBoard/MarginContainer/UnitContainer/UnitPreview/MainRack/StatusBoard"]
+custom_minimum_size = Vector2(50, 20)
+layout_mode = 2
+
+[node name="BarsDeck" type="VBoxContainer" parent="MainRack/HUDBoard/MarginContainer/UnitContainer/UnitPreview/MainRack/StatusBoard/Control"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 1
+alignment = 1
+
+[node name="HPBar" type="ProgressBar" parent="MainRack/HUDBoard/MarginContainer/UnitContainer/UnitPreview/MainRack/StatusBoard/Control/BarsDeck"]
+layout_mode = 2
+size_flags_vertical = 3
+show_percentage = false
+
+[node name="ShieldBar" type="ProgressBar" parent="MainRack/HUDBoard/MarginContainer/UnitContainer/UnitPreview/MainRack/StatusBoard/Control/BarsDeck"]
+layout_mode = 2
+size_flags_vertical = 3
+value = 20.0
+show_percentage = false
+
+[node name="RankIcon" type="TextureRect" parent="MainRack/HUDBoard/MarginContainer/UnitContainer/UnitPreview/MainRack/StatusBoard"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture = ExtResource("10_7lyqf")
+
+[node name="SpriteIcon" type="TextureRect" parent="MainRack/HUDBoard/MarginContainer/UnitContainer/UnitPreview/MainRack"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture = ExtResource("11_qqbvp")
+stretch_mode = 2
+
+[node name="NameLabel" type="Label" parent="MainRack/HUDBoard/MarginContainer/UnitContainer/UnitPreview/MainRack"]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "ШТ-21"
+horizontal_alignment = 1
+
+[node name="Control" type="Control" parent="MainRack/HUDBoard"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 1
+
+[node name="StylizedPanelContainer" type="PanelContainer" parent="MainRack/HUDBoard"]
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 4
+theme_override_styles/panel = SubResource("StyleBoxFlat_qo58m")
+
+[node name="StylizedPanel_1" type="Panel" parent="MainRack/HUDBoard/StylizedPanelContainer"]
+z_index = 4
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_syol4")
+
+[node name="StylizedPanel_2" type="Panel" parent="MainRack/HUDBoard/StylizedPanelContainer"]
+z_index = 4
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_mj4vj")
+
+[node name="StylizedPanel_3" type="Panel" parent="MainRack/HUDBoard/StylizedPanelContainer"]
+z_index = 4
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_ouqy7")
+
+[node name="MarginContainer" type="MarginContainer" parent="MainRack/HUDBoard/StylizedPanelContainer"]
+layout_mode = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="GridContainer" type="GridContainer" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer"]
+z_index = 1
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 16
+columns = 3
+
+[node name="HomeButton" type="TextureButton" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("8_wce3n")
+texture_pressed = ExtResource("8_wce3n")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer/GridContainer/HomeButton"]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="HomeButton2" type="TextureButton" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("8_wce3n")
+texture_pressed = ExtResource("8_wce3n")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer/GridContainer/HomeButton2"]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="HomeButton3" type="TextureButton" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("9_swtpc")
+texture_pressed = ExtResource("9_swtpc")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer/GridContainer/HomeButton3"]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="HomeButton4" type="TextureButton" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("10_swdpp")
+texture_pressed = ExtResource("10_swdpp")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer/GridContainer/HomeButton4"]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="HomeButton5" type="TextureButton" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("11_ycjsq")
+texture_pressed = ExtResource("11_ycjsq")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer/GridContainer/HomeButton5"]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="HomeButton6" type="TextureButton" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("12_k0xlx")
+texture_pressed = ExtResource("12_k0xlx")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MainRack/HUDBoard/StylizedPanelContainer/MarginContainer/GridContainer/HomeButton6"]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")

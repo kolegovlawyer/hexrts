@@ -1,0 +1,217 @@
+class_name GameUI extends Control
+
+@onready var window_size = Vector2(ProjectSettings.get_setting("display/window/size/viewport_width"),
+ProjectSettings.get_setting("display/window/size/viewport_height"))
+@onready var window_size_label = get_node("%WindowSize")
+@onready var mouse_position_label = get_node("%CurrentMousePos")
+
+
+@onready var hud_board = get_node("%HUDBoard")
+@onready var home_button = get_node("%HomeButton")
+
+@onready var unit_container = get_node("%UnitContainer")
+
+
+
+var camera
+var world
+
+var fob_panel : FOB_panel = null
+
+enum INPUT_STATES {IDLE, UNITS_CONTROL, FOB_INTERACT}
+
+var selection_box
+
+var fobs = {}
+
+var input_state:int = INPUT_STATES.IDLE:
+	set(value):
+		
+		if value == input_state:
+			return
+		# DEBUG
+		print("input_state_set: from ",
+		INPUT_STATES.keys()[input_state],
+		"to",
+		INPUT_STATES.keys()[value])
+		
+		input_state_exit(input_state)
+		input_state = value
+		input_state_enter(input_state)
+		
+		
+func input_state_exit(STATE:int)->void:
+	match STATE:
+		INPUT_STATES.IDLE:
+			pass
+		INPUT_STATES.UNITS_CONTROL:
+			pass
+		INPUT_STATES.FOB_INTERACT:
+			delete_fob_panel()
+			
+func input_state_enter(STATE:int)->void:
+	match STATE:
+		INPUT_STATES.IDLE:
+			pass
+		INPUT_STATES.UNITS_CONTROL:
+			pass
+		INPUT_STATES.FOB_INTERACT:
+			if selection_box != null:
+				selection_box.queue_free()
+	
+func _input(event:InputEvent) -> void:
+	
+	match input_state:
+		INPUT_STATES.IDLE:
+			pass #сброс фокуса на юнитах и фобе
+		INPUT_STATES.UNITS_CONTROL:
+			if event.is_echo():
+				print('ВЫДЕЛЕНИЕ')
+		INPUT_STATES.FOB_INTERACT:
+			if event is InputEventMouseButton and event.button_index == 1:
+				if event.pressed == true:
+					#print('Я - функция, которая должна закрывать окно ФОБа из _input')
+					pass
+			
+			pass # режима выбора юнитов/точки спавна для юнита
+#navagent.target_position = get_global_mouse_position()
+
+func _gui_input(event: InputEvent) -> void:
+	match input_state:
+		
+		INPUT_STATES.IDLE:
+			if event is InputEventMouseButton and event.button_index == 2:
+				if event.pressed == false:
+					pass
+					
+			elif event is InputEventMouseButton and event.button_index == 1 and event.pressed == true:
+				start_draw_selection_box(camera.get_global_mouse_position())
+			
+			# Delete bound box for selection
+			elif event is InputEventMouseButton and event.button_index == 1 and event.pressed == false:
+				input_state = 0
+				Handlers.UnitSelectionHandler.clear_selection()
+				if selection_box != null:
+					end_draw_selection_box()
+				if camera.check_maps_bound(camera.get_global_mouse_position()) == true:
+					camera.position = camera.get_global_mouse_position()
+		
+		
+		INPUT_STATES.UNITS_CONTROL:
+			
+			# Right click
+			if event is InputEventMouseButton and event.button_index == 2:
+				if event.pressed == false:
+					if Handlers.UnitSelectionHandler.selected_units != null:
+						for n in Handlers.UnitSelectionHandler.selected_units:
+							var target_position = n.get_target_position()
+							#n.navagent.target_position = target_position
+							#print('GLOBAL MOUSE POSITION: ', get_global_mouse_position())
+							n.rpc_id(1, "add_order", target_position, true)
+							#{"order": GameTypes.OrderTypes.MOVE_FORWARD,
+						#"target":cursor_pos}
+							
+				## Vot eto polni pizdec
+			# Create bound box for selection
+			elif event is InputEventMouseButton and event.button_index == 1 and event.pressed == true:
+				start_draw_selection_box(camera.get_global_mouse_position())
+			
+			# Delete bound box for selection
+			elif event is InputEventMouseButton and event.button_index == 1 and event.pressed == false:
+				if Input.is_key_pressed(KEY_SHIFT):
+					end_draw_selection_box()
+				else:
+					input_state = 0
+					Handlers.UnitSelectionHandler.clear_selection()
+					end_draw_selection_box()
+		
+		INPUT_STATES.FOB_INTERACT:
+			if event is InputEventMouseButton and event.button_index == 1:
+				if event.pressed == true:
+					if Handlers.UnitSelectionHandler.selected_fob != null:
+						Handlers.UnitSelectionHandler.selected_fob.selected = false
+						print('Я - функция, которая должна закрывать окно ФОБа из _gui_input')
+						input_state = 0		
+
+# Called when the node enters the scene tree for the first time.
+func _ready() -> void:
+	Handlers.UIHandler = self
+	#connect("gui_input", handle_input)
+	get_viewport().connect("size_changed", _on_viewport_size_changed)
+	world = get_parent().get_parent().get_node("%Map").get_node("TestMapWorld")
+	#update_visible_units()
+	hud_board.connect('mouse_entered', stop_camera_move)
+	hud_board.connect('mouse_exited', continue_camera_move)
+	#home_button.connect('pressed', move_camera_to_fob)
+	
+func move_camera_to_fob():
+	print('КНОПКА НАЖАЛАСЬ')
+
+func stop_camera_move():
+	camera.follow_mouse = false
+	
+func continue_camera_move():
+	camera.follow_mouse = true
+	
+func update_visible_units():
+	for n in Handlers.GameHandler.get_all_units():
+		n.update_visual()
+	
+func _on_viewport_size_changed():
+	camera.un_zoomed_viewport_size = get_viewport().size
+	
+func _exit_tree():
+	Handlers.UIHandler = null
+	
+	
+func start_draw_selection_box(init_position):
+	
+	var new_selection_box = preload("res://prefabs/ui/selectoin_box.tscn").instantiate()
+	get_parent().get_parent().get_node("%Map").get_node("TestMapWorld").add_child(new_selection_box)
+	selection_box = new_selection_box
+	selection_box.init_draw_position = init_position
+	print('start draw selection box')
+	
+func end_draw_selection_box():
+	selection_box.select_units()
+	selection_box.queue_free()
+	print('end draw selection box')
+	
+	
+#func _unhandled_input(event: InputEvent) -> void:
+	#if event is InputEventMouseButton:
+		#print('Я - Unhandled_input в BaseUI', event)
+	
+	#if event is InputEventMouseButton and event.button_index == 1:
+		#if event.pressed == true:
+			#print('Я - _input в BaseUI')
+			#if fob_panel != null:
+				#fob_panel.queue_free()
+	
+	
+	
+func handle_input(event):
+	pass
+
+func create_fob_panel(fob):
+	var new_fob_panel = preload("res://prefabs/ui/fob_panel.tscn").instantiate()
+	add_child(new_fob_panel)
+	new_fob_panel.position = get_viewport().get_mouse_position()
+	fob_panel = new_fob_panel
+	
+
+func delete_fob_panel():
+	fob_panel.queue_free()
+
+
+### DEBUG SECTION
+
+# Called every frame. 'delta' is the elapsed time since the previous frame.
+func _process(delta: float) -> void:
+	window_size = get_viewport().size
+	window_size_label.text = str(window_size, window_size.x, window_size.y)
+	mouse_position_label.text = str(
+		"VIEWPORT_MOUSE_POS: ", get_viewport().get_mouse_position(),
+		"GLOBAL_MOUSE_POS", camera.get_global_mouse_position(),
+		"CAMERA_POS:", camera.position,
+		"INPUT_STATE: ", input_state)

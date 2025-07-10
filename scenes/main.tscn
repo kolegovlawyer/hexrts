@@ -1,0 +1,46 @@
+[gd_scene load_steps=7 format=3 uid="uid://ciw32d5cpdxne"]
+
+[ext_resource type="Script" uid="uid://bqdg8nu75ej18" path="res://scripts/main.gd" id="1_3gc78"]
+[ext_resource type="PackedScene" uid="uid://d0wxbx62e3lg6" path="res://prefabs/units/base_unit.tscn" id="3_hcka1"]
+[ext_resource type="PackedScene" uid="uid://bmm7e27ic1c5u" path="res://prefabs/units/base_fob.tscn" id="3_wijdc"]
+[ext_resource type="PackedScene" uid="uid://ba0l1pr5dv2bx" path="res://scenes/client/base_ui.tscn" id="4_1o0c7"]
+[ext_resource type="PackedScene" uid="uid://sbyiappnix2b" path="res://scenes/client/camera_2d.tscn" id="4_rw3mg"]
+[ext_resource type="PackedScene" uid="uid://c0pjo6r82i3n1" path="res://scenes/maps/test_world_1.tscn" id="5_ngdq7"]
+
+[node name="MainWindow" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+script = ExtResource("1_3gc78")
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="BaseUI" parent="UI" instance=ExtResource("4_1o0c7")]
+
+[node name="Button" type="Button" parent="UI"]
+offset_left = 282.215
+offset_top = 236.0
+offset_right = 356.215
+offset_bottom = 267.0
+text = "BUTTON"
+
+[node name="Node2D2" type="Node2D" parent="."]
+
+[node name="Unit" parent="Node2D2" instance=ExtResource("3_hcka1")]
+unique_name_in_owner = true
+position = Vector2(113, -46)
+
+[node name="Node2D" type="Node2D" parent="."]
+
+[node name="TestMapWorld" parent="Node2D" instance=ExtResource("5_ngdq7")]
+
+[node name="Spawner" parent="Node2D" instance=ExtResource("3_wijdc")]
+
+[node name="Camera2D" parent="Node2D" instance=ExtResource("4_rw3mg")]
+unique_name_in_owner = true
+
+[connection signal="pressed" from="UI/Button" to="." method="_on_button_pressed"]

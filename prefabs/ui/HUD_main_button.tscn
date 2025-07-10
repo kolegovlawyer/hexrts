@@ -1,0 +1,30 @@
+[gd_scene load_steps=4 format=3 uid="uid://b67ylpsr4kqo1"]
+
+[ext_resource type="Texture2D" uid="uid://c7qa2cjlssrgk" path="res://prefabs/ui/icons/icon-home.svg" id="1_sjk8r"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_pgypt"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_bigt7"]
+
+[node name="PanelContainer" type="PanelContainer"]
+offset_right = 48.0
+offset_bottom = 48.0
+theme_override_styles/panel = SubResource("StyleBoxEmpty_pgypt")
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxEmpty_bigt7")
+
+[node name="HomeButton" type="TextureButton" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("1_sjk8r")
+texture_pressed = ExtResource("1_sjk8r")
+stretch_mode = 0

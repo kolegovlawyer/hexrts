@@ -1,0 +1,50 @@
+[gd_scene load_steps=8 format=4 uid="uid://cs4d5gqc6rlll"]
+
+[ext_resource type="Texture2D" uid="uid://lydrwvypdb31" path="res://assets/tilemap/tilemap_4x_tiles_256.png" id="1_ehi7j"]
+
+[sub_resource type="NavigationPolygon" id="NavigationPolygon_qt6y1"]
+vertices = PackedVector2Array(128, -64, 128, 64, 0, 128, -128, 64, -128, -64, 0, -128)
+polygons = Array[PackedInt32Array]([PackedInt32Array(0, 1, 2, 3, 4, 5)])
+outlines = Array[PackedVector2Array]([PackedVector2Array(0, -128, -128, -64, -128, 64, 0, 128, 128, 64, 128, -64)])
+agent_radius = 0.0
+
+[sub_resource type="NavigationPolygon" id="NavigationPolygon_gdvtd"]
+vertices = PackedVector2Array(128, -64, 128, 64, 0, 128, -128, 64, -128, -64, 0, -128)
+polygons = Array[PackedInt32Array]([PackedInt32Array(0, 1, 2, 3, 4, 5)])
+outlines = Array[PackedVector2Array]([PackedVector2Array(0, -128, -128, -64, -128, 64, 0, 128, 128, 64, 128, -64)])
+agent_radius = 0.0
+
+[sub_resource type="NavigationPolygon" id="NavigationPolygon_h1if1"]
+vertices = PackedVector2Array(128, -64, 128, 64, 0, 128, -128, 64, -128, -64, 0, -128)
+polygons = Array[PackedInt32Array]([PackedInt32Array(0, 1, 2, 3, 4, 5)])
+outlines = Array[PackedVector2Array]([PackedVector2Array(0, -128, -128, -64, -128, 64, 0, 128, 128, 64, 128, -64)])
+agent_radius = 0.0
+
+[sub_resource type="NavigationPolygon" id="NavigationPolygon_xvk5a"]
+vertices = PackedVector2Array(128, -64, 128, 64, 0, 128, -128, 64, -128, -64, 0, -128)
+polygons = Array[PackedInt32Array]([PackedInt32Array(0, 1, 2, 3, 4, 5)])
+outlines = Array[PackedVector2Array]([PackedVector2Array(0, -128, -128, -64, -128, 64, 0, 128, 128, 64, 128, -64)])
+agent_radius = 0.0
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_akhp2"]
+resource_name = "Main"
+texture = ExtResource("1_ehi7j")
+texture_region_size = Vector2i(256, 256)
+0:0/0 = 0
+0:0/0/navigation_layer_0/polygon = SubResource("NavigationPolygon_qt6y1")
+1:0/0 = 0
+1:0/0/navigation_layer_0/polygon = SubResource("NavigationPolygon_h1if1")
+0:1/0 = 0
+0:1/0/navigation_layer_0/polygon = SubResource("NavigationPolygon_gdvtd")
+1:1/0 = 0
+1:1/0/navigation_layer_0/polygon = SubResource("NavigationPolygon_xvk5a")
+
+[sub_resource type="TileSet" id="TileSet_nhfei"]
+tile_shape = 3
+tile_size = Vector2i(256, 256)
+navigation_layer_0/layers = 1
+sources/0 = SubResource("TileSetAtlasSource_akhp2")
+
+[node name="MainTileMap" type="TileMapLayer"]
+tile_map_data = PackedByteArray("AAAAAAAAAAAAAAAAAAD/////AAAAAAAAAAAAAP//AAAAAAAAAAAAAP7/AAAAAAAAAAD///7/AAAAAAAAAAD+////AAAAAAAAAAD//wAAAAAAAAAAAAD+/wAAAAAAAAAAAAD9////AAAAAAAAAAD+//7/AAAAAAAAAAABAP7/AAAAAAAAAAABAP//AAAAAAAAAAABAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAD//wEAAAAAAAAAAAD+/wEAAAAAAAAAAAD+//3/AAAAAAAAAAD///3/AAAAAAAAAAAAAP3/AAAAAAAAAAABAP3/AAAAAAAAAAACAP7/AAAAAAAAAAACAP//AAAAAAAAAAADAAAAAAABAAAAAAABAAEAAAAAAAEAAAACAAAAAAAAAAEAAAACAAEAAAAAAAEAAAACAAIAAAAAAAEAAAABAAIAAAAAAAEAAAAAAAIAAAAAAAEAAAD//wIAAAAAAAEAAAD+/wIAAAAAAAEAAAD9/wEAAAAAAAEAAAD9/wAAAAAAAAEAAAD8////AAAAAAEAAAD8/wAAAAAAAAEAAAD8/wEAAAAAAAEAAAD9/wIAAAAAAAEAAAD9/wMAAAAAAAEAAAD+/wMAAAAAAAEAAAD//wMAAAAAAAEAAAAAAAMAAAAAAAEAAAABAAMAAAAAAAEAAAACAAMAAAAAAAEAAAADAAIAAAAAAAEAAAADAAEAAAAAAAEAAAAEAAAAAAABAAAAAAADAP//AAABAAEAAAADAP7/AAABAAEAAAACAP3/AAABAAEAAAACAPz/AAABAAEAAAABAPz/AAABAAEAAAAAAPz/AAABAAEAAAD///z/AAABAAEAAAD+//z/AAABAAEAAAD9//3/AAABAAEAAAD9//7/AAABAAEAAAD8//7/AAABAAEAAAD7//7/AAABAAEAAAD7////AAABAAEAAAD6////AAABAAEAAAD6//7/AAABAAEAAAD6//3/AAABAAEAAAD7//3/AAABAAEAAAD8//3/AAABAAEAAAD9//z/AAABAAEAAAD9//v/AAABAAEAAAD+//v/AAABAAEAAAD///v/AAABAAEAAAAAAPv/AAABAAEAAAABAPv/AAABAAEAAAACAPv/AAABAAEAAAADAPz/AAABAAEAAAAEAPz/AAABAAEAAAADAP3/AAABAAEAAAAEAP3/AAABAAEAAAAEAP7/AAABAAEAAAAFAP7/AAABAAEAAAAEAP//AAABAAEAAAA=")
+tile_set = SubResource("TileSet_nhfei")

@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://bw3enpouyp31e"]
+[gd_scene load_steps=8 format=3 uid="uid://bw3enpouyp31e"]
 
 [ext_resource type="StyleBox" uid="uid://dkdtwbvicdmyv" path="res://prefabs/ui/themes/main_style.tres" id="1_kgsmo"]
 
@@ -42,195 +42,23 @@ expand_margin_top = 10.0
 expand_margin_right = 10.0
 expand_margin_bottom = 10.0
 
+[sub_resource type="LabelSettings" id="LabelSettings_u4uy5"]
+font_size = 18
+
 [node name="Control" type="PanelContainer"]
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_right = 400.0
-offset_bottom = 206.0
+offset_left = -202.0
+offset_top = -123.0
+offset_right = 202.0
+offset_bottom = 123.0
 grow_horizontal = 2
 grow_vertical = 2
 theme = SubResource("Theme_t2ad6")
 theme_override_styles/panel = ExtResource("1_kgsmo")
-
-[node name="MainContainer" type="VBoxContainer" parent="."]
-layout_mode = 2
-
-[node name="HeaderRack" type="HBoxContainer" parent="MainContainer"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="Button" type="Button" parent="MainContainer/HeaderRack"]
-layout_mode = 2
-text = "СБРОС"
-
-[node name="Button2" type="Button" parent="MainContainer/HeaderRack"]
-layout_mode = 2
-text = "?"
-
-[node name="Button3" type="Button" parent="MainContainer/HeaderRack"]
-layout_mode = 2
-text = "S"
-
-[node name="Button4" type="Button" parent="MainContainer/HeaderRack"]
-layout_mode = 2
-text = "E"
-
-[node name="Label" type="Label" parent="MainContainer/HeaderRack"]
-layout_mode = 2
-text = "НАГИБАТОР МК-1"
-
-[node name="HBoxContainer3" type="HBoxContainer" parent="MainContainer"]
-layout_mode = 2
-theme_override_constants/separation = 30
-
-[node name="VBoxContainer" type="VBoxContainer" parent="MainContainer/HBoxContainer3"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="HBoxContainer" type="HBoxContainer" parent="MainContainer/HBoxContainer3/VBoxContainer"]
-layout_mode = 2
-
-[node name="Button" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer"]
-layout_mode = 2
-text = "-"
-
-[node name="Label" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer"]
-layout_mode = 2
-text = "ПРОЧНОСТЬ"
-
-[node name="Button2" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer"]
-layout_mode = 2
-text = "+"
-
-[node name="ProgressBar" type="ProgressBar" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 1
-value = 20.0
-show_percentage = false
-
-[node name="Label2" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer"]
-layout_mode = 2
-text = "25"
-
-[node name="HBoxContainer2" type="HBoxContainer" parent="MainContainer/HBoxContainer3/VBoxContainer"]
-layout_mode = 2
-
-[node name="Button" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer2"]
-layout_mode = 2
-text = "-"
-
-[node name="Label" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer2"]
-layout_mode = 2
-text = "СКОРОСТЬ"
-
-[node name="Button2" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer2"]
-layout_mode = 2
-text = "+"
-
-[node name="ProgressBar" type="ProgressBar" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer2"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 1
-value = 100.0
-show_percentage = false
-
-[node name="Label2" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer2"]
-layout_mode = 2
-text = "25"
-
-[node name="HBoxContainer3" type="HBoxContainer" parent="MainContainer/HBoxContainer3/VBoxContainer"]
-layout_mode = 2
-
-[node name="Button" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer3"]
-layout_mode = 2
-text = "-"
-
-[node name="Label" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer3"]
-layout_mode = 2
-text = "АТАКА"
-
-[node name="Button2" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer3"]
-layout_mode = 2
-text = "+"
-
-[node name="ProgressBar" type="ProgressBar" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer3"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 1
-value = 100.0
-show_percentage = false
-
-[node name="Label2" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer3"]
-layout_mode = 2
-text = "25"
-
-[node name="HBoxContainer4" type="HBoxContainer" parent="MainContainer/HBoxContainer3/VBoxContainer"]
-layout_mode = 2
-
-[node name="Button" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer4"]
-layout_mode = 2
-text = "-"
-
-[node name="Label" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer4"]
-layout_mode = 2
-text = "ЩИТЫ"
-
-[node name="Button2" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer4"]
-layout_mode = 2
-text = "+"
-
-[node name="ProgressBar" type="ProgressBar" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer4"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 1
-value = 100.0
-show_percentage = false
-
-[node name="Label2" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer4"]
-layout_mode = 2
-text = "25"
-
-[node name="HBoxContainer5" type="HBoxContainer" parent="MainContainer/HBoxContainer3/VBoxContainer"]
-layout_mode = 2
-
-[node name="Button" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer5"]
-layout_mode = 2
-text = "-"
-
-[node name="Label" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer5"]
-layout_mode = 2
-text = "ОБЗОР"
-
-[node name="Button2" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer5"]
-layout_mode = 2
-text = "+"
-
-[node name="ProgressBar" type="ProgressBar" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer5"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 1
-value = 100.0
-show_percentage = false
-
-[node name="Label2" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer/HBoxContainer5"]
-layout_mode = 2
-text = "25"
-
-[node name="VBoxContainer2" type="VBoxContainer" parent="MainContainer/HBoxContainer3"]
-layout_mode = 2
-alignment = 2
-
-[node name="Label" type="Label" parent="MainContainer/HBoxContainer3/VBoxContainer2"]
-layout_mode = 2
-text = "Результат"
-
-[node name="Button" type="Button" parent="MainContainer/HBoxContainer3/VBoxContainer2"]
-layout_mode = 2
-text = "Закрыть"
 
 [node name="Panel" type="Panel" parent="."]
 layout_mode = 2
@@ -239,3 +67,255 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_63f6l")
 [node name="Panel2" type="Panel" parent="."]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_re5vh")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="MainContainer" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="HeaderRack" type="HBoxContainer" parent="MarginContainer/MainContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Button" type="Button" parent="MarginContainer/MainContainer/HeaderRack"]
+layout_mode = 2
+text = "СБРОС"
+
+[node name="Button2" type="Button" parent="MarginContainer/MainContainer/HeaderRack"]
+layout_mode = 2
+text = "?"
+
+[node name="Button3" type="Button" parent="MarginContainer/MainContainer/HeaderRack"]
+layout_mode = 2
+text = "S"
+
+[node name="Button4" type="Button" parent="MarginContainer/MainContainer/HeaderRack"]
+layout_mode = 2
+text = "E"
+
+[node name="Label" type="Label" parent="MarginContainer/MainContainer/HeaderRack"]
+layout_mode = 2
+text = "ХРЮКОСТЯГ МК-1"
+label_settings = SubResource("LabelSettings_u4uy5")
+
+[node name="VariableRack" type="HBoxContainer" parent="MarginContainer/MainContainer"]
+layout_mode = 2
+theme_override_constants/separation = 30
+
+[node name="EditorRack" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="VariableBoard" type="VBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack"]
+layout_mode = 2
+alignment = 1
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard"]
+layout_mode = 2
+
+[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer"]
+layout_mode = 2
+text = "-"
+
+[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer"]
+layout_mode = 2
+text = "ПРОЧНОСТЬ"
+vertical_alignment = 1
+
+[node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer"]
+layout_mode = 2
+text = "+"
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard"]
+layout_mode = 2
+
+[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer2"]
+layout_mode = 2
+text = "-"
+
+[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer2"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "СКОРОСТЬ"
+horizontal_alignment = 1
+
+[node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer2"]
+layout_mode = 2
+text = "+"
+
+[node name="HBoxContainer3" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard"]
+layout_mode = 2
+
+[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer3"]
+layout_mode = 2
+text = "-"
+
+[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer3"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "АТАКА"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer3"]
+layout_mode = 2
+text = "+"
+
+[node name="HBoxContainer4" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard"]
+layout_mode = 2
+
+[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer4"]
+layout_mode = 2
+text = "-"
+
+[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer4"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "ЩИТЫ"
+horizontal_alignment = 1
+
+[node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer4"]
+layout_mode = 2
+text = "+"
+
+[node name="HBoxContainer5" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard"]
+layout_mode = 2
+
+[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer5"]
+layout_mode = 2
+text = "-"
+
+[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer5"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "ОБЗОР"
+horizontal_alignment = 1
+
+[node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer5"]
+layout_mode = 2
+text = "+"
+
+[node name="BarBoard" type="VBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
+layout_mode = 2
+
+[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 20.0
+show_percentage = false
+
+[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer"]
+layout_mode = 2
+text = "25"
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
+layout_mode = 2
+
+[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer2"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 100.0
+show_percentage = false
+
+[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer2"]
+layout_mode = 2
+text = "25"
+
+[node name="HBoxContainer3" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
+layout_mode = 2
+
+[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer3"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 100.0
+show_percentage = false
+
+[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer3"]
+layout_mode = 2
+text = "25"
+
+[node name="HBoxContainer4" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
+layout_mode = 2
+
+[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer4"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 100.0
+show_percentage = false
+
+[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer4"]
+layout_mode = 2
+text = "25"
+
+[node name="HBoxContainer5" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
+layout_mode = 2
+
+[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer5"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 100.0
+show_percentage = false
+
+[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer5"]
+layout_mode = 2
+text = "25"
+
+[node name="HBoxContainer6" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
+visible = false
+layout_mode = 2
+
+[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer6"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 100.0
+show_percentage = false
+
+[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer6"]
+layout_mode = 2
+text = "25"
+
+[node name="CostBoard" type="VBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard"]
+layout_mode = 2
+text = "Результат"
+
+[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard"]
+layout_mode = 2
+text = "Цена
+20"
+horizontal_alignment = 1
+
+[node name="Label3" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard"]
+layout_mode = 2
+text = "Время
+10"
+horizontal_alignment = 1
+
+[node name="Control" type="Control" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard"]
+layout_mode = 2
+text = "Закрыть"

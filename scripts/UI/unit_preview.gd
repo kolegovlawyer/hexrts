@@ -31,4 +31,3 @@ func handle_input(event):
 
 func update_visual():
 	print('обновление визуала превьюшки')
-	sprite.texture = unit.sprite.texture

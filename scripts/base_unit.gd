@@ -25,7 +25,8 @@ var unit_profile = ''
 		else:
 			owner_id = value
 		if not is_multiplayer_authority():
-			update_visual()
+			#update_visual()
+			pass
 		else:
 			synchronizer.owner_id = value
 			owner_team = Handlers.TeamHandler.find_player_by_id(owner_id).Team
@@ -93,7 +94,7 @@ func _ready() -> void:
 		#owner_team = Handlers.TeamHandler.find_player_by_id(owner_id).Team
 	
 	update_visual()
-		
+	
 func visibility_check_in(body):
 	print('owner team in check ', owner_team)
 	var team = Handlers.TeamHandler.get_team(owner_team)
@@ -173,9 +174,12 @@ func get_target_position():
 	return(get_global_mouse_position())
 	
 func update_visual():
+	print("update_visual", owner_id, Handlers.TeamHandler.my_profile)
 	if not Handlers.TeamHandler.my_profile:
 		return
 	if owner_id == 1:
+		if not is_multiplayer_authority():
+			print("А ВОТ И Я!!!")
 		return
 		
 	var player = Handlers.TeamHandler.find_player_by_id(owner_id)
@@ -186,8 +190,9 @@ func update_visual():
 	owner_team = player.Team
 	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
 		add_to_group("own_units")
-		var self_preview = preload("res://prefabs/ui/unit_preview.tscn").instantiate()
-		preview = self_preview
+		if not preview:
+			var self_preview = preload("res://prefabs/ui/unit_preview.tscn").instantiate()
+			preview = self_preview
 		#preview.update_visual()
 		Handlers.UIHandler.unit_container.add_child(preview)
 		preview.unit = self
@@ -196,11 +201,12 @@ func update_visual():
 		sprite.self_modulate = Color(0, 0, 1)
 		print('ALLY')
 	else:
-		sprite.self_modulate = Color(1, 0, 0)
-		light.hide()
-		sprite.light_mask = 2
-		sprite.visibility_layer = 2
-		print('check')
+		if sprite:
+			sprite.self_modulate = Color(1, 0, 0)
+			light.hide()
+			sprite.light_mask = 2
+			sprite.visibility_layer = 2
+			print('check')
 		
 func update_visibility():
 	if is_multiplayer_authority():

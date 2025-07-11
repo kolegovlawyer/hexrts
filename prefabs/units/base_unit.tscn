@@ -111,6 +111,7 @@ grow_vertical = 2
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
 unique_name_in_owner = true
 replication_config = SubResource("SceneReplicationConfig_gofvq")
+public_visibility = false
 script = ExtResource("5_c8msn")
 
 [node name="VisibilityArea" type="Area2D" parent="."]
@@ -145,5 +146,6 @@ value = 90.0
 show_percentage = false
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
+material = SubResource("CanvasItemMaterial_uoolu")
 position = Vector2(49, -40)
 texture = ExtResource("6_3coue")

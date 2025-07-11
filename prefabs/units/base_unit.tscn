@@ -149,3 +149,7 @@ show_percentage = false
 material = SubResource("CanvasItemMaterial_uoolu")
 position = Vector2(49, -40)
 texture = ExtResource("6_3coue")
+
+[node name="ReloadTimer" type="Timer" parent="."]
+
+[node name="AimTimer" type="Timer" parent="."]

@@ -42,8 +42,6 @@ var has_vision_on : Array[BaseUnit] = []
 var orders = {}
 var current_order
 
-var current_order_position
-var current_order_target
 
 var preselected : bool = false:
 	set(value):
@@ -64,7 +62,6 @@ var selected : bool = false:
 		if value == false:
 			$UnitSelfSprite.self_modulate = Color(1, 1, 1)
 			
-			
 ### Характеристики, которые должны заполняться из unit_profile
 			
 var accel = 7
@@ -74,7 +71,6 @@ var accel = 7
 @export var reload_time = 3
 
 var preview
-
 
 func _ready() -> void:
 	
@@ -108,11 +104,8 @@ func visibility_check_in(body):
 		if not body.visible_by.has(self):
 			body.visible_by.append(self)
 	
-	
 func visibility_check_out(body):
 	pass
-		
-
 	
 func on_velocity_computed(safe_velocity):
 	velocity = safe_velocity
@@ -142,6 +135,22 @@ func _physics_process(delta: float) -> void:
 		
 		if navagent.is_navigation_finished():
 			return
+
+		if orders.size() > 0:
+			var current_order = orders[0]
+			match current_order.type:
+				"move":
+					var pos = current_order.position
+					navagent.target_position = pos # Если достигли точки, удалить приказ
+					if global_position.distance_to(pos) < 8.0:
+						orders.pop_front()
+				"attack":
+					var target: BaseUnit = current_order.target
+					if not is_instance_valid(target):
+						orders.pop_front()
+					else:
+						attack(target)			
+
 		var current_unit_position = global_position
 		var next_path_position = navagent.get_next_path_position()
 		#arrow.look_at(to_global(navagent.target_position)) # TODO : пофиксить вращение стрелки к цели
@@ -152,9 +161,7 @@ func _physics_process(delta: float) -> void:
 		$DebugLabel2.text = str(position)
 		
 		### проверка целей для атаки
-		
-		
-		
+				
 @rpc("any_peer", "reliable")
 func add_order(order_obj, clear_queue:bool=false) -> void:
 	if owner_id != multiplayer.get_remote_sender_id(): # this must be in all units add_order
@@ -167,11 +174,13 @@ func add_order(order_obj, clear_queue:bool=false) -> void:
 @rpc("any_peer", "reliable")
 func get_unit_info() -> void:
 	#print("User ", multiplayer.get_remote_sender_id(), " requested unit info")
-	rpc_id(multiplayer.get_remote_sender_id(), "set_unit_info", unit_profile.resource_path)
-	
+	rpc_id(multiplayer.get_remote_sender_id(), "set_unit_info", unit_profile.resource_path)	
 	
 func get_target_position():
 	return(get_global_mouse_position())
+	
+func attack(target):
+	pass
 	
 func update_visual():
 	print("update_visual", owner_id, Handlers.TeamHandler.my_profile)

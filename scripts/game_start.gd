@@ -2,6 +2,7 @@ class_name GameManager extends Node
 
 var game_type = "UNKNOWN"
 var map
+@onready var units_dict: Dictionary[String, BaseUnit] = {}
 
 # Called when the node enters the scene tree for the first time.
 func _ready():

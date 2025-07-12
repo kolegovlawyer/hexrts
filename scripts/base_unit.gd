@@ -17,6 +17,7 @@ const SPEED = 300.0
 @onready var navagent : NavigationAgent2D = $NavigationAgent2D
 var path_points : Array[Vector2] = []
 
+@onready var UID = ''
 
 var unit_profile = ''
 @export var owner_id : int = 1:
@@ -74,7 +75,24 @@ var accel = 7
 
 var preview
 
+func generate_numeric_id(length: int) -> String:
+	var id := ""
+	var rng = RandomNumberGenerator.new()
+	rng.randomize()
+	for i in range(length):
+		id += str(rng.randi_range(0, 9))
+	return id
+
 func _ready() -> void:
+	
+	# Добавляем в группу units для поиска
+	add_to_group("units")
+	
+	# Отладочная информация
+	if is_multiplayer_authority():
+		print("СЕРВЕРНЫЙ ЮНИТ СОЗДАН: ", name, " NodePath: ", get_path())
+	else:
+		print("КЛИЕНТСКИЙ ЮНИТ СОЗДАН: ", name, " NodePath: ", get_path())
 	
 	if not is_multiplayer_authority():
 		connect("input_event", handle_input)
@@ -83,7 +101,9 @@ func _ready() -> void:
 		navagent.queue_free()
 		update_visual()
 	else:
+		UID = str(generate_numeric_id(10))
 		$DebugLabel.text = "СЕРВЕРНЫЙ ЧЕЛИКС"
+		Handlers.GameHandler.units_dict[UID] = self
 		navagent.connect("velocity_computed", on_velocity_computed)
 		visibility_area.connect("body_entered", visibility_check_in)
 		visibility_area.connect("body_exited", visibility_check_out)
@@ -120,7 +140,7 @@ func depreselect():
 	
 func handle_input(viewport, event, shape_idx):
 	#print("handle_input ", event)
-	
+	print(name)
 	if self in get_tree().get_nodes_in_group("own_units"):
 		if event is InputEventMouseButton and event.button_index == 1:
 			if event.pressed == false:
@@ -136,8 +156,15 @@ func handle_input(viewport, event, shape_idx):
 				print("selected_units: ", Handlers.UnitSelectionHandler.selected_units)
 				for n in Handlers.UnitSelectionHandler.selected_units:
 					print("Отправляем приказ атаки юниту: ", n.name)
-					n.rpc_id(1, "add_order", self, true)
-					get_viewport().set_input_as_handled()
+					print("NodePath клиентского юнита: ", n.get_path())
+					print("Имя цели (this.name): ", name)
+					print("UID цели:", self.UID)
+					# Передаем имя цели (this - это юнит, на который кликнули)
+					n.rpc_id(1, "add_order", UID, true)
+				get_viewport().set_input_as_handled()
+		# Блокируем UI обработку при любом клике на юните
+		elif event is InputEventMouseButton:
+			get_viewport().set_input_as_handled()
 
 
 
@@ -151,9 +178,9 @@ func _physics_process(delta: float) -> void:
 		
 		# Обработка orders (должна быть ПЕРЕД проверкой navagent)
 		if orders.size() > 0:
-			print("Обрабатываем orders. Размер: ", orders.size())
+			#print("Обрабатываем orders. Размер: ", orders.size())
 			var current_order = orders[0]
-			print("Текущий приказ: ", current_order)
+			#print("Текущий приказ: ", current_order)
 			match current_order.type:
 				"move":
 					var pos = current_order.position
@@ -170,7 +197,7 @@ func _physics_process(delta: float) -> void:
 						print("Выполняем атаку")
 						attack(target)
 		else:
-			print("orders пуст")
+			pass
 
 		# Движение (только если navagent не завершен)
 		if not navagent.is_navigation_finished():
@@ -187,9 +214,13 @@ func _physics_process(delta: float) -> void:
 				
 @rpc("any_peer", "reliable")
 func add_order(order_obj, clear_queue:bool=false) -> void:
-	print("add_order вызвана с order_obj: ", order_obj, " типа: ", typeof(order_obj))
+	print("=== add_order ВЫЗВАНА ===")
+	print("NodePath этого юнита: ", get_path())
+	print("order_obj: ", order_obj, " типа: ", typeof(order_obj))
 	print("owner_id: ", owner_id, " remote_sender: ", multiplayer.get_remote_sender_id())
 	print("is_multiplayer_authority: ", is_multiplayer_authority())
+	print("multiplayer.is_server(): ", multiplayer.is_server())
+	print("multiplayer.get_unique_id(): ", multiplayer.get_unique_id())
 	
 	if owner_id != multiplayer.get_remote_sender_id(): # this must be in all units add_order
 		print("Проверка owner_id не прошла")
@@ -204,16 +235,17 @@ func add_order(order_obj, clear_queue:bool=false) -> void:
 					orders.clear()
 				orders.append({"type": "move", "position": order_obj})
 				print("Добавлен приказ движения. Размер orders: ", orders.size())
-			TYPE_OBJECT:
-				if order_obj is BaseUnit:
-					# Приказ на атаку
-					print('Получен приказ на атаку')
+			TYPE_STRING:
+				# Приказ на атаку по имени
+				print('Получен приказ на атаку по имени: ', order_obj)
+				var target_unit = find_target_by_name(order_obj)
+				if target_unit is BaseUnit:
 					if clear_queue:
 						orders.clear()
-					orders.append({"type": "attack", "target": order_obj})
+					orders.append({"type": "attack", "target": target_unit})
 					print("Добавлен приказ атаки. Размер orders: ", orders.size())
 				else:
-					print("order_obj не является BaseUnit")
+					print("Не удалось найти юнит по имени: ", order_obj)
 	else:
 		print("НЕ является multiplayer_authority")
 		
@@ -224,16 +256,38 @@ func get_unit_info() -> void:
 	
 func get_target_position():
 	return(get_global_mouse_position())
+
+func find_target_by_name(target_name: String) -> BaseUnit:
+	# Ищем юнит по имени в дереве сцены
+	var target = get_tree().get_first_node_in_group("units")
+	while target:
+		if target.name == target_name and target is BaseUnit:
+			return target
+		target = get_tree().get_next_node_in_group("units", target)
+	return null
 	
 func attack(target: BaseUnit) -> void:
+	print("attack вызван для цели: ", target.name)
 	if reload_timer.time_left > 0:
+		print("Кулдаун активен: ", reload_timer.time_left)
 		return # Кулдаун
 	emit_signal("attack_started", target)
 	# Создать projectile (см. отдельный класс)
 	var projectile = preload("res://scripts/projectile/projectile.gd").new()
 	projectile.init(self, target, damage)
 	get_parent().add_child(projectile)
+	print("Projectile создан и добавлен")
 	reload_timer.start(reload_timer)
+
+func apply_damage(amount: int, from: BaseUnit) -> void:
+	health -= amount
+	print("Unit ", name, " took ", amount, " damage from ", from.name, ". Health: ", health)
+	if health <= 0:
+		die()
+
+func die() -> void:
+	print("Unit died: ", name)
+	queue_free()
 	
 func update_visual():
 	print("update_visual", owner_id, Handlers.TeamHandler.my_profile)

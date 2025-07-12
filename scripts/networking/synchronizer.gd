@@ -1,7 +1,5 @@
 extends MultiplayerSynchronizer
 
-# GDE ETO NA MINIRTS?
-
 @export var position: Vector3:
 	set(val):
 		if is_multiplayer_authority():

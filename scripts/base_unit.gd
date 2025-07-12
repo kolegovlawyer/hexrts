@@ -11,6 +11,8 @@ const SPEED = 300.0
 @onready var light = get_node("%Light")
 @onready var synchronizer = get_node("%MultiplayerSynchronizer")
 @onready var visibility_area = get_node("%VisibilityArea")
+@onready var reload_timer = get_node("%ReloadTimer")
+@onready var aim_taimer = get_node("%AimTimer")
 
 @onready var navagent : NavigationAgent2D = $NavigationAgent2D
 var path_points : Array[Vector2] = []
@@ -39,7 +41,7 @@ var owner_team
 var visible_by : Array[BaseUnit] = []
 var has_vision_on : Array[BaseUnit] = []
 
-var orders = {}
+var orders = []
 var current_order
 
 
@@ -117,6 +119,8 @@ func depreselect():
 	preselected = false
 	
 func handle_input(viewport, event, shape_idx):
+	#print("handle_input ", event)
+	
 	if self in get_tree().get_nodes_in_group("own_units"):
 		if event is InputEventMouseButton and event.button_index == 1:
 			if event.pressed == false:
@@ -124,6 +128,18 @@ func handle_input(viewport, event, shape_idx):
 				selected = true
 				Handlers.UnitSelectionHandler.add_selected(self)
 				get_viewport().set_input_as_handled()
+	else:
+		# Атака по правому клику на вражеском юните
+		if event is InputEventMouseButton and event.button_index == 2:
+			if event.pressed == false:
+				print("АТАКА ЕПТА")
+				print("selected_units: ", Handlers.UnitSelectionHandler.selected_units)
+				for n in Handlers.UnitSelectionHandler.selected_units:
+					print("Отправляем приказ атаки юниту: ", n.name)
+					n.rpc_id(1, "add_order", self, true)
+					get_viewport().set_input_as_handled()
+
+
 
 func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority():
@@ -133,43 +149,73 @@ func _physics_process(delta: float) -> void:
 		else:
 			set_visibility_for_enemy(false)
 		
-		if navagent.is_navigation_finished():
-			return
-
+		# Обработка orders (должна быть ПЕРЕД проверкой navagent)
 		if orders.size() > 0:
+			print("Обрабатываем orders. Размер: ", orders.size())
 			var current_order = orders[0]
+			print("Текущий приказ: ", current_order)
 			match current_order.type:
 				"move":
 					var pos = current_order.position
-					navagent.target_position = pos # Если достигли точки, удалить приказ
+					navagent.target_position = pos
 					if global_position.distance_to(pos) < 8.0:
 						orders.pop_front()
+						print("Приказ движения выполнен, удален")
 				"attack":
 					var target: BaseUnit = current_order.target
 					if not is_instance_valid(target):
 						orders.pop_front()
+						print("Цель недействительна, приказ удален")
 					else:
-						attack(target)			
+						print("Выполняем атаку")
+						attack(target)
+		else:
+			print("orders пуст")
 
-		var current_unit_position = global_position
-		var next_path_position = navagent.get_next_path_position()
-		#arrow.look_at(to_global(navagent.target_position)) # TODO : пофиксить вращение стрелки к цели
-		# arrow.rotate(arrow.get_angle_to(navagent.target_position))
-		velocity = current_unit_position.direction_to(next_path_position)*speed
-		move_and_slide()
-		$DebugLabel.text = str(global_position)
-		$DebugLabel2.text = str(position)
+		# Движение (только если navagent не завершен)
+		if not navagent.is_navigation_finished():
+			var current_unit_position = global_position
+			var next_path_position = navagent.get_next_path_position()
+			#arrow.look_at(to_global(navagent.target_position)) # TODO : пофиксить вращение стрелки к цели
+			# arrow.rotate(arrow.get_angle_to(navagent.target_position))
+			velocity = current_unit_position.direction_to(next_path_position)*speed
+			move_and_slide()
+			$DebugLabel.text = str(global_position)
+			$DebugLabel2.text = str(position)
 		
 		### проверка целей для атаки
 				
 @rpc("any_peer", "reliable")
 func add_order(order_obj, clear_queue:bool=false) -> void:
+	print("add_order вызвана с order_obj: ", order_obj, " типа: ", typeof(order_obj))
+	print("owner_id: ", owner_id, " remote_sender: ", multiplayer.get_remote_sender_id())
+	print("is_multiplayer_authority: ", is_multiplayer_authority())
+	
 	if owner_id != multiplayer.get_remote_sender_id(): # this must be in all units add_order
+		print("Проверка owner_id не прошла")
 		return
 	if is_multiplayer_authority():
+		print("Внутри is_multiplayer_authority")
 		match typeof(order_obj):
 			TYPE_VECTOR2:
-				navagent.target_position = order_obj
+				# Приказ на движение
+				print('Получен приказ на движение')
+				if clear_queue:
+					orders.clear()
+				orders.append({"type": "move", "position": order_obj})
+				print("Добавлен приказ движения. Размер orders: ", orders.size())
+			TYPE_OBJECT:
+				if order_obj is BaseUnit:
+					# Приказ на атаку
+					print('Получен приказ на атаку')
+					if clear_queue:
+						orders.clear()
+					orders.append({"type": "attack", "target": order_obj})
+					print("Добавлен приказ атаки. Размер orders: ", orders.size())
+				else:
+					print("order_obj не является BaseUnit")
+	else:
+		print("НЕ является multiplayer_authority")
 		
 @rpc("any_peer", "reliable")
 func get_unit_info() -> void:
@@ -179,8 +225,15 @@ func get_unit_info() -> void:
 func get_target_position():
 	return(get_global_mouse_position())
 	
-func attack(target):
-	pass
+func attack(target: BaseUnit) -> void:
+	if reload_timer.time_left > 0:
+		return # Кулдаун
+	emit_signal("attack_started", target)
+	# Создать projectile (см. отдельный класс)
+	var projectile = preload("res://scripts/projectile/projectile.gd").new()
+	projectile.init(self, target, damage)
+	get_parent().add_child(projectile)
+	reload_timer.start(reload_timer)
 	
 func update_visual():
 	print("update_visual", owner_id, Handlers.TeamHandler.my_profile)

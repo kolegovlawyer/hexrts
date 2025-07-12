@@ -151,5 +151,7 @@ position = Vector2(49, -40)
 texture = ExtResource("6_3coue")
 
 [node name="ReloadTimer" type="Timer" parent="."]
+unique_name_in_owner = true
 
 [node name="AimTimer" type="Timer" parent="."]
+unique_name_in_owner = true

@@ -1,0 +1,76 @@
+extends Node2D
+class_name VisualProjectile
+
+# Только визуальный снаряд для клиентов
+# Не содержит логики урона - только анимация полета
+
+var start_position: Vector2
+var target_position: Vector2
+var speed: float = 600.0
+var progress: float = 0.0
+
+var sprite: Sprite2D
+var trail: Line2D
+var trail_points: Array[Vector2] = []
+var max_trail_length: int = 15
+
+func _ready() -> void:
+	_create_visual_components()
+	print("🎨 VisualProjectile готов к отображению")
+
+func _create_visual_components() -> void:
+	# Создаем спрайт
+	sprite = Sprite2D.new()
+	var image = Image.create(8, 8, false, Image.FORMAT_RGBA8)
+	image.fill(Color.YELLOW)
+	var texture = ImageTexture.new()
+	texture.set_image(image)
+	sprite.texture = texture
+	sprite.scale = Vector2(1, 1)
+	add_child(sprite)
+	
+	# Создаем след
+	trail = Line2D.new()
+	trail.width = 2.0
+	trail.default_color = Color(1, 1, 0, 0.5)
+	add_child(trail)
+
+func init_visual(_start_pos: Vector2, _target_pos: Vector2) -> void:
+	start_position = _start_pos
+	target_position = _target_pos
+	global_position = start_position
+	
+	# Направляем снаряд к цели
+	if sprite:
+		var direction = (target_position - start_position).normalized()
+		sprite.rotation = direction.angle()
+
+func _process(delta: float) -> void:
+	# Анимация полета к целевой позиции
+	progress += (speed / start_position.distance_to(target_position)) * delta
+	progress = min(progress, 1.0)
+	
+	# Интерполяция позиции
+	global_position = start_position.lerp(target_position, progress)
+	
+	# Обновляем след
+	_update_trail()
+	
+	# Уничтожаем по достижении цели
+	if progress >= 1.0:
+		print("🎯 VisualProjectile достиг цели")
+		queue_free()
+
+func _update_trail() -> void:
+	# Добавляем текущую позицию к следу
+	trail_points.append(global_position)
+	
+	# Ограничиваем длину следа
+	if trail_points.size() > max_trail_length:
+		trail_points.pop_front()
+	
+	# Обновляем Line2D
+	if trail:
+		trail.clear_points()
+		for point in trail_points:
+			trail.add_point(point - global_position) 

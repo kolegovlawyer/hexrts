@@ -1,6 +1,7 @@
-[gd_scene load_steps=7 format=3 uid="uid://ciw32d5cpdxne"]
+[gd_scene load_steps=8 format=3 uid="uid://ciw32d5cpdxne"]
 
 [ext_resource type="Script" uid="uid://bqdg8nu75ej18" path="res://scripts/main.gd" id="1_3gc78"]
+[ext_resource type="Script" uid="uid://yb6ce36li42p" path="res://scripts/projectile/projectile_system.gd" id="2_abc123"]
 [ext_resource type="PackedScene" uid="uid://d0wxbx62e3lg6" path="res://prefabs/units/base_unit.tscn" id="3_hcka1"]
 [ext_resource type="PackedScene" uid="uid://bmm7e27ic1c5u" path="res://prefabs/units/base_fob.tscn" id="3_wijdc"]
 [ext_resource type="PackedScene" uid="uid://ba0l1pr5dv2bx" path="res://scenes/client/base_ui.tscn" id="4_1o0c7"]
@@ -16,6 +17,9 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 1
 script = ExtResource("1_3gc78")
+
+[node name="ProjectileSystem" type="Node" parent="."]
+script = ExtResource("2_abc123")
 
 [node name="UI" type="CanvasLayer" parent="."]
 

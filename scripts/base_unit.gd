@@ -13,6 +13,7 @@ const SPEED = 300.0
 @onready var visibility_area = get_node("%VisibilityArea")
 @onready var reload_timer = get_node("%ReloadTimer")
 @onready var aim_taimer = get_node("%AimTimer")
+@onready var health_bar = get_node("%HealthBar")
 
 @onready var navagent : NavigationAgent2D = $NavigationAgent2D
 var path_points : Array[Vector2] = []
@@ -74,6 +75,10 @@ var accel = 7
 @export var reload_time = 3
 
 var preview
+
+# Отладочные переменные для предотвращения спама в логах
+var _last_attack_state: String = ""
+var _attack_count: int = 0
 
 func generate_numeric_id(length: int) -> String:
 	var id := ""
@@ -189,12 +194,12 @@ func _physics_process(delta: float) -> void:
 						orders.pop_front()
 						print("Приказ движения выполнен, удален")
 				"attack":
-					var target: BaseUnit = current_order.target
-					if not is_instance_valid(target):
+					# Безопасная проверка цели перед присваиванием
+					if not is_instance_valid(current_order.target):
 						orders.pop_front()
 						print("Цель недействительна, приказ удален")
 					else:
-						print("Выполняем атаку")
+						var target: BaseUnit = current_order.target
 						attack(target)
 		else:
 			pass
@@ -238,7 +243,7 @@ func add_order(order_obj, clear_queue:bool=false) -> void:
 			TYPE_STRING:
 				# Приказ на атаку по имени
 				print('Получен приказ на атаку по имени: ', order_obj)
-				var target_unit = find_target_by_name(order_obj)
+				var target_unit = find_target_by_UID(order_obj)
 				if target_unit is BaseUnit:
 					if clear_queue:
 						orders.clear()
@@ -257,27 +262,53 @@ func get_unit_info() -> void:
 func get_target_position():
 	return(get_global_mouse_position())
 
-func find_target_by_name(target_name: String) -> BaseUnit:
+func find_target_by_UID(target_uid: String) -> BaseUnit:
 	# Ищем юнит по имени в дереве сцены
-	var target = get_tree().get_first_node_in_group("units")
-	while target:
-		if target.name == target_name and target is BaseUnit:
-			return target
-		target = get_tree().get_next_node_in_group("units", target)
-	return null
+	var target = Handlers.GameHandler.units_dict[target_uid]
+	if target:
+		return target
+	else:
+		print('Цель не обнаружена по UID: ', target_uid)
+		return null
 	
 func attack(target: BaseUnit) -> void:
-	print("attack вызван для цели: ", target.name)
+	# Дополнительная проверка валидности цели
+	if not is_instance_valid(target):
+		print("❌ АТАКА: Цель стала невалидной во время атаки")
+		return
+		
+	var current_state: String
+	
 	if reload_timer.time_left > 0:
-		print("Кулдаун активен: ", reload_timer.time_left)
-		return # Кулдаун
+		current_state = "cooldown"
+		# Логируем только изменение состояния
+		if _last_attack_state != current_state:
+			print("🔄 АТАКА: Кулдаун активен (", reload_timer.time_left, "с)")
+			_last_attack_state = current_state
+		return
+	
+	current_state = "ready"
+	if _last_attack_state != current_state:
+		if _last_attack_state == "cooldown":
+			print("✅ АТАКА: Кулдаун завершен, готов к атаке цели ", target.name)
+		else:
+			print("⚔️ АТАКА: Готов к атаке цели ", target.name)
+		_last_attack_state = current_state
+		_attack_count = 0
+	
 	emit_signal("attack_started", target)
-	# Создать projectile (см. отдельный класс)
-	var projectile = preload("res://scripts/projectile/projectile.gd").new()
-	projectile.init(self, target, damage)
-	get_parent().add_child(projectile)
-	print("Projectile создан и добавлен")
-	reload_timer.start(reload_timer)
+	# Делегируем создание снаряда ProjectileSystem
+	if Handlers.ProjectileHandler:
+		Handlers.ProjectileHandler.rpc("create_projectile", UID, target.UID, damage)
+		print("🚀 АТАКА: Запрос снаряда отправлен в ProjectileSystem")
+	else:
+		print("❌ АТАКА: ProjectileSystem не найден")
+	
+	reload_timer.wait_time = reload_time  # Убеждаемся, что используется правильное время
+	reload_timer.start()
+	print("⏰ АТАКА: Кулдаун запущен на ", reload_timer.wait_time, " секунд")
+	
+	_last_attack_state = "fired"
 
 func apply_damage(amount: int, from: BaseUnit) -> void:
 	health -= amount
@@ -286,8 +317,20 @@ func apply_damage(amount: int, from: BaseUnit) -> void:
 		die()
 
 func die() -> void:
-	print("Unit died: ", name)
+	print("💀 Unit died: ", name)
+	# Очищаем все ссылки на этот юнит
+	visible_by.clear()
+	has_vision_on.clear()
+	# Уведомляем всех, кто мог на нас ссылаться
+	get_tree().call_group("units", "_on_unit_died", self)
 	queue_free()
+
+func _on_unit_died(dead_unit: BaseUnit) -> void:
+	# Удаляем умершего юнита из наших списков
+	if dead_unit in visible_by:
+		visible_by.erase(dead_unit)
+	if dead_unit in has_vision_on:
+		has_vision_on.erase(dead_unit)
 	
 func update_visual():
 	print("update_visual", owner_id, Handlers.TeamHandler.my_profile)

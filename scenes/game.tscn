@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3 uid="uid://65tcggo5c4sj"]
+[gd_scene load_steps=4 format=3 uid="uid://65tcggo5c4sj"]
 
 [ext_resource type="Script" uid="uid://dynrc5c1axyc6" path="res://scripts/game_start.gd" id="1_sntyr"]
 [ext_resource type="Script" uid="uid://cs2ih7gbhjo03" path="res://scripts/networking/spawner_synchronizer.gd" id="2_21aad"]
+[ext_resource type="Script" uid="uid://yb6ce36li42p" path="res://scripts/projectile/projectile_system.gd" id="3_projectile"]
 
 [node name="Game" type="Node"]
 script = ExtResource("1_sntyr")
@@ -12,7 +13,8 @@ top_level = true
 [node name="Map" type="Node2D" parent="."]
 unique_name_in_owner = true
 
-[node name="Projectiles" type="Node2D" parent="."]
+[node name="ProjectileSystem" type="Node" parent="."]
+script = ExtResource("3_projectile")
 
 [node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="."]
 spawn_path = NodePath("../Spawnables")

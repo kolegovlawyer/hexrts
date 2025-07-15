@@ -6,7 +6,7 @@ var UnitSelectionHandler : UnitSelector
 var TeamHandler : TeamSystem
 var UnitSpawnHandler : UnitSpawner
 var NetworkSpawner : MultiplayerSpawner
-#var ProjectileHandler : ProjectileSystem
+var ProjectileHandler : ProjectileSystem
 var UIHandler : GameUI
 #var NavigationHandler : NavHandler # Bad approach, but signals dont work without it
 #var FrameGroupHandler : FrameGroup

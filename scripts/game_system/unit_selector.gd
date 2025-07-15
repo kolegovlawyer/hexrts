@@ -17,6 +17,11 @@ func clear_selection():
 	for unit in selected_units:
 		if is_instance_valid(unit):
 			unit.selected = false
+			# Очищаем приказы у юнита при снятии выделения
+			# Это позволит юниту автоматически атаковать врагов в зоне видимости
+			if unit.has_method("rpc_id"):
+				unit.rpc_id(1, "clear_orders")
+				print("🗑️ SELECTION: Отправлен clear_orders для юнита ", unit.name)
 	selected_units.clear()
 	
 func edit_unit_state(unit:Node):

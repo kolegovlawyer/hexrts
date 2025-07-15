@@ -159,7 +159,17 @@ func _ready() -> void:
 		visibility_area.connect("body_exited", visibility_check_out)
 		print('ОВНЕР АЙДИ ПЕРЕД ТЕМ КАК СЛОМАТЬСЯ ', owner_id)
 		print(Handlers.TeamHandler.find_player_by_id(owner_id))
-		#owner_team = Handlers.TeamHandler.find_player_by_id(owner_id).Team
+		# КРИТИЧЕСКИ ВАЖНО: Инициализируем owner_team для новых юнитов
+		if owner_id != 1:  # Не для дефолтного значения
+			var player = Handlers.TeamHandler.find_player_by_id(owner_id)
+			if player:
+				owner_team = player.Team
+				print("🏷️ ИНИЦИАЛИЗАЦИЯ: owner_team установлен в ", owner_team, " для юнита ", name)
+				
+				# Запускаем автоатаку с небольшой задержкой для полной инициализации
+				call_deferred("_start_auto_attack_delayed")
+			else:
+				print("⚠️ ОШИБКА: Игрок с owner_id ", owner_id, " не найден при инициализации юнита")
 	
 	update_visual()
 	
@@ -246,9 +256,10 @@ func _physics_process(delta: float) -> void:
 					navagent.target_position = pos
 					if global_position.distance_to(pos) < 8.0:
 						orders.pop_front()
-						# print("Приказ движения выполнен")  # DEBUG
+						print("✅ ДВИЖЕНИЕ: Приказ движения выполнен для юнита ", name)
 						# После выполнения движения переходим в ожидание
 						unit_state = UNIT_STATES.IDLE
+						print("🎯 STATE: Юнит ", name, " переведен в IDLE после завершения движения")
 						
 				"attack":
 					# Переключаемся в состояние атаки
@@ -332,6 +343,23 @@ func add_order(order_obj, clear_queue:bool=false) -> void:
 func get_unit_info() -> void:
 	#print("User ", multiplayer.get_remote_sender_id(), " requested unit info")
 	rpc_id(multiplayer.get_remote_sender_id(), "set_unit_info", unit_profile.resource_path)	
+
+@rpc("any_peer", "reliable")
+func clear_orders() -> void:
+	"""
+	Очищает все приказы юнита и переводит его в состояние ожидания
+	Вызывается при снятии выделения с юнита
+	"""
+	if owner_id != multiplayer.get_remote_sender_id():
+		print("Проверка owner_id для clear_orders не прошла")
+		return
+		
+	if is_multiplayer_authority():
+		print("🗑️ CLEAR_ORDERS: Очистка приказов для юнита ", name)
+		orders.clear()
+		# Переводим юнит в состояние ожидания для автоатаки
+		unit_state = UNIT_STATES.IDLE
+		print("✅ CLEAR_ORDERS: Юнит ", name, " переведен в состояние IDLE для автоатаки")
 	
 func get_target_position():
 	return(get_global_mouse_position())
@@ -553,6 +581,7 @@ func _unit_state_enter(state: int) -> void:
 			# В состоянии ожидания запускаем поиск целей для автоатаки
 			if auto_attack_timer and is_multiplayer_authority():
 				auto_attack_timer.start()
+				print("🎯 AUTO_ATTACK: Таймер запущен для юнита ", name, " (переход в IDLE)")
 		UNIT_STATES.MOVING:
 			# В состоянии движения останавливаем поиск целей
 			if auto_attack_timer:
@@ -580,6 +609,16 @@ func _setup_auto_attack_timer() -> void:
 	
 	# print("🎯 Таймер автоатаки настроен для ", name)  # DEBUG
 
+func _start_auto_attack_delayed() -> void:
+	"""
+	Принудительно запускает автоатаку с задержкой для новых юнитов
+	Вызывается через call_deferred после полной инициализации
+	"""
+	if is_multiplayer_authority() and auto_attack_timer:
+		# Переводим юнит в состояние ожидания, что автоматически запустит таймер автоатаки
+		unit_state = UNIT_STATES.IDLE
+		print("🎯 AUTO_ATTACK: Принудительно запущена автоатака для нового юнита ", name)
+
 func _on_auto_attack_timer_timeout() -> void:
 	"""
 	Обработчик таймера автоматической атаки
@@ -596,23 +635,28 @@ func _on_auto_attack_timer_timeout() -> void:
 	if not is_multiplayer_authority():
 		return
 	
+	print("🔄 AUTO_ATTACK: Таймер сработал для юнита ", name, " (orders: ", orders.size(), ")")
+	
 	# Не атакуем автоматически если есть активные приказы (приоритет у игрока)
 	if orders.size() > 0:
-		# print("🤖 ", name, ": Есть приказы, автоатака отложена")  # DEBUG
+		print("🤖 AUTO_ATTACK: ", name, " - есть приказы, автоатака отложена")
 		return
 	
 	# Ищем видимых врагов
 	var visible_enemies = _get_visible_enemies()
+	print("👁️ AUTO_ATTACK: ", name, " видит врагов: ", visible_enemies.size())
+	
 	if visible_enemies.is_empty():
 		# Нет врагов - переходим в состояние ожидания
 		if unit_state != UNIT_STATES.IDLE:
 			unit_state = UNIT_STATES.IDLE
+		print("😴 AUTO_ATTACK: ", name, " - нет врагов, остаемся в ожидании")
 		return
 	
 	# Выбираем ближайшего врага (первый в списке)
 	var target_enemy = _select_best_target(visible_enemies)
 	if target_enemy and is_instance_valid(target_enemy):
-		# print("🎯 ", name, ": Автоатака цели ", target_enemy.name)  # DEBUG
+		print("🎯 AUTO_ATTACK: ", name, " выбрал цель для автоатаки: ", target_enemy.name)
 		
 		# Добавляем приказ атаки
 		orders.append({"type": "attack", "target": target_enemy})
@@ -623,15 +667,53 @@ func _on_auto_attack_timer_timeout() -> void:
 func _get_visible_enemies() -> Array[BaseUnit]:
 	"""
 	Возвращает список всех видимых вражеских юнитов
-	Использует систему видимости has_vision_on
+	Использует систему видимости has_vision_on и проверяет принадлежность к команде
 	"""
 	var enemies: Array[BaseUnit] = []
 	
 	for unit in has_vision_on:
 		if is_instance_valid(unit) and unit != self:
-			enemies.append(unit)
+			# КРИТИЧЕСКИ ВАЖНО: Проверяем, что это действительно враг, а не союзник
+			if _is_enemy_unit(unit):
+				enemies.append(unit)
+			# else:
+				# print("🤝 АВТОАТАКА: Игнорируем союзника ", unit.name)  # DEBUG
 	
 	return enemies
+
+func _is_enemy_unit(unit: BaseUnit) -> bool:
+	"""
+	Определяет, является ли юнит вражеским по отношению к этому юниту
+	
+	АЛГОРИТМ ОПРЕДЕЛЕНИЯ:
+	1. Проверяет команды через owner_team
+	2. Если команды не определены, сравнивает owner_id 
+	3. При неопределенности возвращает false (не атакуем)
+	
+	ВОЗВРАЩАЕТ:
+	- true: Юнит является врагом (можно атаковать)
+	- false: Юнит является союзником или неопределен (атаковать нельзя)
+	"""
+	# Проверяем валидность объектов
+	if not unit or not is_instance_valid(unit):
+		return false  # Невалидные юниты не атакуем
+	
+	# СПОСОБ 1: Сравнение команд через owner_team (основной)
+	if owner_team != null and unit.owner_team != null:
+		var is_enemy = owner_team != unit.owner_team
+		# print("🔍 КОМАНДЫ: Моя команда (", owner_team, ") vs команда цели (", unit.owner_team, ") = враг: ", is_enemy)  # DEBUG
+		return is_enemy
+	
+	# СПОСОБ 2: Сравнение через owner_id (резервный)
+	if owner_id != null and unit.owner_id != null:
+		var is_enemy = owner_id != unit.owner_id
+		# print("🔍 OWNER_ID: Мой owner_id (", owner_id, ") vs owner_id цели (", unit.owner_id, ") = враг: ", is_enemy)  # DEBUG
+		return is_enemy
+	
+	# СПОСОБ 3: По умолчанию НЕ считаем вражеским (осторожная стратегия)
+	# Лучше не атаковать неопределенную цель, чем атаковать союзника
+	# print("🔍 АВТОАТАКА: Не удалось определить принадлежность для ", unit.name, ", НЕ атакуем")  # DEBUG
+	return false
 
 func _select_best_target(enemies: Array[BaseUnit]) -> BaseUnit:
 	"""

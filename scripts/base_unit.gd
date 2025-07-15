@@ -15,6 +15,9 @@ const SPEED = 300.0
 @onready var aim_taimer = get_node("%AimTimer")
 @onready var health_bar = get_node("%HealthBar")
 
+# Таймер для автоматической атаки (проверка каждую секунду)
+var auto_attack_timer: Timer
+
 @onready var navagent : NavigationAgent2D = $NavigationAgent2D
 var path_points : Array[Vector2] = []
 
@@ -45,6 +48,29 @@ var has_vision_on : Array[BaseUnit] = []
 
 var orders = []
 var current_order
+
+## СИСТЕМА СОСТОЯНИЙ ЮНИТА (STATE MACHINE)
+# Определяет текущее поведение и логику принятия решений
+enum UNIT_STATES {
+	IDLE,           # Бездействие - ожидает приказов или ищет цели
+	MOVING,         # Движется к заданной позиции
+	ATTACKING,      # Атакует конкретную цель
+	AUTO_ATTACKING  # Автоматически атакует ближайшего врага
+}
+
+var unit_state: int = UNIT_STATES.IDLE:
+	set(value):
+		if value == unit_state:
+			return
+			
+		# Отладочная информация о смене состояния
+		# print("🤖 ", name, " состояние: ", UNIT_STATES.keys()[unit_state], " → ", UNIT_STATES.keys()[value])  # DEBUG
+		
+		# Выход из предыдущего состояния
+		_unit_state_exit(unit_state)
+		unit_state = value
+		# Вход в новое состояние
+		_unit_state_enter(unit_state)
 
 
 var preselected : bool = false:
@@ -107,6 +133,10 @@ func _ready() -> void:
 	
 	# Инициализируем health bar
 	init_health_bar()
+	
+	# Создаем таймер автоматической атаки (только на сервере)
+	if is_multiplayer_authority():
+		_setup_auto_attack_timer()
 	
 	# Отладочная информация
 	if is_multiplayer_authority():
@@ -203,33 +233,46 @@ func _physics_process(delta: float) -> void:
 		else:
 			set_visibility_for_enemy(false)
 		
-		# Обработка orders (должна быть ПЕРЕД проверкой navagent)
+		# Обработка orders с учетом state machine
 		if orders.size() > 0:
-			#print("Обрабатываем orders. Размер: ", orders.size())
 			var current_order = orders[0]
-			#print("Текущий приказ: ", current_order)
 			match current_order.type:
 				"move":
+					# Переключаемся в состояние движения
+					if unit_state != UNIT_STATES.MOVING:
+						unit_state = UNIT_STATES.MOVING
+					
 					var pos = current_order.position
 					navagent.target_position = pos
 					if global_position.distance_to(pos) < 8.0:
 						orders.pop_front()
-						print("Приказ движения выполнен, удален")
+						# print("Приказ движения выполнен")  # DEBUG
+						# После выполнения движения переходим в ожидание
+						unit_state = UNIT_STATES.IDLE
+						
 				"attack":
-					# Безопасная проверка цели перед присваиванием
+					# Переключаемся в состояние атаки
+					if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
+						unit_state = UNIT_STATES.ATTACKING
+					
+					# Безопасная проверка цели
 					if not is_instance_valid(current_order.target):
 						orders.pop_front()
-						print("Цель недействительна, приказ удален")
+						# print("Цель недействительна, приказ удален")  # DEBUG
+						unit_state = UNIT_STATES.IDLE
 					else:
 						var target: BaseUnit = current_order.target
-						# Проверяем видимость цели перед атакой
+						# Проверяем видимость цели
 						if not can_see_target(target):
 							orders.pop_front()
-							print("👁️ ORDER: Цель ", target.name, " не видна, приказ атаки отменен")
+							# print("👁️ Цель ", target.name, " не видна, приказ отменен")  # DEBUG
+							unit_state = UNIT_STATES.IDLE
 						else:
 							attack(target)
 		else:
-			pass
+			# Нет приказов - переходим в состояние ожидания для автоатаки
+			if unit_state != UNIT_STATES.IDLE and unit_state != UNIT_STATES.AUTO_ATTACKING:
+				unit_state = UNIT_STATES.IDLE
 
 		# Движение (только если navagent не завершен)
 		if not navagent.is_navigation_finished():
@@ -480,3 +523,138 @@ func set_visibility_for_enemy(is_visible:bool) -> void:
 	if is_multiplayer_authority():
 		for player in Handlers.TeamHandler.get_enemy_team_players(Handlers.TeamHandler.find_player_by_id(owner_id).Team):
 			synchronizer.set_visibility_for(player.PlayerId, is_visible)
+
+## СИСТЕМА СОСТОЯНИЙ (STATE MACHINE)
+func _unit_state_exit(state: int) -> void:
+	"""
+	Выход из состояния - очистка и завершение текущих действий
+	"""
+	match state:
+		UNIT_STATES.IDLE:
+			# При выходе из состояния ожидания особых действий не требуется
+			pass
+		UNIT_STATES.MOVING:
+			# При выходе из движения можем остановить навигацию если нужно
+			pass
+		UNIT_STATES.ATTACKING:
+			# При выходе из атаки можем прервать текущую атаку если нужно
+			pass
+		UNIT_STATES.AUTO_ATTACKING:
+			# При выходе из автоатаки останавливаем таймер поиска целей
+			if auto_attack_timer:
+				auto_attack_timer.stop()
+
+func _unit_state_enter(state: int) -> void:
+	"""
+	Вход в состояние - инициализация поведения
+	"""
+	match state:
+		UNIT_STATES.IDLE:
+			# В состоянии ожидания запускаем поиск целей для автоатаки
+			if auto_attack_timer and is_multiplayer_authority():
+				auto_attack_timer.start()
+		UNIT_STATES.MOVING:
+			# В состоянии движения останавливаем поиск целей
+			if auto_attack_timer:
+				auto_attack_timer.stop()
+		UNIT_STATES.ATTACKING:
+			# В состоянии атаки останавливаем поиск целей (у нас уже есть цель)
+			if auto_attack_timer:
+				auto_attack_timer.stop()
+		UNIT_STATES.AUTO_ATTACKING:
+			# В состоянии автоатаки таймер должен продолжать работать
+			if auto_attack_timer and is_multiplayer_authority():
+				auto_attack_timer.start()
+
+## СИСТЕМА АВТОМАТИЧЕСКОЙ АТАКИ
+func _setup_auto_attack_timer() -> void:
+	"""
+	Создает и настраивает таймер автоматической атаки
+	Вызывается только на сервере при инициализации юнита
+	"""
+	auto_attack_timer = Timer.new()
+	auto_attack_timer.wait_time = 1.0  # Проверка каждую секунду
+	auto_attack_timer.timeout.connect(_on_auto_attack_timer_timeout)
+	auto_attack_timer.autostart = false  # Запускаем вручную через state machine
+	add_child(auto_attack_timer)
+	
+	# print("🎯 Таймер автоатаки настроен для ", name)  # DEBUG
+
+func _on_auto_attack_timer_timeout() -> void:
+	"""
+	Обработчик таймера автоматической атаки
+	Вызывается каждую секунду для поиска и атаки врагов
+	
+	ЛОГИКА АВТОАТАКИ:
+	1. Проверяет, нет ли текущих приказов (приоритет у ручных команд)
+	2. Ищет видимых врагов в зоне обзора
+	3. Выбирает ближайшего врага как цель
+	4. Добавляет приказ атаки в очередь
+	5. Переключает состояние на AUTO_ATTACKING
+	"""
+	# Автоатака работает только на сервере
+	if not is_multiplayer_authority():
+		return
+	
+	# Не атакуем автоматически если есть активные приказы (приоритет у игрока)
+	if orders.size() > 0:
+		# print("🤖 ", name, ": Есть приказы, автоатака отложена")  # DEBUG
+		return
+	
+	# Ищем видимых врагов
+	var visible_enemies = _get_visible_enemies()
+	if visible_enemies.is_empty():
+		# Нет врагов - переходим в состояние ожидания
+		if unit_state != UNIT_STATES.IDLE:
+			unit_state = UNIT_STATES.IDLE
+		return
+	
+	# Выбираем ближайшего врага (первый в списке)
+	var target_enemy = _select_best_target(visible_enemies)
+	if target_enemy and is_instance_valid(target_enemy):
+		# print("🎯 ", name, ": Автоатака цели ", target_enemy.name)  # DEBUG
+		
+		# Добавляем приказ атаки
+		orders.append({"type": "attack", "target": target_enemy})
+		
+		# Переключаемся в состояние автоатаки
+		unit_state = UNIT_STATES.AUTO_ATTACKING
+
+func _get_visible_enemies() -> Array[BaseUnit]:
+	"""
+	Возвращает список всех видимых вражеских юнитов
+	Использует систему видимости has_vision_on
+	"""
+	var enemies: Array[BaseUnit] = []
+	
+	for unit in has_vision_on:
+		if is_instance_valid(unit) and unit != self:
+			enemies.append(unit)
+	
+	return enemies
+
+func _select_best_target(enemies: Array[BaseUnit]) -> BaseUnit:
+	"""
+	Выбирает лучшую цель из списка врагов
+	
+	АЛГОРИТМ ВЫБОРА:
+	1. Берет первого врага из списка (простейший алгоритм)
+	2. В будущем можно усложнить: ближайший, самый слабый, наиболее опасный
+	
+	ПАРАМЕТРЫ:
+	- enemies: Список доступных для атаки врагов
+	
+	ВОЗВРАЩАЕТ:
+	- BaseUnit: Выбранная цель или null если список пуст
+	"""
+	if enemies.is_empty():
+		return null
+	
+	# Простейший алгоритм - берем первого
+	# TODO: Можно улучшить логику выбора цели:
+	# - Ближайший враг
+	# - Самый слабый (меньше здоровья)
+	# - Наиболее опасный (больше урона)
+	# - Приоритет по типу юнита
+	
+	return enemies[0]

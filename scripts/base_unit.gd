@@ -70,9 +70,21 @@ var selected : bool = false:
 			
 var accel = 7
 @export var speed = 300
-@export var health = 30
+@export var max_health = 30
 @export var damage = 5
 @export var reload_time = 3
+
+var _health = 30
+
+@export var health: int:
+	set(value):
+		var old_health = _health
+		_health = clamp(value, 0, max_health)
+		if old_health != _health:
+			update_health_bar()
+			print("🩹 Health изменен с ", old_health, " на ", _health)
+	get:
+		return _health
 
 var preview
 
@@ -92,6 +104,9 @@ func _ready() -> void:
 	
 	# Добавляем в группу units для поиска
 	add_to_group("units")
+	
+	# Инициализируем health bar
+	init_health_bar()
 	
 	# Отладочная информация
 	if is_multiplayer_authority():
@@ -132,7 +147,14 @@ func visibility_check_in(body):
 			body.visible_by.append(self)
 	
 func visibility_check_out(body):
-	pass
+	if body == self:
+		return
+	if body is BaseUnit:
+		if has_vision_on.has(body):
+			print('ВРАГ ВЫШЕЛ ИЗ ПОЛЯ ЗРЕНИЯ: ', body.name)
+			has_vision_on.erase(body)
+		if body.visible_by.has(self):
+			body.visible_by.erase(self)
 	
 func on_velocity_computed(safe_velocity):
 	velocity = safe_velocity
@@ -200,7 +222,12 @@ func _physics_process(delta: float) -> void:
 						print("Цель недействительна, приказ удален")
 					else:
 						var target: BaseUnit = current_order.target
-						attack(target)
+						# Проверяем видимость цели перед атакой
+						if not can_see_target(target):
+							orders.pop_front()
+							print("👁️ ORDER: Цель ", target.name, " не видна, приказ атаки отменен")
+						else:
+							attack(target)
 		else:
 			pass
 
@@ -245,10 +272,14 @@ func add_order(order_obj, clear_queue:bool=false) -> void:
 				print('Получен приказ на атаку по имени: ', order_obj)
 				var target_unit = find_target_by_UID(order_obj)
 				if target_unit is BaseUnit:
-					if clear_queue:
-						orders.clear()
-					orders.append({"type": "attack", "target": target_unit})
-					print("Добавлен приказ атаки. Размер orders: ", orders.size())
+					# Проверяем видимость цели перед добавлением приказа
+					if can_see_target(target_unit):
+						if clear_queue:
+							orders.clear()
+						orders.append({"type": "attack", "target": target_unit})
+						print("Добавлен приказ атаки. Размер orders: ", orders.size())
+					else:
+						print("👁️ ADD_ORDER: Цель ", target_unit.name, " не видна, приказ атаки отклонен")
 				else:
 					print("Не удалось найти юнит по имени: ", order_obj)
 	else:
@@ -270,11 +301,26 @@ func find_target_by_UID(target_uid: String) -> BaseUnit:
 	else:
 		print('Цель не обнаружена по UID: ', target_uid)
 		return null
+
+func can_see_target(target: BaseUnit) -> bool:
+	"""Проверяет, может ли юнит видеть указанную цель"""
+	if not is_instance_valid(target):
+		return false
+	return has_vision_on.has(target)
 	
 func attack(target: BaseUnit) -> void:
 	# Дополнительная проверка валидности цели
 	if not is_instance_valid(target):
 		print("❌ АТАКА: Цель стала невалидной во время атаки")
+		return
+	
+	# Проверка видимости цели
+	if not can_see_target(target):
+		print("👁️ АТАКА: Цель ", target.name, " не видна, атака прекращена")
+		# Удаляем приказ атаки, так как цель невидима
+		if orders.size() > 0 and orders[0].type == "attack":
+			orders.pop_front()
+			print("🚫 АТАКА: Приказ атаки удален из-за потери видимости")
 		return
 		
 	var current_state: String
@@ -318,6 +364,12 @@ func apply_damage(amount: int, from: BaseUnit) -> void:
 
 func die() -> void:
 	print("💀 Unit died: ", name)
+	
+	# Удаляем юнит из выделения (только для владельца)
+	if not is_multiplayer_authority() and self in get_tree().get_nodes_in_group("own_units"):
+		if Handlers.UnitSelectionHandler:
+			Handlers.UnitSelectionHandler.remove_unit_from_selection(self)
+	
 	# Очищаем все ссылки на этот юнит
 	visible_by.clear()
 	has_vision_on.clear()
@@ -331,6 +383,39 @@ func _on_unit_died(dead_unit: BaseUnit) -> void:
 		visible_by.erase(dead_unit)
 	if dead_unit in has_vision_on:
 		has_vision_on.erase(dead_unit)
+
+## HEALTH BAR FUNCTIONS ##
+
+func init_health_bar() -> void:
+	"""Инициализирует health bar с правильными значениями"""
+	# Инициализируем здоровье, если еще не инициализировано
+	if _health <= 0:
+		_health = max_health
+	
+	if health_bar:
+		health_bar.max_value = max_health
+		health_bar.value = _health
+		update_health_bar()  # Обновляем отображение с правильными цветами
+		print("🏥 Health bar инициализирован: ", _health, "/", max_health)
+
+func update_health_bar() -> void:
+	"""Обновляет отображение health bar при изменении здоровья"""
+	if health_bar:
+		health_bar.value = _health
+		
+		# Меняем цвет в зависимости от процента здоровья
+		var health_percent = float(_health) / float(max_health)
+		if health_percent > 0.7:
+			# Зеленый цвет для здорового состояния
+			health_bar.modulate = Color.GREEN
+		elif health_percent > 0.3:
+			# Желтый цвет для поврежденного состояния
+			health_bar.modulate = Color.YELLOW
+		else:
+			# Красный цвет для критического состояния
+			health_bar.modulate = Color.RED
+		
+		print("💚 Health bar обновлен: ", _health, "/", max_health, " (", int(health_percent * 100), "%)")
 	
 func update_visual():
 	print("update_visual", owner_id, Handlers.TeamHandler.my_profile)
@@ -366,6 +451,9 @@ func update_visual():
 			sprite.light_mask = 2
 			sprite.visibility_layer = 2
 			print('check')
+	
+	# Обновляем health bar для всех клиентов
+	update_health_bar()
 		
 func update_visibility():
 	if is_multiplayer_authority():

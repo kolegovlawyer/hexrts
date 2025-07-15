@@ -86,7 +86,7 @@ func _physics_process(delta: float) -> void:
 		sprite.rotation = direction.angle()
 
 	# Проверка столкновения с целью
-	if global_position.distance_to(target.global_position) < 12.0:
+	if global_position.distance_to(target.global_position) < 2.0:
 		_hit_target()
 
 func _update_trail() -> void:

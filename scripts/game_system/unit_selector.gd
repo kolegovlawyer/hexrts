@@ -15,7 +15,8 @@ func select_fob(fob:Node):
 
 func clear_selection():
 	for unit in selected_units:
-		unit.selected = false
+		if is_instance_valid(unit):
+			unit.selected = false
 	selected_units.clear()
 	
 func edit_unit_state(unit:Node):
@@ -25,14 +26,27 @@ func edit_unit_state(unit:Node):
 		add_selected(unit)
 
 func add_selected(unit:Node):
-	selected_units.append(unit)
-	Handlers.UIHandler.input_state = 1
+	if is_instance_valid(unit):
+		selected_units.append(unit)
+		Handlers.UIHandler.input_state = 1
 
 func remove_selected(unit:Node):
-	if selected_units.find(unit) != -1:
-		selected_units.remove_at(selected_units.find(unit))
-	unit.selected = false
+	if is_instance_valid(unit):
+		if selected_units.find(unit) != -1:
+			selected_units.remove_at(selected_units.find(unit))
+		unit.selected = false
 
 func set_selected(unit:Node):
 	clear_selection()
 	edit_unit_state(unit)
+
+func remove_unit_from_selection(unit: BaseUnit):
+	"""Удаляет конкретный юнит из выделения (используется при смерти юнита)"""
+	if unit in selected_units:
+		selected_units.erase(unit)
+		print("🗑️ SELECTION: Погибший юнит ", unit.name, " удален из выделения")
+		
+		# Если это был последний выделенный юнит, сбрасываем input_state
+		if selected_units.is_empty():
+			if Handlers.UIHandler:
+				Handlers.UIHandler.input_state = 0

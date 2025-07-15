@@ -343,12 +343,15 @@ func attack(target: BaseUnit) -> void:
 		_attack_count = 0
 	
 	emit_signal("attack_started", target)
-	# Делегируем создание снаряда ProjectileSystem
+	# Делегируем создание снаряда централизованной системе ProjectileSystem
+	# Это обеспечивает правильное разделение серверной логики и клиентской визуализации
 	if Handlers.ProjectileHandler:
-		Handlers.ProjectileHandler.rpc("create_projectile", UID, target.UID, damage)
-		print("🚀 АТАКА: Запрос снаряда отправлен в ProjectileSystem")
+		var explosion_radius = 50.0  # Радиус взрыва (можно сделать настраиваемым параметром юнита)
+		Handlers.ProjectileHandler.rpc("create_projectile", UID, target.UID, damage, explosion_radius)
+		# print("🚀 АТАКА: Запрос снаряда отправлен в ProjectileSystem")  # DEBUG
 	else:
-		print("❌ АТАКА: ProjectileSystem не найден")
+		# print("❌ АТАКА: ProjectileSystem не найден")  # DEBUG
+		pass
 	
 	reload_timer.wait_time = reload_time  # Убеждаемся, что используется правильное время
 	reload_timer.start()
@@ -356,9 +359,22 @@ func attack(target: BaseUnit) -> void:
 	
 	_last_attack_state = "fired"
 
-func apply_damage(amount: int, from: BaseUnit) -> void:
+func apply_damage(amount: int, from: BaseUnit = null) -> void:
+	"""
+	Наносит урон юниту
+	
+	ПАРАМЕТРЫ:
+	- amount: Количество урона
+	- from: Источник урона (может быть null если источник был уничтожен)
+	"""
 	health -= amount
-	print("Unit ", name, " took ", amount, " damage from ", from.name, ". Health: ", health)
+	
+	# Безопасное логирование с проверкой источника урона
+	if from and is_instance_valid(from):
+		print("Unit ", name, " took ", amount, " damage from ", from.name, ". Health: ", health)
+	else:
+		print("Unit ", name, " took ", amount, " damage from unknown source. Health: ", health)
+	
 	if health <= 0:
 		die()
 

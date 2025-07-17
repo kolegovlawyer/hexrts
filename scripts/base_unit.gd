@@ -118,6 +118,10 @@ var preview
 var _last_attack_state: String = ""
 var _attack_count: int = 0
 
+# Добавляем переменные для контроля застревания
+var stuck_timer: float = 0.0
+var last_move_position: Vector2 = Vector2.ZERO
+
 func generate_numeric_id(length: int) -> String:
 	var id := ""
 	var rng = RandomNumberGenerator.new()
@@ -172,6 +176,7 @@ func _ready() -> void:
 				print("⚠️ ОШИБКА: Игрок с owner_id ", owner_id, " не найден при инициализации юнита")
 	
 	update_visual()
+	last_move_position = global_position
 	
 func visibility_check_in(body):
 	print('owner team in check ', owner_team)
@@ -254,13 +259,28 @@ func _physics_process(delta: float) -> void:
 					
 					var pos = current_order.position
 					navagent.target_position = pos
-					if global_position.distance_to(pos) < 8.0:
+					
+					# Новый: увеличенный порог и проверка навигатора
+					var close_enough = global_position.distance_to(pos) < 16.0
+					var nav_done = navagent.is_navigation_finished()
+					var moved = global_position.distance_to(last_move_position) > 1.0
+					
+					if close_enough or nav_done:
 						orders.pop_front()
 						print("✅ ДВИЖЕНИЕ: Приказ движения выполнен для юнита ", name)
-						# После выполнения движения переходим в ожидание
 						unit_state = UNIT_STATES.IDLE
-						print("🎯 STATE: Юнит ", name, " переведен в IDLE после завершения движения")
-						
+						stuck_timer = 0.0
+					elif not moved:
+						stuck_timer += delta
+						if stuck_timer > 2.0:
+							print("⚠️ ДВИЖЕНИЕ: Юнит застрял, удаляем приказ")
+							orders.pop_front()
+							unit_state = UNIT_STATES.IDLE
+							stuck_timer = 0.0
+					else:
+						stuck_timer = 0.0
+					last_move_position = global_position
+					
 				"attack":
 					# Переключаемся в состояние атаки
 					if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:

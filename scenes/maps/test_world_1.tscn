@@ -42,6 +42,8 @@ collision_layer = 3
 team = 1
 
 [node name="OverlayMap" type="TileMapLayer" parent="."]
+light_mask = 2
+visibility_layer = 2
 z_index = 1
 z_as_relative = false
 position = Vector2(503, 1132)

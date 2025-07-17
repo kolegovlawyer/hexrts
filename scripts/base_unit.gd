@@ -14,6 +14,7 @@ const SPEED = 300.0
 @onready var reload_timer = get_node("%ReloadTimer")
 @onready var aim_taimer = get_node("%AimTimer")
 @onready var health_bar = get_node("%HealthBar")
+@onready var shiled_bar = get_node("%ShiledBar")
 
 # Таймер для автоматической атаки (проверка каждую секунду)
 var auto_attack_timer: Timer
@@ -144,8 +145,10 @@ func _ready() -> void:
 	
 	# Отладочная информация
 	if is_multiplayer_authority():
+		# print("СЕРВЕРНЫЙ ЮНИТ СОЗДАН: ", name, " NodePath: ", get_path())
 		print("СЕРВЕРНЫЙ ЮНИТ СОЗДАН: ", name, " NodePath: ", get_path())
 	else:
+		# print("КЛИЕНТСКИЙ ЮНИТ СОЗДАН: ", name, " NodePath: ", get_path())
 		print("КЛИЕНТСКИЙ ЮНИТ СОЗДАН: ", name, " NodePath: ", get_path())
 	
 	if not is_multiplayer_authority():
@@ -179,14 +182,14 @@ func _ready() -> void:
 	last_move_position = global_position
 	
 func visibility_check_in(body):
-	print('owner team in check ', owner_team)
+	# print('owner team in check ', owner_team)
 	var team = Handlers.TeamHandler.get_team(owner_team)
-	print(team)
+	# print(team)
 	if body == self:
 		return
 	if body is BaseUnit:
 		if not has_vision_on.has(body):
-			print('ЗАМЕЧЕН ВРАГ')
+			# print('ЗАМЕЧЕН ВРАГ')
 			has_vision_on.append(body)
 		if not body.visible_by.has(self):
 			body.visible_by.append(self)
@@ -196,7 +199,7 @@ func visibility_check_out(body):
 		return
 	if body is BaseUnit:
 		if has_vision_on.has(body):
-			print('ВРАГ ВЫШЕЛ ИЗ ПОЛЯ ЗРЕНИЯ: ', body.name)
+			# print('ВРАГ ВЫШЕЛ ИЗ ПОЛЯ ЗРЕНИЯ: ', body.name)
 			has_vision_on.erase(body)
 		if body.visible_by.has(self):
 			body.visible_by.erase(self)
@@ -212,11 +215,11 @@ func depreselect():
 	
 func handle_input(viewport, event, shape_idx):
 	#print("handle_input ", event)
-	print(name)
+	# print(name)
 	if self in get_tree().get_nodes_in_group("own_units"):
 		if event is InputEventMouseButton and event.button_index == 1:
 			if event.pressed == false:
-				print('we there')
+				# print('we there')
 				selected = true
 				Handlers.UnitSelectionHandler.add_selected(self)
 				get_viewport().set_input_as_handled()
@@ -224,13 +227,13 @@ func handle_input(viewport, event, shape_idx):
 		# Атака по правому клику на вражеском юните
 		if event is InputEventMouseButton and event.button_index == 2:
 			if event.pressed == false:
-				print("АТАКА ЕПТА")
-				print("selected_units: ", Handlers.UnitSelectionHandler.selected_units)
+				# print("АТАКА ЕПТА")
+				# print("selected_units: ", Handlers.UnitSelectionHandler.selected_units)
 				for n in Handlers.UnitSelectionHandler.selected_units:
-					print("Отправляем приказ атаки юниту: ", n.name)
-					print("NodePath клиентского юнита: ", n.get_path())
-					print("Имя цели (this.name): ", name)
-					print("UID цели:", self.UID)
+					# print("Отправляем приказ атаки юниту: ", n.name)
+					# print("NodePath клиентского юнита: ", n.get_path())
+					# print("Имя цели (this.name): ", name)
+					# print("UID цели:", self.UID)
 					# Передаем имя цели (this - это юнит, на который кликнули)
 					n.rpc_id(1, "add_order", UID, true)
 				get_viewport().set_input_as_handled()
@@ -267,13 +270,13 @@ func _physics_process(delta: float) -> void:
 					
 					if close_enough or nav_done:
 						orders.pop_front()
-						print("✅ ДВИЖЕНИЕ: Приказ движения выполнен для юнита ", name)
+						# print("✅ ДВИЖЕНИЕ: Приказ движения выполнен для юнита ", name)
 						unit_state = UNIT_STATES.IDLE
 						stuck_timer = 0.0
 					elif not moved:
 						stuck_timer += delta
 						if stuck_timer > 2.0:
-							print("⚠️ ДВИЖЕНИЕ: Юнит застрял, удаляем приказ")
+							# print("⚠️ ДВИЖЕНИЕ: Юнит застрял, удаляем приказ")
 							orders.pop_front()
 							unit_state = UNIT_STATES.IDLE
 							stuck_timer = 0.0
@@ -320,30 +323,30 @@ func _physics_process(delta: float) -> void:
 				
 @rpc("any_peer", "reliable")
 func add_order(order_obj, clear_queue:bool=false) -> void:
-	print("=== add_order ВЫЗВАНА ===")
-	print("NodePath этого юнита: ", get_path())
-	print("order_obj: ", order_obj, " типа: ", typeof(order_obj))
-	print("owner_id: ", owner_id, " remote_sender: ", multiplayer.get_remote_sender_id())
-	print("is_multiplayer_authority: ", is_multiplayer_authority())
-	print("multiplayer.is_server(): ", multiplayer.is_server())
-	print("multiplayer.get_unique_id(): ", multiplayer.get_unique_id())
+	# print("=== add_order ВЫЗВАНА ===")
+	# print("NodePath этого юнита: ", get_path())
+	# print("order_obj: ", order_obj, " типа: ", typeof(order_obj))
+	# print("owner_id: ", owner_id, " remote_sender: ", multiplayer.get_remote_sender_id())
+	# print("is_multiplayer_authority: ", is_multiplayer_authority())
+	# print("multiplayer.is_server(): ", multiplayer.is_server())
+	# print("multiplayer.get_unique_id(): ", multiplayer.get_unique_id())
 	
 	if owner_id != multiplayer.get_remote_sender_id(): # this must be in all units add_order
-		print("Проверка owner_id не прошла")
+		# print("Проверка owner_id не прошла")
 		return
 	if is_multiplayer_authority():
-		print("Внутри is_multiplayer_authority")
+		# print("Внутри is_multiplayer_authority")
 		match typeof(order_obj):
 			TYPE_VECTOR2:
 				# Приказ на движение
-				print('Получен приказ на движение')
+				# print('Получен приказ на движение')
 				if clear_queue:
 					orders.clear()
 				orders.append({"type": "move", "position": order_obj})
-				print("Добавлен приказ движения. Размер orders: ", orders.size())
+				# print("Добавлен приказ движения. Размер orders: ", orders.size())
 			TYPE_STRING:
 				# Приказ на атаку по имени
-				print('Получен приказ на атаку по имени: ', order_obj)
+				# print('Получен приказ на атаку по имени: ', order_obj)
 				var target_unit = find_target_by_UID(order_obj)
 				if target_unit is BaseUnit:
 					# Проверяем видимость цели перед добавлением приказа
@@ -351,13 +354,16 @@ func add_order(order_obj, clear_queue:bool=false) -> void:
 						if clear_queue:
 							orders.clear()
 						orders.append({"type": "attack", "target": target_unit})
-						print("Добавлен приказ атаки. Размер orders: ", orders.size())
+						# print("Добавлен приказ атаки. Размер orders: ", orders.size())
 					else:
-						print("👁️ ADD_ORDER: Цель ", target_unit.name, " не видна, приказ атаки отклонен")
+						# print("👁️ ADD_ORDER: Цель ", target_unit.name, " не видна, приказ атаки отклонен")
+						pass
 				else:
-					print("Не удалось найти юнит по имени: ", order_obj)
+					# print("Не удалось найти юнит по имени: ", order_obj)
+					pass
 	else:
-		print("НЕ является multiplayer_authority")
+		# print("НЕ является multiplayer_authority")
+		pass
 		
 @rpc("any_peer", "reliable")
 func get_unit_info() -> void:
@@ -371,15 +377,15 @@ func clear_orders() -> void:
 	Вызывается при снятии выделения с юнита
 	"""
 	if owner_id != multiplayer.get_remote_sender_id():
-		print("Проверка owner_id для clear_orders не прошла")
+		# print("Проверка owner_id для clear_orders не прошла")
 		return
 		
 	if is_multiplayer_authority():
-		print("🗑️ CLEAR_ORDERS: Очистка приказов для юнита ", name)
+		# print("🗑️ CLEAR_ORDERS: Очистка приказов для юнита ", name)
 		orders.clear()
 		# Переводим юнит в состояние ожидания для автоатаки
 		unit_state = UNIT_STATES.IDLE
-		print("✅ CLEAR_ORDERS: Юнит ", name, " переведен в состояние IDLE для автоатаки")
+		# print("✅ CLEAR_ORDERS: Юнит ", name, " переведен в состояние IDLE для автоатаки")
 	
 func get_target_position():
 	return(get_global_mouse_position())
@@ -390,7 +396,7 @@ func find_target_by_UID(target_uid: String) -> BaseUnit:
 	if target:
 		return target
 	else:
-		print('Цель не обнаружена по UID: ', target_uid)
+		# print('Цель не обнаружена по UID: ', target_uid)
 		return null
 
 func can_see_target(target: BaseUnit) -> bool:
@@ -402,16 +408,16 @@ func can_see_target(target: BaseUnit) -> bool:
 func attack(target: BaseUnit) -> void:
 	# Дополнительная проверка валидности цели
 	if not is_instance_valid(target):
-		print("❌ АТАКА: Цель стала невалидной во время атаки")
+		# print("❌ АТАКА: Цель стала невалидной во время атаки")
 		return
 	
 	# Проверка видимости цели
 	if not can_see_target(target):
-		print("👁️ АТАКА: Цель ", target.name, " не видна, атака прекращена")
+		# print("👁️ АТАКА: Цель ", target.name, " не видна, атака прекращена")
 		# Удаляем приказ атаки, так как цель невидима
 		if orders.size() > 0 and orders[0].type == "attack":
 			orders.pop_front()
-			print("🚫 АТАКА: Приказ атаки удален из-за потери видимости")
+			# print("🚫 АТАКА: Приказ атаки удален из-за потери видимости")
 		return
 		
 	var current_state: String
@@ -420,16 +426,18 @@ func attack(target: BaseUnit) -> void:
 		current_state = "cooldown"
 		# Логируем только изменение состояния
 		if _last_attack_state != current_state:
-			print("🔄 АТАКА: Кулдаун активен (", reload_timer.time_left, "с)")
+			# print("🔄 АТАКА: Кулдаун активен (", reload_timer.time_left, "с)")
 			_last_attack_state = current_state
 		return
 	
 	current_state = "ready"
 	if _last_attack_state != current_state:
 		if _last_attack_state == "cooldown":
-			print("✅ АТАКА: Кулдаун завершен, готов к атаке цели ", target.name)
+			# print("✅ АТАКА: Кулдаун завершен, готов к атаке цели ", target.name)
+			pass
 		else:
-			print("⚔️ АТАКА: Готов к атаке цели ", target.name)
+			# print("⚔️ АТАКА: Готов к атаке цели ", target.name)
+			pass
 		_last_attack_state = current_state
 		_attack_count = 0
 	
@@ -446,7 +454,7 @@ func attack(target: BaseUnit) -> void:
 	
 	reload_timer.wait_time = reload_time  # Убеждаемся, что используется правильное время
 	reload_timer.start()
-	print("⏰ АТАКА: Кулдаун запущен на ", reload_timer.wait_time, " секунд")
+	# print("⏰ АТАКА: Кулдаун запущен на ", reload_timer.wait_time, " секунд")
 	
 	_last_attack_state = "fired"
 
@@ -462,15 +470,17 @@ func apply_damage(amount: int, from: BaseUnit = null) -> void:
 	
 	# Безопасное логирование с проверкой источника урона
 	if from and is_instance_valid(from):
-		print("Unit ", name, " took ", amount, " damage from ", from.name, ". Health: ", health)
+		# print("Unit ", name, " took ", amount, " damage from ", from.name, ". Health: ", health)
+		pass
 	else:
-		print("Unit ", name, " took ", amount, " damage from unknown source. Health: ", health)
+		# print("Unit ", name, " took ", amount, " damage from unknown source. Health: ", health)
+		pass
 	
 	if health <= 0:
 		die()
 
 func die() -> void:
-	print("💀 Unit died: ", name)
+	# print("�� Unit died: ", name)
 	
 	# Удаляем юнит из выделения (только для владельца)
 	if not is_multiplayer_authority() and self in get_tree().get_nodes_in_group("own_units"):
@@ -503,7 +513,7 @@ func init_health_bar() -> void:
 		health_bar.max_value = max_health
 		health_bar.value = _health
 		update_health_bar()  # Обновляем отображение с правильными цветами
-		print("🏥 Health bar инициализирован: ", _health, "/", max_health)
+		# print("🏥 Health bar инициализирован: ", _health, "/", max_health)
 
 func update_health_bar() -> void:
 	"""Обновляет отображение health bar при изменении здоровья"""
@@ -522,44 +532,38 @@ func update_health_bar() -> void:
 			# Красный цвет для критического состояния
 			health_bar.modulate = Color.RED
 		
-		print("💚 Health bar обновлен: ", _health, "/", max_health, " (", int(health_percent * 100), "%)")
+		# print("💚 Health bar обновлен: ", _health, "/", max_health, " (", int(health_percent * 100), "%)")
 	
 func update_visual():
-	print("update_visual", owner_id, Handlers.TeamHandler.my_profile)
+	# print("update_visual", owner_id, Handlers.TeamHandler.my_profile)
 	if not Handlers.TeamHandler.my_profile:
 		return
 	if owner_id == 1:
 		if not is_multiplayer_authority():
-			print("А ВОТ И Я!!!")
+			# print("А ВОТ И Я!!!")
+			pass
 		return
 		
 	var player = Handlers.TeamHandler.find_player_by_id(owner_id)
-	if not player:  # Добавляем проверку
-		print("Player not found for owner_id: ", owner_id)
+	if not player:
+		# print("Player not found for owner_id: ", owner_id)
 		return
 		
 	owner_team = player.Team
 	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
-		add_to_group("own_units")
+		set_own_unit_group()
 		if not preview:
 			var self_preview = preload("res://prefabs/ui/unit_preview.tscn").instantiate()
 			preview = self_preview
-		#preview.update_visual()
 		Handlers.UIHandler.unit_container.add_child(preview)
 		preview.unit = self
 		return
 	elif Handlers.TeamHandler.find_player_by_id(owner_id).Team == Handlers.TeamHandler.my_profile.Team:
-		sprite.self_modulate = Color(0, 0, 1)
-		print('ALLY')
+		update_sprite_color()
+		# print('ALLY')
 	else:
-		if sprite:
-			sprite.self_modulate = Color(1, 0, 0)
-			light.hide()
-			sprite.light_mask = 2
-			sprite.visibility_layer = 2
-			print('check')
-	
-	# Обновляем health bar для всех клиентов
+		update_sprite_color()
+		# print('check')
 	update_health_bar()
 		
 func update_visibility():
@@ -601,7 +605,7 @@ func _unit_state_enter(state: int) -> void:
 			# В состоянии ожидания запускаем поиск целей для автоатаки
 			if auto_attack_timer and is_multiplayer_authority():
 				auto_attack_timer.start()
-				print("🎯 AUTO_ATTACK: Таймер запущен для юнита ", name, " (переход в IDLE)")
+				# print("🎯 AUTO_ATTACK: Таймер запущен для юнита ", name, " (переход в IDLE)")
 		UNIT_STATES.MOVING:
 			# В состоянии движения останавливаем поиск целей
 			if auto_attack_timer:
@@ -637,52 +641,60 @@ func _start_auto_attack_delayed() -> void:
 	if is_multiplayer_authority() and auto_attack_timer:
 		# Переводим юнит в состояние ожидания, что автоматически запустит таймер автоатаки
 		unit_state = UNIT_STATES.IDLE
-		print("🎯 AUTO_ATTACK: Принудительно запущена автоатака для нового юнита ", name)
+		# print("🎯 AUTO_ATTACK: Принудительно запущена автоатака для нового юнита ", name)
 
 func _on_auto_attack_timer_timeout() -> void:
-	"""
-	Обработчик таймера автоматической атаки
-	Вызывается каждую секунду для поиска и атаки врагов
-	
-	ЛОГИКА АВТОАТАКИ:
-	1. Проверяет, нет ли текущих приказов (приоритет у ручных команд)
-	2. Ищет видимых врагов в зоне обзора
-	3. Выбирает ближайшего врага как цель
-	4. Добавляет приказ атаки в очередь
-	5. Переключает состояние на AUTO_ATTACKING
-	"""
 	# Автоатака работает только на сервере
 	if not is_multiplayer_authority():
 		return
-	
-	print("🔄 AUTO_ATTACK: Таймер сработал для юнита ", name, " (orders: ", orders.size(), ")")
-	
+	# print("🔄 AUTO_ATTACK: Таймер сработал для юнита ", name, " (orders: ", orders.size(), ")")
 	# Не атакуем автоматически если есть активные приказы (приоритет у игрока)
 	if orders.size() > 0:
-		print("🤖 AUTO_ATTACK: ", name, " - есть приказы, автоатака отложена")
+		# print("🤖 AUTO_ATTACK: ", name, " - есть приказы, автоатака отложена")
 		return
-	
 	# Ищем видимых врагов
 	var visible_enemies = _get_visible_enemies()
-	print("👁️ AUTO_ATTACK: ", name, " видит врагов: ", visible_enemies.size())
-	
+	# print("👁️ AUTO_ATTACK: ", name, " видит врагов: ", visible_enemies.size())
 	if visible_enemies.is_empty():
 		# Нет врагов - переходим в состояние ожидания
 		if unit_state != UNIT_STATES.IDLE:
 			unit_state = UNIT_STATES.IDLE
-		print("😴 AUTO_ATTACK: ", name, " - нет врагов, остаемся в ожидании")
+		# print("😴 AUTO_ATTACK: ", name, " - нет врагов, остаемся в ожидании")
 		return
-	
 	# Выбираем ближайшего врага (первый в списке)
 	var target_enemy = _select_best_target(visible_enemies)
-	if target_enemy and is_instance_valid(target_enemy):
-		print("🎯 AUTO_ATTACK: ", name, " выбрал цель для автоатаки: ", target_enemy.name)
-		
-		# Добавляем приказ атаки
+	if is_valid_unit(target_enemy):
+		# print("🎯 AUTO_ATTACK: ", name, " выбрал цель для автоатаки: ", target_enemy.name)
 		orders.append({"type": "attack", "target": target_enemy})
-		
-		# Переключаемся в состояние автоатаки
 		unit_state = UNIT_STATES.AUTO_ATTACKING
+
+# === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РЕФАКТОРИНГА ===
+func is_valid_unit(unit) -> bool:
+	"""Проверяет, что объект существует и является BaseUnit"""
+	return unit != null and is_instance_valid(unit) and unit is BaseUnit
+
+func set_own_unit_group():
+	if not is_in_group("own_units"):
+		add_to_group("own_units")
+
+func set_enemy_unit_group():
+	if not is_in_group("enemy_units"):
+		add_to_group("enemy_units")
+
+func update_sprite_color():
+	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
+		sprite.self_modulate = Color(1, 1, 1)
+	elif owner_team == Handlers.TeamHandler.my_profile.Team:
+		sprite.self_modulate = Color(0, 0, 1)
+	else:
+		sprite.self_modulate = Color(1, 0, 0)
+		if light:
+			light.hide()
+		if sprite:
+			sprite.light_mask = 2
+			sprite.visibility_layer = 2
+
+# === END ВСПОМОГАТЕЛЬНЫХ ===
 
 func _get_visible_enemies() -> Array[BaseUnit]:
 	"""
@@ -692,7 +704,7 @@ func _get_visible_enemies() -> Array[BaseUnit]:
 	var enemies: Array[BaseUnit] = []
 	
 	for unit in has_vision_on:
-		if is_instance_valid(unit) and unit != self:
+		if is_valid_unit(unit) and unit != self:
 			# КРИТИЧЕСКИ ВАЖНО: Проверяем, что это действительно враг, а не союзник
 			if _is_enemy_unit(unit):
 				enemies.append(unit)
@@ -715,7 +727,7 @@ func _is_enemy_unit(unit: BaseUnit) -> bool:
 	- false: Юнит является союзником или неопределен (атаковать нельзя)
 	"""
 	# Проверяем валидность объектов
-	if not unit or not is_instance_valid(unit):
+	if not is_valid_unit(unit):
 		return false  # Невалидные юниты не атакуем
 	
 	# СПОСОБ 1: Сравнение команд через owner_team (основной)
@@ -742,6 +754,7 @@ func _select_best_target(enemies: Array[BaseUnit]) -> BaseUnit:
 	АЛГОРИТМ ВЫБОРА:
 	1. Берет первого врага из списка (простейший алгоритм)
 	2. В будущем можно усложнить: ближайший, самый слабый, наиболее опасный
+	3. Приоритет по типу юнита
 	
 	ПАРАМЕТРЫ:
 	- enemies: Список доступных для атаки врагов

@@ -1,6 +1,7 @@
-[gd_scene load_steps=8 format=3 uid="uid://bw3enpouyp31e"]
+[gd_scene load_steps=9 format=3 uid="uid://bw3enpouyp31e"]
 
 [ext_resource type="StyleBox" uid="uid://dkdtwbvicdmyv" path="res://prefabs/ui/themes/main_style.tres" id="1_kgsmo"]
+[ext_resource type="Script" uid="uid://bssnie2mgc4es" path="res://scripts/UI/unit_editor.gd" id="2_i5vhy"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_vq60a"]
 
@@ -45,7 +46,7 @@ expand_margin_bottom = 10.0
 [sub_resource type="LabelSettings" id="LabelSettings_u4uy5"]
 font_size = 18
 
-[node name="Control" type="PanelContainer"]
+[node name="UnitEditor" type="PanelContainer"]
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
@@ -59,6 +60,7 @@ grow_horizontal = 2
 grow_vertical = 2
 theme = SubResource("Theme_t2ad6")
 theme_override_styles/panel = ExtResource("1_kgsmo")
+script = ExtResource("2_i5vhy")
 
 [node name="Panel" type="Panel" parent="."]
 layout_mode = 2
@@ -116,19 +118,19 @@ theme_override_constants/separation = 10
 layout_mode = 2
 alignment = 1
 
-[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard"]
+[node name="HealthVariable" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard"]
 layout_mode = 2
 
-[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer"]
+[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HealthVariable"]
 layout_mode = 2
 text = "-"
 
-[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer"]
+[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HealthVariable"]
 layout_mode = 2
-text = "ПРОЧНОСТЬ"
+text = "Прочность"
 vertical_alignment = 1
 
-[node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer"]
+[node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HealthVariable"]
 layout_mode = 2
 text = "+"
 
@@ -142,7 +144,7 @@ text = "-"
 [node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer2"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "СКОРОСТЬ"
+text = "Скорость"
 horizontal_alignment = 1
 
 [node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer2"]
@@ -159,7 +161,7 @@ text = "-"
 [node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer3"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "АТАКА"
+text = "Атака"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -177,7 +179,7 @@ text = "-"
 [node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer4"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "ЩИТЫ"
+text = "Щиты"
 horizontal_alignment = 1
 
 [node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer4"]
@@ -194,7 +196,7 @@ text = "-"
 [node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer5"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "ОБЗОР"
+text = "Обзор"
 horizontal_alignment = 1
 
 [node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer5"]
@@ -207,10 +209,10 @@ size_flags_horizontal = 3
 theme_override_constants/separation = 12
 alignment = 1
 
-[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
+[node name="HealtBar" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
 layout_mode = 2
 
-[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer"]
+[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HealtBar"]
 custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -218,9 +220,9 @@ size_flags_vertical = 1
 value = 20.0
 show_percentage = false
 
-[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer"]
+[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HealtBar"]
 layout_mode = 2
-text = "25"
+text = "20"
 
 [node name="HBoxContainer2" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
 layout_mode = 2
@@ -229,7 +231,7 @@ layout_mode = 2
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 1
-value = 100.0
+value = 25.0
 show_percentage = false
 
 [node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer2"]

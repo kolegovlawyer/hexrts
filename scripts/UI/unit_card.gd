@@ -27,5 +27,5 @@ func handle_input(event):
 			
 func activate_card():
 	var spawn_point = Handlers.UnitSelectionHandler.selected_fob.position
-	Handlers.UnitSpawnHandler.rpc_id(1, "spawn_unit", spawn_point)
+	Handlers.UnitSpawnHandler.rpc_id(1, "spawn_unit", spawn_point, "base_unit")
 	#Handlers.UnitSpawnHandler.rpc_id(1, "spawn_unit", path)

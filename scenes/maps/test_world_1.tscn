@@ -1,10 +1,23 @@
-[gd_scene load_steps=6 format=4 uid="uid://c0pjo6r82i3n1"]
+[gd_scene load_steps=9 format=4 uid="uid://c0pjo6r82i3n1"]
 
 [ext_resource type="Script" uid="uid://dpl8lpx3xgvga" path="res://scripts/map.gd" id="1_vhwc4"]
 [ext_resource type="TileSet" uid="uid://kkl4sh1ggjw0" path="res://prefabs/tilemap/Bart_Tiles.tres" id="2_eg4lu"]
 [ext_resource type="PackedScene" uid="uid://bmm7e27ic1c5u" path="res://prefabs/units/base_fob.tscn" id="2_ptgwm"]
 [ext_resource type="Script" uid="uid://c50v11n1xtepe" path="res://scripts/game_system/unit_spawner.gd" id="3_kp86q"]
 [ext_resource type="Texture2D" uid="uid://b2yssebpb1u5u" path="res://assets/BartSpriter/arrow.png" id="4_2lhec"]
+[ext_resource type="Texture2D" uid="uid://ci2ql4jqnuhxv" path="res://assets/tilemap/base_hex.png" id="5_u0t51"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_qfklk"]
+texture = ExtResource("5_u0t51")
+texture_region_size = Vector2i(256, 256)
+0:0/0 = 0
+1:0/0 = 0
+2:0/0 = 0
+
+[sub_resource type="TileSet" id="TileSet_35fhk"]
+tile_shape = 3
+tile_size = Vector2i(256, 256)
+sources/0 = SubResource("TileSetAtlasSource_qfklk")
 
 [node name="TestMapWorld" type="Node2D"]
 script = ExtResource("1_vhwc4")
@@ -27,6 +40,12 @@ collision_layer = 3
 position = Vector2(-167, -236)
 collision_layer = 3
 team = 1
+
+[node name="OverlayMap" type="TileMapLayer" parent="."]
+z_index = 1
+z_as_relative = false
+position = Vector2(503, 1132)
+tile_set = SubResource("TileSet_35fhk")
 
 [node name="CanvasModulate" type="CanvasModulate" parent="."]
 color = Color(0.577008, 0.577008, 0.577008, 1)

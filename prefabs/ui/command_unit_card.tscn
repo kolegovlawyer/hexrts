@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3 uid="uid://bchss6rum1oey"]
+[gd_scene load_steps=2 format=3 uid="uid://y2kl2a7ru2u6"]
 
-[ext_resource type="Script" uid="uid://b8pkgen7g6dc6" path="res://scripts/UI/unit_card.gd" id="1_lxerf"]
+[ext_resource type="Script" uid="uid://dcux8irxv3e11" path="res://scripts/UI/command_unit_card.gd" id="1_lxerf"]
 
-[node name="UnitCard" type="PanelContainer"]
+[node name="CommandUnitCard" type="PanelContainer"]
 anchors_preset = -1
 anchor_left = 0.465712
 anchor_top = 0.378086
@@ -22,26 +22,30 @@ layout_mode = 2
 
 [node name="NameLabel" type="Label" parent="MarginContainer/MainRack"]
 layout_mode = 2
-text = "BaseUnit"
+text = "Command Unit (CV)"
 
 [node name="AttackLabel" type="Label" parent="MarginContainer/MainRack"]
 layout_mode = 2
-text = "Attack: 20
+text = "Attack: 15
 "
 
 [node name="RangeLabel" type="Label" parent="MarginContainer/MainRack"]
 layout_mode = 2
-text = "Range: 20
+text = "Range: 25
 "
 
 [node name="RoFLabel" type="Label" parent="MarginContainer/MainRack"]
 layout_mode = 2
-text = "RoF: 20"
+text = "RoF: 15"
 
 [node name="SpeedLabel" type="Label" parent="MarginContainer/MainRack"]
 layout_mode = 2
-text = "Speed: 20"
+text = "Speed: 25"
 
 [node name="HealthLabel" type="Label" parent="MarginContainer/MainRack"]
 layout_mode = 2
-text = "Health: 20"
+text = "Health: 40"
+
+[node name="SpecialLabel" type="Label" parent="MarginContainer/MainRack"]
+layout_mode = 2
+text = "Special: Capture Hex"

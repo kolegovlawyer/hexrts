@@ -7,18 +7,27 @@ func _exit_tree():
 	Handlers.UnitSpawnHandler = null
 
 @rpc("any_peer", "reliable")
-func spawn_unit(spawn_point): # ADD UNIT RESOURCE PARAMETER
+func spawn_unit(spawn_point, unit_type: String = "base_unit"):
 	if is_multiplayer_authority():
-		var player = Handlers.TeamHandler.find_player_by_id(multiplayer.get_remote_sender_id())
-		spawn_point += Vector2(50,50)
-		#if player.Team == GameTypes.Teams.TEAM_A:
-			#unit_position = Handlers.UnitSelectionHandler.selected_fob.position
-			##$TeamA/Ground/GroundSpawn1/SpawnPoint/DebugMesh.global_position # Do it another way
-			##unit.nav_agent.target_position = $TeamA/Ground/GroundSpawn1/TargetPoint.global_position <- Добавить выезжание
-		#elif player.Team == GameTypes.Teams.TEAM_B:
-			#unit_position = Handlers.UnitSelectionHandler.selected_fob.position
-			##unit.nav_agent.target_position = $TeamB/Ground/GroundSpawn1/TargetPoint.global_position <- Добавить выезжание
 		var player_id = multiplayer.get_remote_sender_id()
-		var unit : BaseUnit = Handlers.NetworkSpawner.spawn({"path":"res://prefabs/units/base_unit.tscn", "resource_info":"null","position":spawn_point, "owner_id":player_id}) #"owner_id":player_id
-		print("ID is ", multiplayer.get_remote_sender_id())
-		unit.owner_id = multiplayer.get_remote_sender_id()
+		
+		# Добавляем случайный разброс в пределах 20 пикселей
+		var random_offset = Vector2(
+			randf_range(-20.0, 20.0),
+			randf_range(-20.0, 20.0)
+		)
+		spawn_point += random_offset
+		
+		var scene_path := "res://prefabs/units/base_unit.tscn"
+		if unit_type == "command_unit":
+			scene_path = "res://prefabs/units/command_unit.tscn"
+		# TODO: добавить другие типы юнитов по мере расширения
+		
+		var unit = Handlers.NetworkSpawner.spawn({
+			"path": scene_path,
+			"resource_info": "null",
+			"position": spawn_point,
+			"owner_id": player_id
+		})
+		unit.owner_id = player_id
+		print("🏭 СПАВН: Юнит типа '", unit_type, "' создан для игрока ", player_id, " в позиции ", spawn_point)

@@ -22,6 +22,12 @@ func set_map(map_name:String): # TODO неиспользуемая функци�
 func _peer_connected(player_id):
 	print_rich("[color=green][b][SERVER] Player %s connected[/b][/color]" % player_id)
 	rpc_id(player_id, "set_map", Handlers.GameHandler.map)
+	
+	# Отправляем новому игроку актуальное состояние всех захваченных гексов
+	# Небольшая задержка чтобы убедиться что клиент инициализировался
+	await get_tree().create_timer(0.5).timeout
+	if Handlers.GameHandler:
+		Handlers.GameHandler.send_full_map_state_to_new_player(player_id)
 
 func _peer_disconnected(player_id):
 	Handlers.TeamHandler.rpc("remove_from_team", player_id)

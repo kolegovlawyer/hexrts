@@ -1,7 +1,8 @@
-[gd_scene load_steps=4 format=3 uid="uid://bwp5hwlei615o"]
+[gd_scene load_steps=5 format=3 uid="uid://bwp5hwlei615o"]
 
 [ext_resource type="Script" uid="uid://disni6i8y4hfe" path="res://scripts/UI/fob_panel.gd" id="1_qhmdu"]
-[ext_resource type="PackedScene" uid="uid://bchss6rum1oey" path="res://prefabs/ui/unit_card.tscn" id="1_rvpyp"]
+[ext_resource type="PackedScene" uid="uid://bchss6rum1oey" path="res://prefabs/ui/unit_card.tscn" id="2_cmduc"]
+[ext_resource type="PackedScene" uid="uid://y2kl2a7ru2u6" path="res://prefabs/ui/command_unit_card.tscn" id="3_81dbq"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_x7peu"]
 bg_color = Color(0.252028, 0.252028, 0.252028, 0.34902)
@@ -28,9 +29,17 @@ theme_override_constants/margin_bottom = 5
 [node name="MainRack" type="VBoxContainer" parent="FobPanelMarginContainer"]
 layout_mode = 2
 
+[node name="TitleLabel" type="Label" parent="FobPanelMarginContainer/MainRack"]
+layout_mode = 2
+text = "Unit Production"
+horizontal_alignment = 1
+
 [node name="UnitsBoard" type="HBoxContainer" parent="FobPanelMarginContainer/MainRack"]
 layout_mode = 2
 
-[node name="UnitCard" parent="FobPanelMarginContainer/MainRack/UnitsBoard" instance=ExtResource("1_rvpyp")]
+[node name="UnitCard" parent="FobPanelMarginContainer/MainRack/UnitsBoard" instance=ExtResource("2_cmduc")]
 layout_mode = 2
 mouse_filter = 1
+
+[node name="CommandUnitCard2" parent="FobPanelMarginContainer/MainRack/UnitsBoard" instance=ExtResource("3_81dbq")]
+layout_mode = 2

@@ -10,14 +10,247 @@ var hexes_dict: Dictionary = {}
 # Ссылка на OverlayMap для обновления тайлов захвата
 var overlay_map: TileMapLayer
 
+### POINTS SYSTEM ###
+
+# Конфигурация очков
+const VICTORY_POINTS_TO_WIN: int = 500
+const BASE_RECRUITMENT_RATE: float = 1.0  # +1 очко найма в секунду
+const UNIT_SPAWN_COST: int = 10
+# Убираем UNIT_SPAWN_DELAY - теперь это будет в FOB
+
+# Очки игроков: player_id -> {recruitment_points: float, victory_points: float}
+var player_points: Dictionary = {}
+
+# Таймер для обновления очков каждую секунду
+var points_timer: Timer
+
+
+
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	set_multiplayer_authority(1)
 	Handlers.GameHandler = self
+	
+	# Инициализируем систему очков только на сервере
+	if is_multiplayer_authority():
+		setup_points_system()
 
 # Delete handler on scene exit
 func _exit_tree():
 	Handlers.GameHandler = null
+
+### POINTS SYSTEM FUNCTIONS ###
+
+func setup_points_system() -> void:
+	"""
+	Инициализирует систему очков на сервере
+	"""
+	print("🏆 POINTS: Инициализация системы очков на сервере")
+	
+	# Создаем таймер для обновления очков
+	points_timer = Timer.new()
+	points_timer.wait_time = 1.0
+	points_timer.timeout.connect(_on_points_timer_timeout)
+	points_timer.autostart = true
+	add_child(points_timer)
+	
+	# Инициализируем очки для всех подключенных игроков
+	for player_id in multiplayer.get_peers():
+		_initialize_player_points(player_id)
+	
+	# Инициализируем очки для сервера (если он играет)
+	var server_id = multiplayer.get_unique_id()
+	if server_id != 1:  # Сервер имеет ID = 1, но может играть под другим ID
+		_initialize_player_points(server_id)
+	
+	# Подключаемся к сигналам сети для новых игроков
+	multiplayer.peer_connected.connect(_on_player_connected)
+	multiplayer.peer_disconnected.connect(_on_player_disconnected)
+
+func _initialize_player_points(player_id: int) -> void:
+	"""
+	Инициализирует очки для нового игрока
+	"""
+	player_points[player_id] = {
+		"recruitment_points": 50.0,  # Начальные очки найма (5 юнитов)
+		"victory_points": 0.0
+	}
+	print("💰 POINTS: Инициализированы очки для игрока ", player_id)
+	
+	# Отправляем начальные очки клиенту (только если это не сервер)
+	if player_id != 1:
+		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
+
+func _on_player_connected(player_id: int) -> void:
+	"""
+	Обработчик подключения нового игрока
+	"""
+	_initialize_player_points(player_id)
+
+func _on_player_disconnected(player_id: int) -> void:
+	"""
+	Обработчик отключения игрока
+	"""
+	if player_points.has(player_id):
+		player_points.erase(player_id)
+	print("👋 POINTS: Удалены очки игрока ", player_id)
+
+func _on_points_timer_timeout() -> void:
+	"""
+	Обновляет очки всех игроков каждую секунду
+	"""
+	for player_id in player_points.keys():
+		_update_player_points(player_id)
+	
+	# Обрабатываем очередь отложенного спавна
+	# _process_delayed_spawn_queue() # Удалено
+
+func _update_player_points(player_id: int) -> void:
+	"""
+	Обновляет очки конкретного игрока на основе контролируемых гексов
+	"""
+	if not player_points.has(player_id):
+		return
+	
+	# Подсчитываем количество гексов игрока
+	var player_hexes_count = _count_player_hexes(player_id)
+	
+	# Рассчитываем прирост очков найма (базовый + бонус от гексов)
+	var recruitment_bonus = _calculate_recruitment_bonus(player_hexes_count)
+	var recruitment_gain = BASE_RECRUITMENT_RATE + recruitment_bonus
+	player_points[player_id]["recruitment_points"] += recruitment_gain
+	
+	# Рассчитываем прирост очков победы (только от гексов)
+	var victory_gain = _calculate_victory_gain(player_hexes_count)
+	player_points[player_id]["victory_points"] += victory_gain
+	
+	# Проверяем условие победы
+	if player_points[player_id]["victory_points"] >= VICTORY_POINTS_TO_WIN:
+		_handle_player_victory(player_id)
+	
+	# Отправляем обновленные очки клиенту
+	sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
+	
+	print("📊 POINTS: Игрок ", player_id, " гексы: ", player_hexes_count, " очки найма: +", recruitment_gain, " очки победы: +", victory_gain)
+
+func _count_player_hexes(player_id: int) -> int:
+	"""
+	Подсчитывает количество гексов, контролируемых игроком
+	"""
+	var count = 0
+	var player_team = _get_player_team(player_id)
+	
+	if player_team == -1:
+		return 0
+	
+	for hex in hexes_dict.values():
+		if hex.team_owner == player_team:
+			count += 1
+	
+	return count
+
+func _get_player_team(player_id: int) -> int:
+	"""
+	Получает номер команды игрока через существующую систему команд
+	"""
+	if not Handlers.TeamHandler:
+		print("⚠️ POINTS: TeamHandler не найден!")
+		return -1
+	
+	var player = Handlers.TeamHandler.find_player_by_id(player_id)
+	if not player:
+		print("⚠️ POINTS: Игрок ", player_id, " не найден в TeamHandler!")
+		return -1
+	
+	# Конвертируем GameTypes.Teams в int
+	var team_int = int(player.Team)
+	print("🏷️ POINTS: Игрок ", player_id, " команда ", team_int)
+	return team_int
+
+func _calculate_recruitment_bonus(hexes_count: int) -> float:
+	"""
+	Рассчитывает бонус очков найма от количества гексов (нелинейный)
+	Максимум +10/сек при большом количестве гексов
+	"""
+	if hexes_count <= 0:
+		return 0.0
+	
+	# Формула: bonus = hexes * 0.02 - hexes^2 * 0.00002
+	# При 500 гексах: 10 - 5 = 5/сек
+	# При 707 гексах: 14.14 - 10 = 4.14/сек (пик)
+	# При 1000 гексах: 20 - 20 = 0/сек
+	var bonus = hexes_count * 0.02 - pow(hexes_count, 2) * 0.00002
+	return max(0.0, min(10.0, bonus))
+
+func _calculate_victory_gain(hexes_count: int) -> float:
+	"""
+	Рассчитывает прирост очков победы от количества гексов (убывающая отдача)
+	"""
+	if hexes_count <= 0:
+		return 0.0
+	
+	# Формула: gain = hexes * 0.5 - hexes^2 * 0.0005
+	# При 100 гексах: 50 - 5 = 45/сек
+	# При 500 гексах: 250 - 125 = 125/сек (пик)
+	# При 1000 гексах: 500 - 500 = 0/сек
+	var gain = hexes_count * 0.5 - pow(hexes_count, 2) * 0.0005
+	return max(0.0, gain)
+
+func _handle_player_victory(player_id: int) -> void:
+	"""
+	Обрабатывает победу игрока
+	"""
+	print("🏆 VICTORY: Игрок ", player_id, " победил!")
+	# TODO: Реализовать логику завершения игры
+	announce_victory.rpc(player_id)
+
+@rpc("authority", "call_remote", "reliable")
+func sync_player_points(recruitment_points: float, victory_points: float) -> void:
+	"""
+	RPC для синхронизации очков с клиентом
+	"""
+	if is_multiplayer_authority():
+		print("⚠️ POINTS: sync_player_points вызвана на сервере!")
+		return
+	
+	# Обновляем UI на клиенте
+	if Handlers.UIHandler:
+		Handlers.UIHandler.update_points_display(recruitment_points, victory_points)
+
+@rpc("authority", "call_remote", "reliable")
+func announce_victory(winner_player_id: int) -> void:
+	"""
+	RPC для объявления победы
+	"""
+	print("🎉 VICTORY: Игрок ", winner_player_id, " выиграл игру!")
+	# TODO: Показать экран победы
+
+### SPAWN VALIDATION SYSTEM ###
+
+func validate_unit_spawn(player_id: int, unit_cost: int = UNIT_SPAWN_COST) -> bool:
+	"""
+	Проверяет, может ли игрок заспавнить юнита
+	Вызывается перед добавлением в очередь отложенного спавна
+	"""
+	if not player_points.has(player_id):
+		print("❌ SPAWN: Игрок ", player_id, " не найден в системе очков")
+		return false
+	
+	var current_points = player_points[player_id]["recruitment_points"]
+	if current_points < unit_cost:
+		print("❌ SPAWN: У игрока ", player_id, " недостаточно очков (", current_points, "/", unit_cost, ")")
+		return false
+	
+	# Списываем очки
+	player_points[player_id]["recruitment_points"] -= unit_cost
+	print("✅ SPAWN: Списано ", unit_cost, " очков у игрока ", player_id, " (осталось: ", player_points[player_id]["recruitment_points"], ")")
+	
+	# Отправляем обновленные очки клиенту
+	sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
+	
+	return true
+
+# Удалено: add_delayed_spawn, _process_delayed_spawn_queue, _execute_delayed_spawn
 
 func instantiate_network():
 	if game_type.to_lower() == "server":
@@ -287,11 +520,17 @@ func get_hex_at_world_position(world_position: Vector2):
 func send_full_map_state_to_new_player(player_id: int):
 	"""
 	Отправляет новому игроку полное состояние всех захваченных гексов
+	И НАЧАЛЬНЫЕ ОЧКИ
 	Вызывается только на сервере при подключении нового игрока
 	"""
 	if not is_multiplayer_authority():
 		print("⚠️ SYNC: send_full_map_state_to_new_player вызвана не на сервере!")
 		return
+	
+	# Отправляем очки новому игроку
+	if player_points.has(player_id):
+		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
+		print("📡 SYNC: Отправлены очки игроку ", player_id)
 	
 	# Проверяем что гексы инициализированы
 	if hexes_dict.is_empty():

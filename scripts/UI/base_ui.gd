@@ -5,6 +5,8 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 @onready var window_size_label = get_node("%WindowSize")
 @onready var mouse_position_label = get_node("%CurrentMousePos")
 
+@onready var win_bar = get_node("%WinBar")
+@onready var unit_points = get_node("%UnitPoints")
 
 @onready var hud_board = get_node("%HUDBoard")
 @onready var home_button = get_node("%HomeButton")
@@ -145,6 +147,9 @@ func _ready() -> void:
 	hud_board.connect('mouse_exited', continue_camera_move)
 	#home_button.connect('pressed', move_camera_to_fob)
 	
+	# Инициализация UI очков с начальными значениями
+	_initialize_points_display()
+
 func move_camera_to_fob():
 	print('КНОПКА НАЖАЛАСЬ')
 
@@ -164,6 +169,48 @@ func _on_viewport_size_changed():
 func _exit_tree():
 	Handlers.UIHandler = null
 	
+### POINTS DISPLAY FUNCTIONS ###
+
+func update_points_display(recruitment_points: float, victory_points: float) -> void:
+	"""
+	Обновляет отображение очков в UI
+	Вызывается через RPC от сервера
+	"""
+	# Обновляем очки найма в label
+	unit_points.text = str(int(recruitment_points))
+	
+	# Обновляем прогресс-бар очков победы
+	var victory_percentage = (victory_points / 500.0) * 100.0  # 500 - цель для победы
+	win_bar.value = victory_percentage
+	
+	print("🎯 UI: Обновлены очки - найм: ", int(recruitment_points), " победа: ", int(victory_points), "/500 (", int(victory_percentage), "%)")
+
+func get_current_recruitment_points() -> int:
+	"""
+	Возвращает текущие очки найма для UI (для проверки доступности спавна)
+	"""
+	var text = unit_points.text
+	if text.is_valid_int():
+		return text.to_int()
+	return 0
+
+func show_insufficient_points_message() -> void:
+	"""
+	Показывает сообщение о недостаточности очков для спавна
+	"""
+	print("⚠️ UI: Недостаточно очков для спавна юнита!")
+	# TODO: Добавить визуальное уведомление в UI (тост, анимация и т.д.)
+
+func _initialize_points_display() -> void:
+	"""
+	Инициализирует отображение очков начальными значениями
+	"""
+	# Устанавливаем начальные значения (будут обновлены сервером)
+	unit_points.text = "0"
+	win_bar.value = 0.0
+	win_bar.max_value = 100.0  # Для процентов (0-100%)
+	win_bar.min_value = 0.0
+	print("🎯 UI: Инициализированы начальные значения очков")
 	
 func start_draw_selection_box(init_position):
 	

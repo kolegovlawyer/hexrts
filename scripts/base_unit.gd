@@ -14,10 +14,13 @@ const SPEED = 300.0
 @onready var reload_timer = get_node("%ReloadTimer")
 @onready var aim_taimer = get_node("%AimTimer")
 @onready var health_bar = get_node("%HealthBar")
-@onready var shiled_bar = get_node("%ShiledBar")
+@onready var shield_bar = get_node("%ShiledBar")
 
 # Таймер для автоматической атаки (проверка каждую секунду)
 var auto_attack_timer: Timer
+
+# Таймер для восстановления щита
+var shield_regeneration_timer: Timer
 
 @onready var navagent : NavigationAgent2D = $NavigationAgent2D
 var path_points : Array[Vector2] = []
@@ -98,10 +101,14 @@ var selected : bool = false:
 var accel = 7
 @export var speed = 300
 @export var max_health = 30
+@export var max_shield = 15  # По умолчанию 1/2 от здоровья
 @export var damage = 5
 @export var reload_time = 3
+@export var shield_regen_rate = 1.5  # Щит в секунду при восстановлении (15/10 = 1.5)
+@export var shield_regen_delay = 3.0  # Задержка начала восстановления щита после получения урона
 
 var _health = 30
+var _shield = 15
 
 @export var health: int:
 	set(value):
@@ -109,9 +116,22 @@ var _health = 30
 		_health = clamp(value, 0, max_health)
 		if old_health != _health:
 			update_health_bar()
-			print("🩹 Health изменен с ", old_health, " на ", _health)
+			# print("🩹 Health изменен с ", old_health, " на ", _health)
 	get:
 		return _health
+
+@export var shield: int:
+	set(value):
+		var old_shield = _shield
+		_shield = clamp(value, 0, max_shield)
+		if old_shield != _shield:
+			update_shield_bar()
+			# Отправляем обновление щита клиентам (только с сервера)
+			if is_multiplayer_authority():
+				rpc("sync_shield", _shield)
+			# print("🛡️ Shield изменен с ", old_shield, " на ", _shield)
+	get:
+		return _shield
 
 var preview
 
@@ -136,20 +156,15 @@ func _ready() -> void:
 	# Добавляем в группу units для поиска
 	add_to_group("units")
 	
-	# Инициализируем health bar
+	# Инициализируем health bar и shield bar
 	init_health_bar()
+	init_shield_bar()
 	
 	# Создаем таймер автоматической атаки (только на сервере)
 	if is_multiplayer_authority():
 		_setup_auto_attack_timer()
+		_setup_shield_regeneration_timer()
 	
-	# Отладочная информация
-	if is_multiplayer_authority():
-		# print("СЕРВЕРНЫЙ ЮНИТ СОЗДАН: ", name, " NodePath: ", get_path())
-		print("СЕРВЕРНЫЙ ЮНИТ СОЗДАН: ", name, " NodePath: ", get_path())
-	else:
-		# print("КЛИЕНТСКИЙ ЮНИТ СОЗДАН: ", name, " NodePath: ", get_path())
-		print("КЛИЕНТСКИЙ ЮНИТ СОЗДАН: ", name, " NodePath: ", get_path())
 	
 	if not is_multiplayer_authority():
 		connect("input_event", handle_input)
@@ -460,27 +475,61 @@ func attack(target: BaseUnit) -> void:
 
 func apply_damage(amount: int, from: BaseUnit = null) -> void:
 	"""
-	Наносит урон юниту
+	Наносит урон юниту с учетом щита
+	
+	ЛОГИКА УРОНА:
+	1. Сначала урон поглощается щитом
+	2. Излишки урона наносятся здоровью
+	3. Останавливается восстановление щита
 	
 	ПАРАМЕТРЫ:
 	- amount: Количество урона
 	- from: Источник урона (может быть null если источник был уничтожен)
 	"""
-	health -= amount
+	var remaining_damage = amount
+	
+	# Сначала урон поглощается щитом
+	if _shield > 0:
+		var shield_damage = min(_shield, remaining_damage)
+		shield -= shield_damage
+		remaining_damage -= shield_damage
+		
+		# Останавливаем восстановление щита и сбрасываем таймер
+		if is_multiplayer_authority() and shield_regeneration_timer:
+			shield_regeneration_timer.stop()
+			# Перезапускаем таймер задержки восстановления
+			shield_regeneration_timer.wait_time = shield_regen_delay
+			shield_regeneration_timer.start()
+		
+		# print("🛡️ Щит поглотил ", shield_damage, " урона. Щит: ", _shield, "/", max_shield)
+	
+	# Оставшийся урон наносится здоровью
+	if remaining_damage > 0:
+		health -= remaining_damage
 	
 	# Безопасное логирование с проверкой источника урона
 	if from and is_instance_valid(from):
-		# print("Unit ", name, " took ", amount, " damage from ", from.name, ". Health: ", health)
+		# print("Unit ", name, " took ", amount, " damage from ", from.name, ". Shield: ", _shield, " Health: ", _health)
 		pass
 	else:
-		# print("Unit ", name, " took ", amount, " damage from unknown source. Health: ", health)
+		# print("Unit ", name, " took ", amount, " damage from unknown source. Shield: ", _shield, " Health: ", _health)
 		pass
 	
 	if health <= 0:
 		die()
 
+@rpc("any_peer", "call_local", "reliable")
+func sync_shield(new_shield_value: int) -> void:
+	"""
+	Синхронизирует значение щита между сервером и клиентами
+	Вызывается только с сервера при изменении щита
+	"""
+	if not is_multiplayer_authority():
+		_shield = new_shield_value
+		update_shield_bar()
+
 func die() -> void:
-	# print("�� Unit died: ", name)
+	# print(" Unit died: ", name)
 	
 	# Удаляем юнит из выделения (только для владельца)
 	if not is_multiplayer_authority() and self in get_tree().get_nodes_in_group("own_units"):
@@ -505,9 +554,11 @@ func _on_unit_died(dead_unit: BaseUnit) -> void:
 
 func init_health_bar() -> void:
 	"""Инициализирует health bar с правильными значениями"""
-	# Инициализируем здоровье, если еще не инициализировано
+	# Инициализируем здоровье и щит, если еще не инициализированы
 	if _health <= 0:
 		_health = max_health
+	if _shield <= 0:
+		_shield = max_shield
 	
 	if health_bar:
 		health_bar.max_value = max_health
@@ -565,6 +616,33 @@ func update_visual():
 		update_sprite_color()
 		# print('check')
 	update_health_bar()
+	update_shield_bar()
+
+# === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РЕФАКТОРИНГА ===
+func is_valid_unit(unit) -> bool:
+	"""Проверяет, что объект существует и является BaseUnit"""
+	return unit != null and is_instance_valid(unit) and unit is BaseUnit
+
+func set_own_unit_group():
+	if not is_in_group("own_units"):
+		add_to_group("own_units")
+
+func set_enemy_unit_group():
+	if not is_in_group("enemy_units"):
+		add_to_group("enemy_units")
+
+func update_sprite_color():
+	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
+		sprite.self_modulate = Color(1, 1, 1)
+	elif owner_team == Handlers.TeamHandler.my_profile.Team:
+		sprite.self_modulate = Color(0, 0, 1)
+	else:
+		sprite.self_modulate = Color(1, 0, 0)
+		if light:
+			light.hide()
+		if sprite:
+			sprite.light_mask = 2
+			sprite.visibility_layer = 2
 		
 func update_visibility():
 	if is_multiplayer_authority():
@@ -606,18 +684,32 @@ func _unit_state_enter(state: int) -> void:
 			if auto_attack_timer and is_multiplayer_authority():
 				auto_attack_timer.start()
 				# print("🎯 AUTO_ATTACK: Таймер запущен для юнита ", name, " (переход в IDLE)")
+			# В состоянии ожидания начинаем восстановление щита (если щит не полный)
+			if shield_regeneration_timer and is_multiplayer_authority() and _shield < max_shield:
+				shield_regeneration_timer.wait_time = shield_regen_delay
+				shield_regeneration_timer.start()
+				# print("🛡️ SHIELD_REGEN: Таймер задержки восстановления запущен для ", name)
 		UNIT_STATES.MOVING:
-			# В состоянии движения останавливаем поиск целей
+			# В состоянии движения останавливаем поиск целей и восстановление щита
 			if auto_attack_timer:
 				auto_attack_timer.stop()
+			if shield_regeneration_timer and is_multiplayer_authority():
+				shield_regeneration_timer.stop()
+				# print("🛡️ SHIELD_REGEN: Восстановление остановлено (движение)")
 		UNIT_STATES.ATTACKING:
-			# В состоянии атаки останавливаем поиск целей (у нас уже есть цель)
+			# В состоянии атаки останавливаем поиск целей и восстановление щита
 			if auto_attack_timer:
 				auto_attack_timer.stop()
+			if shield_regeneration_timer and is_multiplayer_authority():
+				shield_regeneration_timer.stop()
+				# print("🛡️ SHIELD_REGEN: Восстановление остановлено (атака)")
 		UNIT_STATES.AUTO_ATTACKING:
-			# В состоянии автоатаки таймер должен продолжать работать
+			# В состоянии автоатаки таймер поиска работает, но восстановление щита останавливается
 			if auto_attack_timer and is_multiplayer_authority():
 				auto_attack_timer.start()
+			if shield_regeneration_timer and is_multiplayer_authority():
+				shield_regeneration_timer.stop()
+				# print("🛡️ SHIELD_REGEN: Восстановление остановлено (автоатака)")
 
 ## СИСТЕМА АВТОМАТИЧЕСКОЙ АТАКИ
 func _setup_auto_attack_timer() -> void:
@@ -644,6 +736,17 @@ func _start_auto_attack_delayed() -> void:
 		# print("🎯 AUTO_ATTACK: Принудительно запущена автоатака для нового юнита ", name)
 
 func _on_auto_attack_timer_timeout() -> void:
+	"""
+	Обработчик таймера автоматической атаки
+	Вызывается каждую секунду для поиска и атаки врагов
+	
+	ЛОГИКА АВТОАТАКИ:
+	1. Проверяет, нет ли текущих приказов (приоритет у ручных команд)
+	2. Ищет видимых врагов в зоне обзора
+	3. Выбирает ближайшего врага как цель
+	4. Добавляет приказ атаки в очередь
+	5. Переключает состояние на AUTO_ATTACKING
+	"""
 	# Автоатака работает только на сервере
 	if not is_multiplayer_authority():
 		return
@@ -668,32 +771,6 @@ func _on_auto_attack_timer_timeout() -> void:
 		orders.append({"type": "attack", "target": target_enemy})
 		unit_state = UNIT_STATES.AUTO_ATTACKING
 
-# === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РЕФАКТОРИНГА ===
-func is_valid_unit(unit) -> bool:
-	"""Проверяет, что объект существует и является BaseUnit"""
-	return unit != null and is_instance_valid(unit) and unit is BaseUnit
-
-func set_own_unit_group():
-	if not is_in_group("own_units"):
-		add_to_group("own_units")
-
-func set_enemy_unit_group():
-	if not is_in_group("enemy_units"):
-		add_to_group("enemy_units")
-
-func update_sprite_color():
-	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
-		sprite.self_modulate = Color(1, 1, 1)
-	elif owner_team == Handlers.TeamHandler.my_profile.Team:
-		sprite.self_modulate = Color(0, 0, 1)
-	else:
-		sprite.self_modulate = Color(1, 0, 0)
-		if light:
-			light.hide()
-		if sprite:
-			sprite.light_mask = 2
-			sprite.visibility_layer = 2
-
 # === END ВСПОМОГАТЕЛЬНЫХ ===
 
 func _get_visible_enemies() -> Array[BaseUnit]:
@@ -704,7 +781,7 @@ func _get_visible_enemies() -> Array[BaseUnit]:
 	var enemies: Array[BaseUnit] = []
 	
 	for unit in has_vision_on:
-		if is_valid_unit(unit) and unit != self:
+		if is_instance_valid(unit) and unit != self:
 			# КРИТИЧЕСКИ ВАЖНО: Проверяем, что это действительно враг, а не союзник
 			if _is_enemy_unit(unit):
 				enemies.append(unit)
@@ -754,7 +831,6 @@ func _select_best_target(enemies: Array[BaseUnit]) -> BaseUnit:
 	АЛГОРИТМ ВЫБОРА:
 	1. Берет первого врага из списка (простейший алгоритм)
 	2. В будущем можно усложнить: ближайший, самый слабый, наиболее опасный
-	3. Приоритет по типу юнита
 	
 	ПАРАМЕТРЫ:
 	- enemies: Список доступных для атаки врагов
@@ -773,3 +849,89 @@ func _select_best_target(enemies: Array[BaseUnit]) -> BaseUnit:
 	# - Приоритет по типу юнита
 	
 	return enemies[0]
+
+## SHIELD BAR FUNCTIONS ##
+
+func init_shield_bar() -> void:
+	"""Инициализирует shield bar с правильными значениями"""
+	# Инициализируем щит, если еще не инициализирован
+	if _shield <= 0:
+		_shield = max_shield
+	
+	if shield_bar:
+		shield_bar.max_value = max_shield
+		shield_bar.value = _shield
+		update_shield_bar()  # Обновляем отображение с правильными цветами
+		# print("🛡️ Shield bar инициализирован: ", _shield, "/", max_shield)
+
+func update_shield_bar() -> void:
+	"""Обновляет отображение shield bar при изменении щита"""
+	if shield_bar:
+		shield_bar.value = _shield
+		
+		# Меняем цвет в зависимости от процента щита
+		var shield_percent = float(_shield) / float(max_shield)
+		if shield_percent > 0.7:
+			# Синий цвет для полного щита
+			shield_bar.modulate = Color.CYAN
+		elif shield_percent > 0.3:
+			# Фиолетовый цвет для поврежденного щита
+			shield_bar.modulate = Color.MAGENTA
+		elif shield_percent > 0:
+			# Красный цвет для критического щита
+			shield_bar.modulate = Color.ORANGE
+		else:
+			# Скрываем bar когда щита нет
+			shield_bar.modulate = Color.TRANSPARENT
+		
+		# print("🛡️ Shield bar обновлен: ", _shield, "/", max_shield, " (", int(shield_percent * 100), "%)")
+
+## СИСТЕМА ВОССТАНОВЛЕНИЯ ЩИТА
+func _setup_shield_regeneration_timer() -> void:
+	"""
+	Создает и настраивает таймер восстановления щита
+	Вызывается только на сервере при инициализации юнита
+	"""
+	shield_regeneration_timer = Timer.new()
+	shield_regeneration_timer.wait_time = shield_regen_delay  # Начальная задержка
+	shield_regeneration_timer.timeout.connect(_on_shield_regeneration_timeout)
+	shield_regeneration_timer.autostart = false
+	add_child(shield_regeneration_timer)
+	
+	# print("🛡️ Таймер восстановления щита настроен для ", name)
+
+func _on_shield_regeneration_timeout() -> void:
+	"""
+	Обработчик таймера восстановления щита
+	
+	ЛОГИКА ВОССТАНОВЛЕНИЯ:
+	1. Проверяет, что юнит в состоянии IDLE
+	2. Восстанавливает щит постепенно (shield_regen_rate в секунду)
+	3. Останавливается при достижении максимума
+	"""
+	# Восстановление работает только на сервере
+	if not is_multiplayer_authority():
+		return
+	
+	# Восстанавливаем щит только в состоянии ожидания
+	if unit_state != UNIT_STATES.IDLE:
+		return
+	
+	# Если щит уже полный - останавливаем таймер
+	if _shield >= max_shield:
+		shield_regeneration_timer.stop()
+		# print("🛡️ SHIELD_REGEN: Щит полностью восстановлен для ", name)
+		return
+	
+	# Восстанавливаем щит
+	var regen_amount = int(shield_regen_rate)  # Количество щита за тик
+	shield += regen_amount
+	
+	# print("🛡️ SHIELD_REGEN: Восстановлено ", regen_amount, " щита для ", name, " (", _shield, "/", max_shield, ")")
+	
+	# Если щит не полный - продолжаем восстановление каждую секунду
+	if _shield < max_shield:
+		shield_regeneration_timer.wait_time = 1.0  # Интервал восстановления
+		shield_regeneration_timer.start()
+	else:
+		shield_regeneration_timer.stop()

@@ -26,6 +26,17 @@ func handle_input(event):
 			get_viewport().set_input_as_handled()
 			
 func activate_card():
+	# Проверяем достаточно ли очков найма (клиентская проверка для UI feedback)
+	var current_points = Handlers.UIHandler.get_current_recruitment_points()
+	var spawn_cost = 10  # Базовая стоимость спавна
+	
+	if current_points < spawn_cost:
+		print("❌ UI: Недостаточно очков для спавна! (", current_points, "/", spawn_cost, ")")
+		Handlers.UIHandler.show_insufficient_points_message()
+		return
+	
 	var spawn_point = Handlers.UnitSelectionHandler.selected_fob.position
-	Handlers.UnitSpawnHandler.rpc_id(1, "spawn_unit", spawn_point, "base_unit")
-	#Handlers.UnitSpawnHandler.rpc_id(1, "spawn_unit", path)
+	
+	# Отправляем запрос на спавн с валидацией очков на сервере
+	print("💰 UI: Запрос спавна юнита (стоимость: ", spawn_cost, " очков)")
+	Handlers.UnitSpawnHandler.rpc_id(1, "spawn_unit_with_validation", spawn_point, "base_unit", spawn_cost)

@@ -23,8 +23,13 @@ func spawn_unit_with_validation(spawn_point, unit_type: String = "base_unit", un
 				player_fob.add_spawn_order(unit_type, unit_cost, player_id)
 				print("✅ SPAWN: Заказ добавлен в очередь FOB игрока ", player_id)
 				
+				# Определяем время спавна для сообщения клиенту
+				var spawn_delay = 3.0  # Обычные юниты
+				if unit_type == "command_unit":
+					spawn_delay = 6.0  # Командные юниты
+				
 				# Отправляем подтверждение клиенту
-				confirm_spawn_started.rpc_id(player_id, unit_type, unit_cost)
+				confirm_spawn_started.rpc_id(player_id, unit_type, unit_cost, spawn_delay)
 			else:
 				print("❌ SPAWN: FOB игрока ", player_id, " не найден!")
 				reject_spawn.rpc_id(player_id, "FOB не найден")
@@ -44,11 +49,11 @@ func _find_player_fob(player_id: int) -> fob:
 	return null
 
 @rpc("authority", "call_remote", "reliable")
-func confirm_spawn_started(unit_type: String, cost: int):
+func confirm_spawn_started(unit_type: String, cost: int, spawn_delay: float = 3.0):
 	"""
 	RPC подтверждения начала спавна для клиента
 	"""
-	print("✅ CLIENT: Спавн ", unit_type, " начат (списано ", cost, " очков, ожидание 3 сек)")
+	print("✅ CLIENT: Спавн ", unit_type, " начат (списано ", cost, " очков, ожидание ", spawn_delay, " сек)")
 	# TODO: Показать визуальную обратную связь (таймер спавна, анимацию и т.д.)
 
 @rpc("authority", "call_remote", "reliable") 

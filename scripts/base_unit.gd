@@ -250,7 +250,8 @@ func handle_input(viewport, event, shape_idx):
 					# print("Имя цели (this.name): ", name)
 					# print("UID цели:", self.UID)
 					# Передаем имя цели (this - это юнит, на который кликнули)
-					n.rpc_id(1, "add_order", UID, true)
+					if is_instance_valid(n):
+						n.rpc_id(1, "add_order", UID, true)
 				get_viewport().set_input_as_handled()
 		# Блокируем UI обработку при любом клике на юните
 		elif event is InputEventMouseButton:

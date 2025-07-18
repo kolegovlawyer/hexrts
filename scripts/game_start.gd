@@ -13,7 +13,7 @@ var overlay_map: TileMapLayer
 ### POINTS SYSTEM ###
 
 # Конфигурация очков
-const VICTORY_POINTS_TO_WIN: int = 500
+const VICTORY_POINTS_TO_WIN: int = 5000
 const BASE_RECRUITMENT_RATE: float = 1.0  # +1 очко найма в секунду
 const UNIT_SPAWN_COST: int = 10
 # Убираем UNIT_SPAWN_DELAY - теперь это будет в FOB

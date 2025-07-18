@@ -152,6 +152,24 @@ step = 1.0
 value = 90.0
 show_percentage = false
 
+[node name="ShiledBar" type="ProgressBar" parent="."]
+unique_name_in_owner = true
+material = SubResource("CanvasItemMaterial_uoolu")
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -35.0
+offset_top = -56.0
+offset_right = 35.0
+offset_bottom = -48.0
+grow_horizontal = 2
+size_flags_horizontal = 3
+theme_override_styles/background = SubResource("StyleBoxFlat_62sb7")
+theme_override_styles/fill = SubResource("StyleBoxFlat_jsquf")
+step = 1.0
+value = 90.0
+show_percentage = false
+
 [node name="Sprite2D" type="Sprite2D" parent="."]
 material = SubResource("CanvasItemMaterial_uoolu")
 position = Vector2(49, -40)

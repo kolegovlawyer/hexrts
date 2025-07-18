@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://bmm7e27ic1c5u" path="res://prefabs/units/base_fob.tscn" id="2_ptgwm"]
 [ext_resource type="Script" uid="uid://c50v11n1xtepe" path="res://scripts/game_system/unit_spawner.gd" id="3_kp86q"]
 [ext_resource type="Texture2D" uid="uid://b2yssebpb1u5u" path="res://assets/BartSpriter/arrow.png" id="4_2lhec"]
-[ext_resource type="Texture2D" uid="uid://ci2ql4jqnuhxv" path="res://assets/tilemap/base_hex.png" id="5_u0t51"]
+[ext_resource type="Texture2D" uid="uid://rjusfrp6cg03" path="res://assets/tilemap/base_hexs.png" id="5_u0t51"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_qfklk"]
 texture = ExtResource("5_u0t51")
@@ -33,11 +33,11 @@ tile_map_data = PackedByteArray("AAABAAAAAQADAAMAAAAAAAAAAQAAAAAAAAAAAP//AQAAAAA
 tile_set = ExtResource("2_eg4lu")
 
 [node name="SpawnerA" parent="MainMap" groups=["team_0_fobs"] instance=ExtResource("2_ptgwm")]
-position = Vector2(686, -392)
+position = Vector2(1350, -1146)
 collision_layer = 3
 
 [node name="SpawnerB" parent="MainMap" groups=["team_1_fobs"] instance=ExtResource("2_ptgwm")]
-position = Vector2(-167, -236)
+position = Vector2(-1485, 1388)
 collision_layer = 3
 team = 1
 

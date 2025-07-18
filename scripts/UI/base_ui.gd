@@ -106,11 +106,12 @@ func _gui_input(event: InputEvent) -> void:
 				if event.pressed == false:
 					if Handlers.UnitSelectionHandler.selected_units != null:
 						for n in Handlers.UnitSelectionHandler.selected_units:
-							var target_position = n.get_target_position()
-							#n.navagent.target_position = target_position
-							#print('GLOBAL MOUSE POSITION: ', get_global_mouse_position())
-							print('Через UI отправлен приказ на движение серверному юниту')
-							n.rpc_id(1, "add_order", target_position, true)
+							if is_instance_valid(n):
+								var target_position = n.get_target_position()
+								#n.navagent.target_position = target_position
+								#print('GLOBAL MOUSE POSITION: ', get_global_mouse_position())
+								print('Через UI отправлен приказ на движение серверному юниту')
+								n.rpc_id(1, "add_order", target_position, true)
 							#{"order": GameTypes.OrderTypes.MOVE_FORWARD,
 						#"target":cursor_pos}
 							

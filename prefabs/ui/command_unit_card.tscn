@@ -49,3 +49,7 @@ text = "Health: 40"
 [node name="SpecialLabel" type="Label" parent="MarginContainer/MainRack"]
 layout_mode = 2
 text = "Special: Capture Hex"
+
+[node name="CostLabel" type="Label" parent="MarginContainer/MainRack"]
+layout_mode = 2
+text = "Cost: 20 points"

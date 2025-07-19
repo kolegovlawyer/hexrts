@@ -420,25 +420,41 @@ func _connect_unit_signals_to_bots(unit: BaseUnit) -> void:
 	"""
 	Подключает сигналы юнита ко всем активным ботам
 	"""
+	print("📡 GAME: Подключение сигналов юнита ", unit.name, " к ботам (", active_bots.size(), " ботов)")
+	
 	for bot in active_bots:
+		print("  - Подключение к боту ", bot.bot_name)
+		
 		# Подключаем сигнал атаки
 		if not unit.under_attack.is_connected(bot._on_unit_under_attack):
 			unit.under_attack.connect(bot._on_unit_under_attack)
+			print("    ✅ Подключен сигнал under_attack")
 		
 		# Подключаем сигнал начала атаки
 		if not unit.attack_started.is_connected(bot._on_attack_started):
 			unit.attack_started.connect(bot._on_attack_started)
+			print("    ✅ Подключен сигнал attack_started")
 		
 		# Подключаем сигнал смерти
 		if not unit.unit_died.is_connected(bot._on_unit_died):
 			unit.unit_died.connect(bot._on_unit_died)
+			print("    ✅ Подключен сигнал unit_died")
 
 func _on_new_unit_spawned(unit: BaseUnit) -> void:
 	"""
 	Вызывается при спавне нового юнита для подключения к ботам
 	"""
 	if is_multiplayer_authority():
+		print("🎯 GAME: Новый юнит заспавнен: ", unit.name, " owner_id: ", unit.owner_id)
 		_connect_unit_signals_to_bots(unit)
+
+func register_new_unit(unit: BaseUnit) -> void:
+	"""
+	Регистрирует новый юнит в системе и подключает к ботам
+	Вызывается из _ready() юнита на сервере
+	"""
+	if is_multiplayer_authority():
+		_on_new_unit_spawned(unit)
 
 ### HEX CAPTURE SYSTEM ###
 

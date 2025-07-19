@@ -72,10 +72,26 @@ func _create_server_bot(bot_name: String, team: GameTypes.Teams) -> void:
 		# Создаем и назначаем FOB для бота
 		_assign_fob_to_bot(bot_ai, team)
 		
+		# Принудительно активируем таймеры бота
+		call_deferred("_force_bot_activation", bot_ai)
+		
 		print("✅ SERVER UI: Серверный бот ", bot_name, " создан (ID: ", bot_id, ")")
 		
 	else:
 		print("❌ SERVER UI: GameHandler не найден!")
+
+func _force_bot_activation(bot: Bot) -> void:
+	"""
+	Принудительно активирует таймеры и логику бота
+	"""
+	print("🚀 SERVER UI: Принудительная активация бота ", bot.bot_name)
+	
+	# Запускаем принятие решений через 2 секунды
+	await get_tree().create_timer(2.0).timeout
+	if is_instance_valid(bot):
+		print("🧠 SERVER UI: Запускаем логику бота вручную")
+		bot._make_strategic_decisions()
+		bot._check_spawn_opportunity()
 
 func _assign_fob_to_bot(bot: Bot, team: GameTypes.Teams) -> void:
 	"""
@@ -87,20 +103,52 @@ func _assign_fob_to_bot(bot: Bot, team: GameTypes.Teams) -> void:
 	print("🏭 SERVER UI: Поиск FOB для команды ", team, " в группе ", team_fob_group)
 	print("  - Найдено FOB: ", team_fobs.size())
 	
+	# Показываем всех FOB для отладки
+	for i in range(team_fobs.size()):
+		var fob = team_fobs[i]
+		print("  - FOB[", i, "]: owner_id=", fob.owner_id, " позиция=", fob.global_position)
+	
 	# Находим первый свободный FOB
 	for fob in team_fobs:
 		if fob.owner_id == 0 or fob.owner_id == 2 or fob.owner_id == 3:  # Свободный или серверный FOB
 			fob.owner_id = bot.bot_id
 			print("✅ SERVER UI: FOB назначен боту ", bot.bot_name, " (ID: ", bot.bot_id, ")")
+			
+			# Принудительно заставляем бота заспавнить первый командный юнит
+			call_deferred("_force_bot_spawn", bot, fob)
 			return
 	
 	# Если свободных FOB нет, назначаем первый попавшийся
 	if team_fobs.size() > 0:
 		var fob = team_fobs[0]
+		print("⚠️ SERVER UI: Принудительно назначен FOB боту ", bot.bot_name, " (старый owner_id: ", fob.owner_id, ")")
 		fob.owner_id = bot.bot_id
-		print("⚠️ SERVER UI: Принудительно назначен FOB боту ", bot.bot_name, " (перезаписан owner_id)")
+		call_deferred("_force_bot_spawn", bot, fob)
 	else:
 		print("❌ SERVER UI: Не найдено FOB для команды ", team)
+
+func _force_bot_spawn(bot: Bot, fob) -> void:
+	"""
+	Принудительно заставляет бота заспавнить командный юнит через FOB
+	"""
+	print("🤖 SERVER UI: Принудительный спавн для бота ", bot.bot_name, " через FOB")
+	
+	# Проверяем что у бота есть очки
+	if Handlers.GameHandler and Handlers.GameHandler.player_points.has(bot.bot_id):
+		var bot_points = Handlers.GameHandler.player_points[bot.bot_id]["recruitment_points"]
+		print("💰 SERVER UI: У бота ", bot_points, " очков найма")
+		
+		if bot_points >= 20:  # Стоимость командного юнита
+			# Добавляем заказ на спавн командного юнита
+			if fob.has_method("add_spawn_order"):
+				fob.add_spawn_order("command_unit", 20, bot.bot_id)
+				print("✅ SERVER UI: Добавлен заказ на командный юнит для бота")
+			else:
+				print("❌ SERVER UI: FOB не имеет метода add_spawn_order")
+		else:
+			print("⚠️ SERVER UI: У бота недостаточно очков для спавна (", bot_points, "/20)")
+	else:
+		print("❌ SERVER UI: У бота нет очков в системе")
 
 func _update_bots_list() -> void:
 	"""

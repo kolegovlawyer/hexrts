@@ -133,19 +133,28 @@ func _make_strategic_decisions() -> void:
 	if not is_multiplayer_authority():
 		return
 	
+	print("🧠 BOT: Принятие стратегических решений для бота ", bot_name)
+	
 	# Обновляем информацию о состоянии
 	_update_bot_state()
 	
 	# Определяем текущую стратегию
 	_evaluate_strategy()
 	
+	print("  - Текущая стратегия: ", strategy_mode)
+	print("  - Юнитов всего: ", bot_units.size())
+	print("  - Командных юнитов: ", command_units.size())
+	
 	# Выполняем действия в зависимости от стратегии
 	match strategy_mode:
 		"expand":
+			print("  - Выполняем стратегию расширения")
 			_execute_expansion_strategy()
 		"defend":
+			print("  - Выполняем стратегию обороны")
 			_execute_defense_strategy()
 		"attack":
+			print("  - Выполняем стратегию атаки")
 			_execute_attack_strategy()
 	
 	# Проверяем аварийные ситуации
@@ -247,16 +256,27 @@ func _check_spawn_opportunity() -> void:
 	"""
 	if not is_multiplayer_authority():
 		return
+	
+	print("⏰ BOT: Проверка возможности спавна для бота ", bot_name)
+	print("  - Текущих юнитов: ", bot_units.size())
+	print("  - Командных юнитов: ", command_units.size())
 		
 	# Получаем текущие очки найма бота
 	var current_points = _get_bot_recruitment_points()
+	print("  - Текущие очки: ", current_points)
+	
 	if current_points < 10:  # Недостаточно очков для базового юнита
+		print("  - Недостаточно очков для спавна (минимум 10)")
 		return
 	
 	# Определяем что спавнить
 	var unit_type = _decide_unit_to_spawn()
+	print("  - Решение: спавнить ", unit_type)
+	
 	if unit_type:
 		_attempt_spawn_unit(unit_type)
+	else:
+		print("  - Тип юнита не определен")
 
 func _attempt_initial_spawn() -> void:
 	"""

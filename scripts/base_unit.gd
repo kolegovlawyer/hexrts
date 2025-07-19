@@ -198,6 +198,10 @@ func _ready() -> void:
 		navagent.connect("velocity_computed", on_velocity_computed)
 		visibility_area.connect("body_entered", visibility_check_in)
 		visibility_area.connect("body_exited", visibility_check_out)
+		
+		# Регистрируем юнит в GameManager для подключения к ботам
+		if Handlers.GameHandler:
+			Handlers.GameHandler.register_new_unit(self)
 		print('ОВНЕР АЙДИ ПЕРЕД ТЕМ КАК СЛОМАТЬСЯ ', owner_id)
 		print(Handlers.TeamHandler.find_player_by_id(owner_id))
 		# КРИТИЧЕСКИ ВАЖНО: Инициализируем owner_team для новых юнитов
@@ -705,11 +709,21 @@ func update_visibility():
 					print("⚠️ VISIBILITY: Не удалось определить команду для owner_id ", owner_id)
 					return
 		
-		# Устанавливаем видимость для союзников
+		print("👁️ VISIBILITY: Настройка видимости для юнита ", name, " команда ", unit_team, " owner_id ", owner_id)
+		
+		# Сначала скрываем юнит от ВСЕХ игроков
+		for player_id in multiplayer.get_peers():
+			synchronizer.set_visibility_for(player_id, false)
+			print("  - Скрыт от player_id: ", player_id)
+		
+		# Затем показываем только союзникам
 		var team_players = Handlers.TeamHandler.get_team_players(unit_team)
 		if team_players:
 			for player in team_players:
 				synchronizer.set_visibility_for(player.PlayerId, true)
+				print("  - Показан союзнику player_id: ", player.PlayerId)
+		else:
+			print("⚠️ VISIBILITY: Нет союзников для команды ", unit_team)
 			
 func set_visibility_for_enemy(is_visible:bool) -> void:
 	if is_multiplayer_authority():
@@ -728,11 +742,16 @@ func set_visibility_for_enemy(is_visible:bool) -> void:
 					print("⚠️ ENEMY_VISIBILITY: Не удалось определить команду для owner_id ", owner_id)
 					return
 		
+		print("👁️ ENEMY_VISIBILITY: Юнит ", name, " команда ", unit_team, " видимость для врагов: ", is_visible)
+		
 		# Устанавливаем видимость для врагов
 		var enemy_players = Handlers.TeamHandler.get_enemy_team_players(unit_team)
 		if enemy_players:
 			for player in enemy_players:
 				synchronizer.set_visibility_for(player.PlayerId, is_visible)
+				print("  - Враг player_id: ", player.PlayerId, " видимость: ", is_visible)
+		else:
+			print("⚠️ ENEMY_VISIBILITY: Нет вражеских игроков для команды ", unit_team)
 
 ## СИСТЕМА СОСТОЯНИЙ (STATE MACHINE)
 func _unit_state_exit(state: int) -> void:

@@ -2,6 +2,11 @@ class_name BaseUnit extends CharacterBody2D
 
 ### SERVER AND UNIT CODE
 
+# Сигналы для системы ИИ ботов
+signal under_attack(attacker: BaseUnit, victim: BaseUnit)
+signal attack_started(attacker: BaseUnit, target: BaseUnit)
+signal unit_died(dead_unit: BaseUnit)
+
 const SPEED = 300.0
 
 @onready var collision = get_node("%CollisionShape2D")
@@ -40,7 +45,21 @@ var unit_profile = ''
 			pass
 		else:
 			synchronizer.owner_id = value
-			owner_team = Handlers.TeamHandler.find_player_by_id(owner_id).Team
+			
+			# Безопасно получаем команду для серверных ботов и обычных игроков
+			var bot_team = _get_bot_team_by_id(owner_id)
+			if bot_team != -1:
+				# Это бот
+				owner_team = bot_team
+			else:
+				# Это обычный игрок
+				var player = Handlers.TeamHandler.find_player_by_id(owner_id)
+				if player:
+					owner_team = player.Team
+				else:
+					print("⚠️ SETTER: Игрок с owner_id ", owner_id, " не найден")
+					return
+			
 			update_visibility()
 			
 var owner_team
@@ -183,15 +202,24 @@ func _ready() -> void:
 		print(Handlers.TeamHandler.find_player_by_id(owner_id))
 		# КРИТИЧЕСКИ ВАЖНО: Инициализируем owner_team для новых юнитов
 		if owner_id != 1:  # Не для дефолтного значения
-			var player = Handlers.TeamHandler.find_player_by_id(owner_id)
-			if player:
-				owner_team = player.Team
-				print("🏷️ ИНИЦИАЛИЗАЦИЯ: owner_team установлен в ", owner_team, " для юнита ", name)
-				
-				# Запускаем автоатаку с небольшой задержкой для полной инициализации
-				call_deferred("_start_auto_attack_delayed")
+			# Сначала проверяем является ли это ботом
+			var bot_team = _get_bot_team_by_id(owner_id)
+			if bot_team != -1:
+				# Это бот - используем команду из системы ботов
+				owner_team = bot_team
+				print("🤖 ИНИЦИАЛИЗАЦИЯ: Бот owner_team установлен в ", owner_team, " для юнита ", name)
 			else:
-				print("⚠️ ОШИБКА: Игрок с owner_id ", owner_id, " не найден при инициализации юнита")
+				# Это обычный игрок - используем TeamHandler
+				var player = Handlers.TeamHandler.find_player_by_id(owner_id)
+				if player:
+					owner_team = player.Team
+					print("🏷️ ИНИЦИАЛИЗАЦИЯ: Игрок owner_team установлен в ", owner_team, " для юнита ", name)
+				else:
+					print("⚠️ ОШИБКА: Игрок с owner_id ", owner_id, " не найден при инициализации юнита")
+					return
+			
+			# Запускаем автоатаку с небольшой задержкой для полной инициализации
+			call_deferred("_start_auto_attack_delayed")
 	
 	update_visual()
 	last_move_position = global_position
@@ -457,7 +485,9 @@ func attack(target: BaseUnit) -> void:
 		_last_attack_state = current_state
 		_attack_count = 0
 	
-	emit_signal("attack_started", target)
+	# Испускаем сигнал для системы ботов (начало атаки)
+	attack_started.emit(self, target)
+	
 	# Делегируем создание снаряда централизованной системе ProjectileSystem
 	# Это обеспечивает правильное разделение серверной логики и клиентской визуализации
 	if Handlers.ProjectileHandler:
@@ -487,6 +517,10 @@ func apply_damage(amount: int, from: BaseUnit = null) -> void:
 	- amount: Количество урона
 	- from: Источник урона (может быть null если источник был уничтожен)
 	"""
+	# Испускаем сигнал для системы ботов о том, что юнит подвергается атаке
+	if from and is_instance_valid(from):
+		under_attack.emit(from, self)
+	
 	var remaining_damage = amount
 	
 	# Сначала урон поглощается щитом
@@ -531,6 +565,9 @@ func sync_shield(new_shield_value: int) -> void:
 
 func die() -> void:
 	# print(" Unit died: ", name)
+	
+	# Испускаем сигнал смерти для системы ботов
+	unit_died.emit(self)
 	
 	# Удаляем юнит из выделения (только для владельца)
 	if not is_multiplayer_authority() and self in get_tree().get_nodes_in_group("own_units"):
@@ -595,13 +632,19 @@ func update_visual():
 			# print("А ВОТ И Я!!!")
 			pass
 		return
-		
-	var player = Handlers.TeamHandler.find_player_by_id(owner_id)
-	if not player:
-		# print("Player not found for owner_id: ", owner_id)
-		return
-		
-	owner_team = player.Team
+	
+	# Сначала проверяем является ли это ботом
+	var bot_team = _get_bot_team_by_id(owner_id)
+	if bot_team != -1:
+		# Это бот - используем команду из системы ботов
+		owner_team = bot_team
+	else:
+		# Это обычный игрок - используем TeamHandler
+		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
+		if not player:
+			# print("Player not found for owner_id: ", owner_id)
+			return
+		owner_team = player.Team
 	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
 		set_own_unit_group()
 		if not preview:
@@ -647,13 +690,49 @@ func update_sprite_color():
 		
 func update_visibility():
 	if is_multiplayer_authority():
-		for player in Handlers.TeamHandler.get_team_players(Handlers.TeamHandler.find_player_by_id(owner_id).Team):
-			synchronizer.set_visibility_for(player.PlayerId, true)
+		# Безопасно получаем команду юнита
+		var unit_team = owner_team
+		if unit_team == null:
+			# Пытаемся определить команду если она не задана
+			var bot_team = _get_bot_team_by_id(owner_id)
+			if bot_team != -1:
+				unit_team = bot_team
+			else:
+				var player = Handlers.TeamHandler.find_player_by_id(owner_id)
+				if player:
+					unit_team = player.Team
+				else:
+					print("⚠️ VISIBILITY: Не удалось определить команду для owner_id ", owner_id)
+					return
+		
+		# Устанавливаем видимость для союзников
+		var team_players = Handlers.TeamHandler.get_team_players(unit_team)
+		if team_players:
+			for player in team_players:
+				synchronizer.set_visibility_for(player.PlayerId, true)
 			
 func set_visibility_for_enemy(is_visible:bool) -> void:
 	if is_multiplayer_authority():
-		for player in Handlers.TeamHandler.get_enemy_team_players(Handlers.TeamHandler.find_player_by_id(owner_id).Team):
-			synchronizer.set_visibility_for(player.PlayerId, is_visible)
+		# Безопасно получаем команду юнита
+		var unit_team = owner_team
+		if unit_team == null:
+			# Пытаемся определить команду если она не задана
+			var bot_team = _get_bot_team_by_id(owner_id)
+			if bot_team != -1:
+				unit_team = bot_team
+			else:
+				var player = Handlers.TeamHandler.find_player_by_id(owner_id)
+				if player:
+					unit_team = player.Team
+				else:
+					print("⚠️ ENEMY_VISIBILITY: Не удалось определить команду для owner_id ", owner_id)
+					return
+		
+		# Устанавливаем видимость для врагов
+		var enemy_players = Handlers.TeamHandler.get_enemy_team_players(unit_team)
+		if enemy_players:
+			for player in enemy_players:
+				synchronizer.set_visibility_for(player.PlayerId, is_visible)
 
 ## СИСТЕМА СОСТОЯНИЙ (STATE MACHINE)
 func _unit_state_exit(state: int) -> void:
@@ -850,6 +929,21 @@ func _select_best_target(enemies: Array[BaseUnit]) -> BaseUnit:
 	# - Приоритет по типу юнита
 	
 	return enemies[0]
+
+func _get_bot_team_by_id(player_id: int) -> int:
+	"""
+	Получает команду бота по его ID
+	Возвращает -1 если это не бот или бот не найден
+	"""
+	if not Handlers.GameHandler:
+		return -1
+	
+	# Ищем бота в списке активных ботов
+	for bot in Handlers.GameHandler.active_bots:
+		if bot.bot_id == player_id:
+			return int(bot.bot_team)
+	
+	return -1  # Не найден среди ботов
 
 ## SHIELD BAR FUNCTIONS ##
 

@@ -10,6 +10,11 @@ var hexes_dict: Dictionary = {}
 # Ссылка на OverlayMap для обновления тайлов захвата
 var overlay_map: TileMapLayer
 
+### BOT MANAGEMENT SYSTEM ###
+
+# Список активных ботов
+var active_bots: Array[Bot] = []
+
 ### POINTS SYSTEM ###
 
 # Конфигурация очков
@@ -71,15 +76,27 @@ func _initialize_player_points(player_id: int) -> void:
 	"""
 	Инициализирует очки для нового игрока
 	"""
+	print("🎯 GAME DEBUG: Инициализация очков для player_id: ", player_id)
+	
 	player_points[player_id] = {
 		"recruitment_points": 50.0,  # Начальные очки найма (5 юнитов)
 		"victory_points": 0.0
 	}
 	print("💰 POINTS: Инициализированы очки для игрока ", player_id)
+	print("  - recruitment_points: ", player_points[player_id]["recruitment_points"])
+	print("  - victory_points: ", player_points[player_id]["victory_points"])
 	
-	# Отправляем начальные очки клиенту (только если это не сервер)
-	if player_id != 1:
+	# Проверяем является ли это ботом
+	var is_bot = _is_player_bot(player_id)
+	if is_bot:
+		print("🤖 GAME DEBUG: Игрок ", player_id, " определен как бот")
+	
+	# Отправляем начальные очки клиенту (только если это не сервер и не бот)
+	if player_id != 1 and not is_bot:
+		print("📡 GAME DEBUG: Отправляем начальные очки RPC игроку ", player_id)
 		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
+	else:
+		print("🚫 GAME DEBUG: Пропускаем RPC для player_id: ", player_id, " (сервер: ", player_id == 1, ", бот: ", is_bot, ")")
 
 func _on_player_connected(player_id: int) -> void:
 	"""
@@ -100,6 +117,9 @@ func _on_points_timer_timeout() -> void:
 	Обновляет очки всех игроков каждую секунду
 	"""
 	for player_id in player_points.keys():
+		# Пропускаем сервер (ID = 1)
+		if player_id == 1:
+			continue
 		_update_player_points(player_id)
 	
 	# Обрабатываем очередь отложенного спавна
@@ -110,6 +130,7 @@ func _update_player_points(player_id: int) -> void:
 	Обновляет очки конкретного игрока на основе контролируемых гексов
 	"""
 	if not player_points.has(player_id):
+		print("⚠️ POINTS DEBUG: player_id ", player_id, " не найден в player_points")
 		return
 	
 	# Подсчитываем количество гексов игрока
@@ -128,10 +149,16 @@ func _update_player_points(player_id: int) -> void:
 	if player_points[player_id]["victory_points"] >= VICTORY_POINTS_TO_WIN:
 		_handle_player_victory(player_id)
 	
-	# Отправляем обновленные очки клиенту
-	sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
+	# Проверяем является ли это ботом
+	var is_bot = _is_player_bot(player_id)
 	
-	print("📊 POINTS: Игрок ", player_id, " гексы: ", player_hexes_count, " очки найма: +", recruitment_gain, " очки победы: +", victory_gain)
+	# Отправляем обновленные очки клиенту (только если это не бот и не сервер)
+	if not is_bot and player_id != 1:
+		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
+	
+	# Логируем только для ботов или каждые 10 секунд для остальных
+	if is_bot or Time.get_unix_time_from_system() as int % 10 == 0:
+		print("📊 POINTS: Игрок ", player_id, " (бот: ", is_bot, ") гексы: ", player_hexes_count, " очки найма: +", recruitment_gain, " очки победы: +", victory_gain)
 
 func _count_player_hexes(player_id: int) -> int:
 	"""
@@ -157,6 +184,19 @@ func _get_player_team(player_id: int) -> int:
 		print("⚠️ POINTS: TeamHandler не найден!")
 		return -1
 	
+	# Сначала проверяем является ли это ботом
+	var is_bot = _is_player_bot(player_id)
+	if is_bot:
+		# Для ботов получаем команду напрямую из системы ботов
+		for bot in active_bots:
+			if bot.bot_id == player_id:
+				var team_int = int(bot.bot_team)
+				print("🤖 POINTS: Бот ", player_id, " команда ", team_int)
+				return team_int
+		print("❌ POINTS: Бот ", player_id, " не найден в active_bots!")
+		return -1
+	
+	# Для обычных игроков используем TeamHandler
 	var player = Handlers.TeamHandler.find_player_by_id(player_id)
 	if not player:
 		print("⚠️ POINTS: Игрок ", player_id, " не найден в TeamHandler!")
@@ -232,11 +272,16 @@ func validate_unit_spawn(player_id: int, unit_cost: int = UNIT_SPAWN_COST) -> bo
 	Проверяет, может ли игрок заспавнить юнита
 	Вызывается перед добавлением в очередь отложенного спавна
 	"""
+	print("🔍 GAME DEBUG: validate_unit_spawn для player_id: ", player_id, " cost: ", unit_cost)
+	print("  - player_points keys: ", player_points.keys())
+	
 	if not player_points.has(player_id):
 		print("❌ SPAWN: Игрок ", player_id, " не найден в системе очков")
 		return false
 	
 	var current_points = player_points[player_id]["recruitment_points"]
+	print("💰 GAME DEBUG: Текущие очки игрока ", player_id, ": ", current_points)
+	
 	if current_points < unit_cost:
 		print("❌ SPAWN: У игрока ", player_id, " недостаточно очков (", current_points, "/", unit_cost, ")")
 		return false
@@ -245,8 +290,16 @@ func validate_unit_spawn(player_id: int, unit_cost: int = UNIT_SPAWN_COST) -> bo
 	player_points[player_id]["recruitment_points"] -= unit_cost
 	print("✅ SPAWN: Списано ", unit_cost, " очков у игрока ", player_id, " (осталось: ", player_points[player_id]["recruitment_points"], ")")
 	
-	# Отправляем обновленные очки клиенту
-	sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
+	# Проверяем является ли player_id ботом (для отладки RPC ошибки)
+	var is_bot = _is_player_bot(player_id)
+	
+	print("📡 GAME DEBUG: Отправка RPC player_id: ", player_id, " is_bot: ", is_bot)
+	
+	# Отправляем обновленные очки клиенту (только если это не бот и не сервер)
+	if not is_bot and player_id != 1:
+		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
+	else:
+		print("🤖 GAME DEBUG: Пропускаем RPC для player_id: ", player_id, " (бот: ", is_bot, ", сервер: ", player_id == 1, ")")
 	
 	return true
 
@@ -310,6 +363,82 @@ func get_unit_by_name(node_name):
 	
 func get_all_units():
 	return get_node("Spawnables").get_children()
+
+### BOT MANAGEMENT FUNCTIONS ###
+
+func _is_player_bot(player_id: int) -> bool:
+	"""
+	Проверяет является ли игрок ботом
+	"""
+	for bot in active_bots:
+		if bot.bot_id == player_id:
+			return true
+	return false
+
+func register_bot(bot: Bot) -> void:
+	"""
+	Регистрирует бота в системе управления
+	"""
+	print("📋 GAME DEBUG: Попытка регистрации бота:")
+	print("  - bot_name: ", bot.bot_name if bot.bot_name else "не задано")
+	print("  - bot_id: ", bot.bot_id)
+	print("  - bot_team: ", bot.bot_team)
+	print("  - активных ботов до: ", active_bots.size())
+	
+	if bot not in active_bots:
+		active_bots.append(bot)
+		print("🤖 GAME: Зарегистрирован бот ", bot.bot_name, " (всего ботов: ", active_bots.size(), ")")
+		
+		# Убеждаемся что у бота есть очки в системе
+		if not player_points.has(bot.bot_id):
+			print("💰 GAME DEBUG: Инициализируем очки для нового бота ", bot.bot_id)
+			_initialize_player_points(bot.bot_id)
+		
+		# Подключаем существующие юниты к новому боту
+		_connect_existing_units_to_bot(bot)
+	else:
+		print("⚠️ GAME DEBUG: Бот уже зарегистрирован")
+
+func unregister_bot(bot: Bot) -> void:
+	"""
+	Удаляет бота из системы управления
+	"""
+	if bot in active_bots:
+		active_bots.erase(bot)
+		print("👋 GAME: Бот ", bot.bot_name, " удален из системы")
+
+func _connect_existing_units_to_bot(bot: Bot) -> void:
+	"""
+	Подключает уже существующих юнитов к новому боту
+	"""
+	var all_units = get_tree().get_nodes_in_group("units")
+	for unit in all_units:
+		if unit is BaseUnit:
+			_connect_unit_signals_to_bots(unit)
+
+func _connect_unit_signals_to_bots(unit: BaseUnit) -> void:
+	"""
+	Подключает сигналы юнита ко всем активным ботам
+	"""
+	for bot in active_bots:
+		# Подключаем сигнал атаки
+		if not unit.under_attack.is_connected(bot._on_unit_under_attack):
+			unit.under_attack.connect(bot._on_unit_under_attack)
+		
+		# Подключаем сигнал начала атаки
+		if not unit.attack_started.is_connected(bot._on_attack_started):
+			unit.attack_started.connect(bot._on_attack_started)
+		
+		# Подключаем сигнал смерти
+		if not unit.unit_died.is_connected(bot._on_unit_died):
+			unit.unit_died.connect(bot._on_unit_died)
+
+func _on_new_unit_spawned(unit: BaseUnit) -> void:
+	"""
+	Вызывается при спавне нового юнита для подключения к ботам
+	"""
+	if is_multiplayer_authority():
+		_connect_unit_signals_to_bots(unit)
 
 ### HEX CAPTURE SYSTEM ###
 
@@ -527,10 +656,16 @@ func send_full_map_state_to_new_player(player_id: int):
 		print("⚠️ SYNC: send_full_map_state_to_new_player вызвана не на сервере!")
 		return
 	
-	# Отправляем очки новому игроку
-	if player_points.has(player_id):
+	# Проверяем является ли это ботом
+	var is_bot = _is_player_bot(player_id)
+	print("🔍 SYNC DEBUG: send_full_map_state для player_id: ", player_id, " is_bot: ", is_bot)
+	
+	# Отправляем очки новому игроку (только если не бот)
+	if player_points.has(player_id) and not is_bot:
 		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
 		print("📡 SYNC: Отправлены очки игроку ", player_id)
+	elif is_bot:
+		print("🤖 SYNC: Пропускаем отправку очков боту ", player_id)
 	
 	# Проверяем что гексы инициализированы
 	if hexes_dict.is_empty():
@@ -551,6 +686,7 @@ func send_full_map_state_to_new_player(player_id: int):
 				"command_units": hex.command_units.map(func(unit): return unit.name if unit else "")
 			})
 	
+	# Отправляем состояние карты (ботам тоже нужно знать состояние карты)
 	print("📡 SYNC: Отправляем ", captured_hexes.size(), " захваченных гексов игроку ", player_id)
 	sync_full_map_state.rpc_id(player_id, captured_hexes)
 

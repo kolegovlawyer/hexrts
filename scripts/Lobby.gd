@@ -34,13 +34,12 @@ func _on_join_button_pressed(host=null, port=null, team=null):
 	if not team:
 		team = $"Join-Tab/TeamButton".get_selected_id()
 	
-	
 	var nickname = $"Join-Tab/NickEdit".text
 	
+	# Обычный клиент (убираем поддержку ботов через клиент)
 	Handlers.GameHandler.set_type_client(host, port, nickname)
 	Handlers.NetworkHandler.connect("client_connected", Handlers.TeamHandler.on_connect.bind(team))
-	# CONNECT TEAM HANDLER
-		
+	
 	get_tree().get_root().get_node("./Lobby").queue_free()
 	
 

@@ -1,0 +1,79 @@
+[gd_scene load_steps=2 format=3 uid="uid://cmovviocqa0j4"]
+
+[ext_resource type="Script" uid="uid://b7d0ti6odhuvg" path="res://scripts/UI/server_ui.gd" id="1_server_ui"]
+
+[node name="ServerUI" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_server_ui")
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = -150.0
+offset_right = 300.0
+offset_bottom = -10.0
+grow_vertical = 0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Title" type="Label" parent="Panel/VBoxContainer"]
+layout_mode = 2
+text = "🤖 Управление ботами"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="Panel/VBoxContainer"]
+layout_mode = 2
+
+[node name="TeamSelection" type="HBoxContainer" parent="Panel/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/VBoxContainer/TeamSelection"]
+layout_mode = 2
+text = "Команда:"
+
+[node name="TeamOption" type="OptionButton" parent="Panel/VBoxContainer/TeamSelection"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+selected = 0
+item_count = 2
+popup/item_0/text = "Team A"
+popup/item_0/id = 0
+popup/item_1/text = "Team B"
+popup/item_1/id = 1
+
+[node name="AddBotButton" type="Button" parent="Panel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "➕ Добавить бота"
+
+[node name="HSeparator2" type="HSeparator" parent="Panel/VBoxContainer"]
+layout_mode = 2
+
+[node name="BotsLabel" type="Label" parent="Panel/VBoxContainer"]
+layout_mode = 2
+text = "Активные боты:"
+
+[node name="BotsList" type="VBoxContainer" parent="Panel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[connection signal="pressed" from="Panel/VBoxContainer/AddBotButton" to="." method="_on_add_bot_button_pressed"]

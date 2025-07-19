@@ -28,7 +28,7 @@ signal destroyed(projectile: Projectile)  # Уведомление ProjectileSys
 var projectile_owner: BaseUnit         # Юнит, выпустивший снаряд
 var target_position: Vector2           # Целевая позиция полета (фиксированная)
 var damage: int = 5                    # Количество урона
-var speed: float = 600.0               # Скорость полета в пикселях/сек
+var speed: float = 700.0               # Скорость полета в пикселях/сек
 var explosion_radius: float = 50.0     # Радиус взрыва в пикселях
 
 # Состояние и визуализация
@@ -120,7 +120,7 @@ func _physics_process(delta: float) -> void:
 		sprite.rotation = direction.angle()
 
 	# Проверка достижения целевой позиции
-	if global_position.distance_to(target_position) < 5.0:
+	if global_position.distance_to(target_position) < 3.0:
 		_explode()
 
 func _update_trail() -> void:

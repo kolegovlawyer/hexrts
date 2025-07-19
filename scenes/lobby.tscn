@@ -81,6 +81,13 @@ popup/item_0/id = 0
 popup/item_1/text = "TeamB"
 popup/item_1/id = 1
 
+[node name="BotCheckBox" type="CheckBox" parent="Join-Tab"]
+layout_mode = 0
+offset_left = 566.0
+offset_top = 86.0
+offset_right = 590.0
+offset_bottom = 110.0
+
 [node name="Host-Tab" type="Control" parent="."]
 layout_mode = 1
 anchor_left = 0.022

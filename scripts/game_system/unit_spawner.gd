@@ -80,8 +80,8 @@ func _internal_spawn_unit(spawn_point: Vector2, unit_type: String, player_id: in
 		
 	# Добавляем случайный разброс в пределах 20 пикселей
 	var random_offset = Vector2(
-		randf_range(-20.0, 20.0),
-		randf_range(-20.0, 20.0)
+		randf_range(-50.0, 50.0),
+		randf_range(-50.0, 50.0)
 	)
 	spawn_point += random_offset
 	

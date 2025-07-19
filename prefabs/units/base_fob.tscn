@@ -5,7 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://ba30087ucun2e" path="res://assets/units/bars/capture_progress.png" id="3_q6ea7"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mru0y"]
-size = Vector2(32, 32)
+size = Vector2(75, 75)
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_p5qso"]
 light_mode = 2
@@ -25,6 +25,8 @@ fill_to = Vector2(0.5, 0)
 [node name="Spawner" type="StaticBody2D"]
 top_level = true
 z_index = 10
+collision_layer = 2
+collision_mask = 2
 input_pickable = true
 script = ExtResource("1_hdomf")
 

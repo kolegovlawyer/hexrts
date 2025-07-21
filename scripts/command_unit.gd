@@ -16,6 +16,13 @@ var current_hex = null
 var check_timer: float = 0.0
 var is_capturing: bool = false  # Флаг активного захвата (серверная логика)
 
+# СИСТЕМЫ АНТИ-ЗАСТРЕВАНИЯ для CommandUnit
+var command_stuck_timer: float = 0.0
+var last_command_position: Vector2 = Vector2.ZERO
+var emergency_escape_attempts: int = 0
+const MAX_ESCAPE_ATTEMPTS: int = 3
+const COMMAND_STUCK_THRESHOLD: float = 4.0  # Больше времени для командных юнитов
+
 func _ready() -> void:
 	super._ready()
 	
@@ -25,8 +32,6 @@ func _ready() -> void:
 			capture_progress_bar.hide()
 			capture_progress_bar.value = 0.0
 	
-	print("🎖️ DEBUG: CommandUnit _ready вызван, owner_id=", owner_id, " owner_team=", owner_team)
-	
 	# СЕРВЕРНАЯ ЛОГИКА: Инициализация команды
 	if is_multiplayer_authority() and owner_id != 1:
 		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
@@ -34,11 +39,9 @@ func _ready() -> void:
 			var expected_team = player.Team
 			if owner_team != expected_team:
 				owner_team = expected_team
-				print("🔧 DEBUG: Скорректирован owner_team с ", owner_team, " на ", expected_team, " для CommandUnit")
-			else:
-				print("✅ DEBUG: owner_team=", owner_team, " корректен для CommandUnit")
-		else:
-			print("❌ DEBUG: Не удалось найти игрока с owner_id=", owner_id)
+		
+		# Инициализируем позицию для анти-застревания
+		last_command_position = global_position
 
 func can_capture_while_in_state(state: int) -> bool:
 	"""
@@ -83,12 +86,9 @@ func check_current_hex() -> void:
 		current_hex = hex
 		if current_hex:
 			current_hex.add_command_unit(self)
-			# Логируем только смену гекса
-			print("🎖️ ", name, " переместился на гекс ", current_hex.position)
 	
 	# Если юнит на гексе, проверяем возможность захвата
 	if current_hex:
-		
 		# УЛУЧШЕННАЯ ЛОГИКА: Захват возможен во всех состояниях кроме движения
 		if can_capture_while_in_state(unit_state) and current_hex.can_be_captured_by_team(owner_team):
 			if current_hex.capturing_team != owner_team:
@@ -111,8 +111,6 @@ func start_capture() -> void:
 	
 	# Уведомляем клиентов о начале захвата
 	rpc("client_start_capture_visual", current_hex.position)
-	
-	print("🎬 ЗАХВАТ: Начат захват гекса ", current_hex.position, " командой ", owner_team, " в состоянии ", UNIT_STATES.keys()[unit_state])
 
 func stop_capture(reason: String = "") -> void:
 	"""Останавливает процесс захвата гекса (серверная логика)"""
@@ -127,41 +125,30 @@ func stop_capture(reason: String = "") -> void:
 	# Сбрасываем прогресс захвата в гексе
 	if current_hex:
 		current_hex.reset_capture()
-	
-	var reason_text = " (" + reason + ")" if reason != "" else ""
-	print("⏹️ ЗАХВАТ: Захват остановлен" + reason_text)
 
 @rpc("authority", "reliable")
 func client_start_capture_visual(hex_position: Vector2i) -> void:
 	"""Показывает прогресс-бар захвата у клиента-владельца"""
 	# БЕЗОПАСНАЯ ПРОВЕРКА: multiplayer может быть null при уничтожении юнита
-	if multiplayer and owner_id == multiplayer.get_unique_id() and capture_progress_bar:
+	if is_instance_valid(multiplayer) and owner_id == multiplayer.get_unique_id() and capture_progress_bar:
 		capture_progress_bar.show()
 		capture_progress_bar.value = 0.0
 		capture_progress_bar.max_value = 100.0
-		print("🎬 ВИЗУАЛ: Прогресс-бар захвата показан для гекса ", hex_position)
 
 @rpc("authority", "reliable")
 func client_stop_capture_visual() -> void:
 	"""Скрывает прогресс-бар захвата у клиента-владельца"""
 	# БЕЗОПАСНАЯ ПРОВЕРКА: multiplayer может быть null при уничтожении юнита
-	if multiplayer and owner_id == multiplayer.get_unique_id() and capture_progress_bar:
+	if is_instance_valid(multiplayer) and owner_id == multiplayer.get_unique_id() and capture_progress_bar:
 		capture_progress_bar.hide()
 		capture_progress_bar.value = 0.0
-		print("⏹️ ВИЗУАЛ: Прогресс-бар захвата скрыт")
 
 @rpc("authority", "unreliable")
 func client_update_capture_progress(progress_percent: float) -> void:
 	"""Обновляет прогресс захвата у клиента-владельца"""
 	# БЕЗОПАСНАЯ ПРОВЕРКА: multiplayer может быть null при уничтожении юнита
-	if multiplayer and owner_id == multiplayer.get_unique_id() and capture_progress_bar and capture_progress_bar.visible:
+	if is_instance_valid(multiplayer) and owner_id == multiplayer.get_unique_id() and capture_progress_bar and capture_progress_bar.visible:
 		capture_progress_bar.value = progress_percent
-		
-		# Отладочная информация только для значительных изменений
-		var current_step = int(progress_percent / 20) * 20  # Каждые 20%
-		var prev_step = int((progress_percent - 5) / 20) * 20
-		if current_step != prev_step and current_step > 0:
-			print("📊 ВИЗУАЛ: Прогресс захвата - ", int(progress_percent), "%")
 
 # Переопределяем обработчики изменения состояния для управления захватом
 func _unit_state_exit(state: int) -> void:
@@ -178,9 +165,6 @@ func _unit_state_enter(state: int) -> void:
 	# При входе в состояние движения останавливаем захват
 	if state == UNIT_STATES.MOVING and is_capturing:
 		stop_capture("начало движения")
-	
-	# В остальных состояниях захват может продолжаться или начаться заново
-	print("🎖️ STATE: CommandUnit в состоянии ", UNIT_STATES.keys()[state], ", захват ", ("разрешен" if can_capture_while_in_state(state) else "запрещен"))
 
 # Переопределяем _physics_process для системы захвата гексов
 func _physics_process(delta: float) -> void:
@@ -188,6 +172,9 @@ func _physics_process(delta: float) -> void:
 	
 	# СЕРВЕРНАЯ ЛОГИКА
 	if is_multiplayer_authority():
+		# СИСТЕМЫ АНТИ-ЗАСТРЕВАНИЯ для CommandUnit
+		_handle_command_unit_stuck_detection(delta)
+		
 		# Обновляем таймер проверки гексов (каждую секунду)
 		check_timer += delta
 		if check_timer >= CHECK_INTERVAL:
@@ -204,20 +191,142 @@ func _physics_process(delta: float) -> void:
 			rpc("client_update_capture_progress", progress_percent)
 			
 			if capture_completed:
-				var team_str = ""
-				match owner_team:
-					0: team_str = "A"
-					1: team_str = "B"
-					-1: team_str = "нейтральный"
-					_: team_str = str(owner_team)
-				print("✅ ЗАХВАТ: Гекс ", current_hex.position, " захвачен командой ", team_str, " (", owner_team, ")!")
-				
-				# Завершаем захват
+				# Завершаем захват без спама логов
 				is_capturing = false
 				rpc("client_stop_capture_visual")
 				
 				# Обновляем визуал гекса в OverlayMap
 				Handlers.GameHandler.update_hex_overlay(current_hex.position, current_hex.team_owner)
+
+func _handle_command_unit_stuck_detection(delta: float) -> void:
+	"""
+	Специальная система анти-застревания для CommandUnit
+	Обнаруживает застревание и применяет экстренные меры спасения
+	"""
+	# Проверяем движение CommandUnit
+	var current_position = global_position
+	var moved_distance = current_position.distance_to(last_command_position)
+	
+	# Если CommandUnit движется (> 3 пикселей), сбрасываем таймер
+	if moved_distance > 3.0:
+		command_stuck_timer = 0.0
+		emergency_escape_attempts = 0
+		last_command_position = current_position
+		return
+	
+	# Если CommandUnit должен двигаться, но не движется
+	if orders.size() > 0 and orders[0].type == "move":
+		command_stuck_timer += delta
+		
+		# КРИТИЧЕСКАЯ СИТУАЦИЯ: CommandUnit застрял
+		if command_stuck_timer >= COMMAND_STUCK_THRESHOLD:
+			_execute_emergency_escape()
+			command_stuck_timer = 0.0  # Сбрасываем таймер
+	else:
+		# Если нет приказов движения, сбрасываем таймер
+		command_stuck_timer = 0.0
+		emergency_escape_attempts = 0
+
+func _execute_emergency_escape() -> void:
+	"""
+	Экстренное спасение CommandUnit из застревания
+	Применяет различные стратегии в зависимости от попытки
+	"""
+	emergency_escape_attempts += 1
+	
+	match emergency_escape_attempts:
+		1:
+			# ПОПЫТКА 1: Отгоняем защитников
+			_clear_nearby_defenders()
+		2:
+			# ПОПЫТКА 2: Телепортируемся на небольшое расстояние
+			_emergency_teleport_short()
+		3:
+			# ПОПЫТКА 3: Телепортируемся к ближайшему союзному юниту
+			_emergency_teleport_to_ally()
+		_:
+			# ПОПЫТКА 4+: Случайная телепортация
+			_emergency_teleport_random()
+			emergency_escape_attempts = MAX_ESCAPE_ATTEMPTS  # Не увеличиваем дальше
+
+func _clear_nearby_defenders() -> void:
+	"""
+	Отгоняет ближайших союзных юнитов чтобы освободить место для CommandUnit
+	"""
+	var nearby_units = get_tree().get_nodes_in_group("units")
+	var cleared_count = 0
+	
+	for unit in nearby_units:
+		if unit is BaseUnit and unit != self:
+			var distance = global_position.distance_to(unit.global_position)
+			if distance <= 80.0 and unit.owner_id == owner_id:  # Союзные юниты в радиусе 80px
+				# Отправляем защитника на случайную позицию в стороне
+				var escape_direction = (unit.global_position - global_position).normalized()
+				var escape_position = unit.global_position + escape_direction * 150.0
+				
+				# Очищаем приказы и отправляем в сторону
+				unit.orders.clear()
+				unit.add_order(escape_position, true)
+				cleared_count += 1
+	
+	if cleared_count > 0 and not has_meta("defenders_cleared_logged"):
+		set_meta("defenders_cleared_logged", true)
+		print("🚨 COMMAND ESCAPE: Отогнано ", cleared_count, " защитников от застрявшего CommandUnit")
+
+func _emergency_teleport_short() -> void:
+	"""
+	Короткая телепортация на 100-150 пикселей в случайном направлении
+	"""
+	var random_direction = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
+	var teleport_distance = randf_range(100, 150)
+	var new_position = global_position + random_direction * teleport_distance
+	
+	global_position = new_position
+	
+	if not has_meta("short_teleport_logged"):
+		set_meta("short_teleport_logged", true)
+		print("🔄 COMMAND ESCAPE: Короткая телепортация CommandUnit на ", int(teleport_distance), "px")
+
+func _emergency_teleport_to_ally() -> void:
+	"""
+	Телепортация к ближайшему союзному юниту
+	"""
+	var allied_units = get_tree().get_nodes_in_group("units")
+	var closest_ally = null
+	var min_distance = 9999.0
+	
+	for unit in allied_units:
+		if unit is BaseUnit and unit != self and unit.owner_id == owner_id:
+			var distance = global_position.distance_to(unit.global_position)
+			if distance < min_distance and distance > 100.0:  # Не слишком близко
+				min_distance = distance
+				closest_ally = unit
+	
+	if closest_ally:
+		# Телепортируемся рядом с союзником (не на него)
+		var offset = Vector2(randf_range(-60, 60), randf_range(-60, 60))
+		global_position = closest_ally.global_position + offset
+		
+		if not has_meta("ally_teleport_logged"):
+			set_meta("ally_teleport_logged", true)
+			print("🤝 COMMAND ESCAPE: Телепортация CommandUnit к союзнику")
+	else:
+		# Если союзников нет, делаем случайную телепортацию
+		_emergency_teleport_random()
+
+func _emergency_teleport_random() -> void:
+	"""
+	Случайная телепортация на большое расстояние (200-300 пикселей)
+	"""
+	var random_direction = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
+	var teleport_distance = randf_range(200, 300)
+	var new_position = global_position + random_direction * teleport_distance
+	
+	global_position = new_position
+	
+	if not has_meta("random_teleport_logged"):
+		set_meta("random_teleport_logged", true)
+		print("🎲 COMMAND ESCAPE: Случайная телепортация CommandUnit на ", int(teleport_distance), "px")
 
 func _exit_tree() -> void:
 	"""Очищаем ссылки при удалении юнита"""

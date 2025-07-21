@@ -449,29 +449,34 @@ func _plan_command_unit_retreat(command_unit: CommandUnit, attacker: BaseUnit) -
 func _call_emergency_reinforcements(victim: BaseUnit, attacker: BaseUnit) -> void:
 	"""
 	Вызывает ближайшие юниты на помощь атакуемому
+	УЛУЧШЕНИЕ: Избегаем скопления вокруг CommandUnit
 	"""
 	var nearby_units = _find_nearby_friendly_units(victim.global_position, UNIT_SEARCH_RADIUS)
 	
 	var reinforcements_sent = 0
+	var max_reinforcements = 2 if victim is CommandUnit else 4  # Ограничиваем защитников CommandUnit
+	
 	for unit in nearby_units:
-		if unit != victim and _is_unit_available_for_help(unit):
-			# Отдаем приказ атаковать врага
-			if attacker and is_instance_valid(attacker):
-				# ИСПРАВЛЕНИЕ: Используем прямой вызов для ботов на сервере
+		if unit != victim and _is_unit_available_for_help(unit) and reinforcements_sent < max_reinforcements:
+			# Для CommandUnit: отправляем защитников НЕ к самому юниту, а к атакующему
+			if victim is CommandUnit and attacker and is_instance_valid(attacker):
+				# Атакуем врага напрямую, а не следуем за CommandUnit
 				if is_multiplayer_authority():
 					unit.add_order(attacker.UID, true)
 				else:
 					unit.rpc_id(1, "add_order", attacker.UID, true)
-				
+				reinforcements_sent += 1
+			elif not (victim is CommandUnit) and attacker and is_instance_valid(attacker):
+				# Для обычных юнитов используем стандартную логику
+				if is_multiplayer_authority():
+					unit.add_order(attacker.UID, true)
+				else:
+					unit.rpc_id(1, "add_order", attacker.UID, true)
 				reinforcements_sent += 1
 	
-	# Логируем только результат
-	if reinforcements_sent > 0:
-		print("🚁 BOT: Отправлено подкрепление к позиции ", victim.global_position)
-	
-	# Если командный юнит нуждается в защите, логируем это
+	# Логируем только критические случаи
 	if victim is CommandUnit and reinforcements_sent > 0:
-		print("🚨 BOT: Командный юнит нуждается в защите!")
+		print("🚨 BOT: CommandUnit под атакой, отправлено ", reinforcements_sent, " защитников к атакующему")
 
 ### ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ###
 

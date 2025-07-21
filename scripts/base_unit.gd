@@ -183,6 +183,7 @@ func _ready() -> void:
 	if is_multiplayer_authority():
 		_setup_auto_attack_timer()
 		_setup_shield_regeneration_timer()
+		_setup_debug_display()  # Визуальная отладка на сервере
 	
 	
 	if not is_multiplayer_authority():
@@ -193,7 +194,7 @@ func _ready() -> void:
 		update_visual()
 	else:
 		UID = str(generate_numeric_id(10))
-		$DebugLabel.text = "СЕРВЕРНЫЙ ЧЕЛИКС"
+		$DebugLabel.text = name  # Показываем имя юнита
 		Handlers.GameHandler.units_dict[UID] = self
 		navagent.connect("velocity_computed", on_velocity_computed)
 		visibility_area.connect("body_entered", visibility_check_in)
@@ -299,30 +300,14 @@ func _physics_process(delta: float) -> void:
 		else:
 			set_visibility_for_enemy(false)
 		
-		# ОТЛАДКА: Проверяем обработку приказов для ботов
+		# Убираем спам логов - используем визуальную отладку через DebugLabel
 		var is_bot = _get_bot_team_by_id(owner_id) != -1
-		if is_bot and orders.size() > 0:
-			# Отладка только каждые 3 секунды для каждого юнита
-			if not has_meta("last_physics_debug") or (Time.get_unix_time_from_system() - get_meta("last_physics_debug")) > 3:
-				set_meta("last_physics_debug", Time.get_unix_time_from_system())
-				print("🔍 PHYSICS DEBUG: ", name, " обрабатывает приказы:")
-				print("  - Состояние: ", unit_state, " (", UNIT_STATES.keys()[unit_state], ")")
-				print("  - Приказов: ", orders.size())
-				print("  - Текущий приказ: ", orders[0])
 		
 		# Обработка orders с учетом state machine
 		if orders.size() > 0:
 			var current_order = orders[0]
 			match current_order.type:
 				"move":
-					# ОТЛАДКА ДЛЯ БОТОВ: детальная информация перехода состояний
-					if is_bot and unit_state != UNIT_STATES.MOVING:
-						print("🤖 MOVE DEBUG: ", name, " переходит в MOVING")
-						print("  - Старое состояние: ", UNIT_STATES.keys()[unit_state])
-						print("  - Позиция юнита: ", global_position)
-						print("  - Цель движения: ", current_order.position)
-						print("  - Расстояние: ", global_position.distance_to(current_order.position))
-					
 					# Переключаемся в состояние движения
 					if unit_state != UNIT_STATES.MOVING:
 						unit_state = UNIT_STATES.MOVING
@@ -330,38 +315,41 @@ func _physics_process(delta: float) -> void:
 					var pos = current_order.position
 					navagent.target_position = pos
 					
+					# КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем доступность навигации
+					if not navagent.is_target_reachable():
+						# Цель недоступна - ищем ближайшую доступную точку
+						var closest_reachable = navagent.get_final_position()
+						navagent.target_position = closest_reachable
+						
+						# Логируем проблему только для критических случаев
+						if is_bot and not has_meta("unreachable_logged"):
+							set_meta("unreachable_logged", true)
+							print("🚧 NAV WARNING: ", name, " цель недоступна, перенаправляем к ближайшей точке")
+					
 					# Увеличенный порог для ботов (проблема малых расстояний!)
 					var distance_to_target = global_position.distance_to(pos)
 					var close_enough_threshold = 32.0 if is_bot else 16.0  # Больший порог для ботов
 					var close_enough = distance_to_target < close_enough_threshold
 					var nav_done = navagent.is_navigation_finished()
-					var moved = global_position.distance_to(last_move_position) > 1.0
-					
-					# ОТЛАДКА ДЛЯ БОТОВ: информация о проверках
-					if is_bot and (not has_meta("last_move_debug") or (Time.get_unix_time_from_system() - get_meta("last_move_debug")) > 2):
-						set_meta("last_move_debug", Time.get_unix_time_from_system())
-						print("🎯 MOVE CHECK: ", name)
-						print("  - distance_to_target: ", distance_to_target)
-						print("  - close_enough_threshold: ", close_enough_threshold)
-						print("  - close_enough: ", close_enough)
-						print("  - nav_done: ", nav_done)
-						print("  - moved: ", moved, " (", global_position.distance_to(last_move_position), " > 1.0)")
-						print("  - navagent.target_position: ", navagent.target_position)
+					var moved = global_position.distance_to(last_move_position) > 2.0  # Увеличиваем до 2.0 для лучшего обнаружения
 					
 					if close_enough or nav_done:
 						orders.pop_front()
-						if is_bot:
-							print("✅ BOT ДВИЖЕНИЕ: ", name, " достиг цели и переходит в IDLE")
 						unit_state = UNIT_STATES.IDLE
 						stuck_timer = 0.0
 					elif not moved:
 						stuck_timer += delta
-						if stuck_timer > 2.0:
-							if is_bot:
-								print("⚠️ BOT ДВИЖЕНИЕ: ", name, " застрял, удаляем приказ")
-							orders.pop_front()
-							unit_state = UNIT_STATES.IDLE
-							stuck_timer = 0.0
+						if stuck_timer > 3.0:  # Увеличиваем время до 3 секунд
+							# КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Попытаемся переместиться случайно
+							var random_offset = Vector2(randf_range(-100, 100), randf_range(-100, 100))
+							var fallback_position = global_position + random_offset
+							navagent.target_position = fallback_position
+							
+							if is_bot and not has_meta("stuck_fallback_logged"):
+								set_meta("stuck_fallback_logged", true)
+								print("🔄 NAV FALLBACK: ", name, " застрял, пробуем случайное направление")
+							
+							stuck_timer = 0.0  # Сбрасываем таймер
 					else:
 						stuck_timer = 0.0
 					last_move_position = global_position
@@ -1121,3 +1109,66 @@ func _on_shield_regeneration_timeout() -> void:
 		shield_regeneration_timer.start()
 	else:
 		shield_regeneration_timer.stop()
+
+## СИСТЕМА ВИЗУАЛЬНОЙ ОТЛАДКИ
+func _setup_debug_display() -> void:
+	"""
+	Настраивает визуальную отладку на сервере для отслеживания состояния юнитов
+	"""
+	if not is_multiplayer_authority():
+		return
+	
+	# Таймер для обновления отладочной информации каждые 2 секунды
+	var debug_timer = Timer.new()
+	debug_timer.wait_time = 2.0
+	debug_timer.timeout.connect(_update_debug_display)
+	debug_timer.autostart = true
+	add_child(debug_timer)
+
+func _update_debug_display() -> void:
+	"""
+	Обновляет отладочную информацию в DebugLabel каждые 2 секунды
+	"""
+	if not is_multiplayer_authority():
+		return
+	
+	var is_bot = _get_bot_team_by_id(owner_id) != -1
+	if not is_bot:
+		return  # Показываем отладку только для ботов
+	
+	# Формируем компактную отладочную информацию
+	var debug_info = []
+	debug_info.append(name)
+	debug_info.append(UNIT_STATES.keys()[unit_state])
+	debug_info.append("Orders:" + str(orders.size()))
+	
+	if orders.size() > 0:
+		var order = orders[0]
+		if order.type == "move":
+			var dist = int(global_position.distance_to(order.position))
+			debug_info.append("Move→" + str(dist) + "px")
+		elif order.type == "attack":
+			if is_instance_valid(order.target):
+				debug_info.append("Attack→" + order.target.name)
+			else:
+				debug_info.append("Attack→INVALID")
+	
+	# Показываем проблемы навигации
+	if navagent:
+		var nav_finished = navagent.is_navigation_finished()
+		var target_dist = int(global_position.distance_to(navagent.target_position))
+		debug_info.append("Nav:" + ("✓" if nav_finished else "→" + str(target_dist)))
+	
+	# Объединяем в одну строку
+	$DebugLabel.text = "\n".join(debug_info)
+	
+	# Второй label для дополнительной информации
+	if has_node("DebugLabel2"):
+		var debug_info2 = []
+		debug_info2.append("HP:" + str(_health) + "/" + str(max_health))
+		debug_info2.append("Pos:" + str(int(global_position.x)) + "," + str(int(global_position.y)))
+		if velocity.length() > 0.1:
+			debug_info2.append("Vel:" + str(int(velocity.length())))
+		else:
+			debug_info2.append("Vel:0")
+		$DebugLabel2.text = "\n".join(debug_info2)

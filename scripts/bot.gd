@@ -391,17 +391,11 @@ func _on_unit_under_attack(attacker: BaseUnit, victim: BaseUnit) -> void:
 	if not victim or victim.owner_id != bot_id:
 		return  # Не наш юнит
 	
-	print("🚨 BOT: Юнит ", victim.name, " подвергается атаке от ", attacker.name if attacker else "неизвестный")
-	print("  - Позиция жертвы: ", victim.global_position)
-	print("  - Позиция атакующего: ", attacker.global_position if attacker else "неизвестно")
-	
 	# Если это командный юнит - планируем отступление
 	if victim is CommandUnit:
-		print("🏃 BOT: Планируем отступление командного юнита")
 		_plan_command_unit_retreat(victim, attacker)
 	
 	# Вызываем подкрепления
-	print("📞 BOT: Вызываем подкрепления для ", victim.name)
 	_call_emergency_reinforcements(victim, attacker)
 
 func _on_attack_started(attacker: BaseUnit, target: BaseUnit) -> void:
@@ -456,18 +450,11 @@ func _call_emergency_reinforcements(victim: BaseUnit, attacker: BaseUnit) -> voi
 	"""
 	Вызывает ближайшие юниты на помощь атакуемому
 	"""
-	print("🔍 BOT: Ищем подкрепления в радиусе ", UNIT_SEARCH_RADIUS, " от позиции ", victim.global_position)
 	var nearby_units = _find_nearby_friendly_units(victim.global_position, UNIT_SEARCH_RADIUS)
-	print("🔍 BOT: Найдено ближайших юнитов: ", nearby_units.size())
 	
 	var reinforcements_sent = 0
 	for unit in nearby_units:
 		if unit != victim and _is_unit_available_for_help(unit):
-			print("🔍 BOT: Проверяем юнит ", unit.name, " для подкрепления:")
-			print("  - Расстояние: ", int(unit.global_position.distance_to(victim.global_position)))
-			print("  - Состояние: ", unit.unit_state)
-			print("  - Приказов: ", unit.orders.size())
-			
 			# Отдаем приказ атаковать врага
 			if attacker and is_instance_valid(attacker):
 				# ИСПРАВЛЕНИЕ: Используем прямой вызов для ботов на сервере
@@ -477,16 +464,14 @@ func _call_emergency_reinforcements(victim: BaseUnit, attacker: BaseUnit) -> voi
 					unit.rpc_id(1, "add_order", attacker.UID, true)
 				
 				reinforcements_sent += 1
-				print("⚔️ BOT: Юнит ", unit.name, " отправлен на помощь (цель: ", attacker.name, ")")
-			else:
-				print("❌ BOT: Атакующий недоступен для нападения")
-		else:
-			if unit == victim:
-				print("🚫 BOT: Пропускаем жертву ", unit.name)
-			else:
-				print("🚫 BOT: Юнит ", unit.name, " недоступен для помощи")
 	
-	print("📊 BOT: Отправлено подкреплений: ", reinforcements_sent, "/", nearby_units.size())
+	# Логируем только результат
+	if reinforcements_sent > 0:
+		print("🚁 BOT: Отправлено подкрепление к позиции ", victim.global_position)
+	
+	# Если командный юнит нуждается в защите, логируем это
+	if victim is CommandUnit and reinforcements_sent > 0:
+		print("🚨 BOT: Командный юнит нуждается в защите!")
 
 ### ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ###
 
@@ -519,6 +504,24 @@ func _get_bot_recruitment_points() -> float:
 	
 	var points = Handlers.GameHandler.player_points[bot_id]["recruitment_points"]
 	return points
+
+func _get_controlled_hexes() -> Array[Vector2i]:
+	"""
+	Возвращает список координат гексов, контролируемых ботом
+	"""
+	var controlled_hexes: Array[Vector2i] = []
+	
+	if not Handlers.GameHandler or not Handlers.GameHandler.hexes_dict:
+		return controlled_hexes
+	
+	var bot_team_int = int(bot_team)
+	
+	for hex_pos in Handlers.GameHandler.hexes_dict.keys():
+		var hex = Handlers.GameHandler.hexes_dict[hex_pos]
+		if hex.team_owner == bot_team_int:
+			controlled_hexes.append(hex_pos)
+	
+	return controlled_hexes
 
 func _find_nearby_neutral_hexes() -> Array[Vector2i]:
 	"""
@@ -584,31 +587,42 @@ func _assign_defense_tasks_to_base_units() -> void:
 			if _is_unit_idle(unit):
 				idle_base_units.append(unit)
 	
-	print("🛡️ BOT: Свободных защитников: ", idle_base_units.size())
+	if idle_base_units.is_empty():
+		return
 	
-	# Назначаем защитников к командным юнитам в движении
-	for command_unit in command_units:
-		if command_unit.unit_state == BaseUnit.UNIT_STATES.MOVING and idle_base_units.size() > 0:
-			var defender = idle_base_units.pop_front()
-			
-			# Отправляем защитника следовать за командным юнитом
-			var follow_position = command_unit.global_position + Vector2(randf_range(-80, 80), randf_range(-80, 80))
-			_order_unit_move(defender, follow_position)
-			assigned_defenders += 1
-			
-			print("🛡️ BOT: ", defender.name, " защищает ", command_unit.name)
+	# ИСПРАВЛЕНИЕ: Отправляем защитников к СТАТИЧНЫМ позициям, а не к движущимся юнитам
+	# Ищем захваченные гексы для патрулирования
+	var controlled_hexes = _get_controlled_hexes()
 	
-	# Оставшихся защитников отправляем патрулировать вокруг FOB
-	var bot_fob = _find_bot_fob()
-	if bot_fob and idle_base_units.size() > 0:
-		for defender in idle_base_units:
-			var patrol_position = bot_fob.global_position + Vector2(randf_range(-150, 150), randf_range(-150, 150))
+	if controlled_hexes.size() > 0:
+		# Распределяем защитников по захваченным гексам
+		for i in range(idle_base_units.size()):
+			var defender = idle_base_units[i]
+			var hex_index = i % controlled_hexes.size()  # Равномерное распределение
+			var hex_pos = controlled_hexes[hex_index]
+			
+			# Конвертируем координаты гекса в мировые
+			var hex_world_pos = Handlers.GameHandler.overlay_map.map_to_local(hex_pos)
+			hex_world_pos = Handlers.GameHandler.overlay_map.to_global(hex_world_pos)
+			
+			# Добавляем случайное смещение чтобы защитники не стояли в одной точке
+			var patrol_offset = Vector2(randf_range(-60, 60), randf_range(-60, 60))
+			var patrol_position = hex_world_pos + patrol_offset
+			
 			_order_unit_move(defender, patrol_position)
 			assigned_defenders += 1
-		
-		print("🏠 BOT: ", idle_base_units.size(), " защитников патрулируют базу")
+	else:
+		# Если нет захваченных гексов, патрулируем вокруг FOB
+		var bot_fob = _find_bot_fob()
+		if bot_fob:
+			for defender in idle_base_units:
+				var patrol_position = bot_fob.global_position + Vector2(randf_range(-120, 120), randf_range(-120, 120))
+				_order_unit_move(defender, patrol_position)
+				assigned_defenders += 1
 	
-	print("📊 BOT ЗАЩИТНИКИ: ", assigned_defenders, " получили задания")
+	# Логируем только общий результат без спама
+	if assigned_defenders > 0:
+		print("🛡️ BOT: Назначено ", assigned_defenders, " защитников на оборону")
 
 func _order_unit_move(unit: BaseUnit, world_position: Vector2) -> void:
 	"""

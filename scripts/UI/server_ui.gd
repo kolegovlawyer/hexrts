@@ -69,6 +69,10 @@ func _create_server_bot(bot_name: String, team: GameTypes.Teams) -> void:
 		# Регистрируем в GameManager
 		Handlers.GameHandler.register_bot(bot_ai)
 		
+		# Добавляем бота в систему команд TeamHandler
+		if Handlers.TeamHandler:
+			Handlers.TeamHandler.add_bot_to_team(bot_id, team)
+		
 		# Создаем и назначаем FOB для бота
 		_assign_fob_to_bot(bot_ai, team)
 		

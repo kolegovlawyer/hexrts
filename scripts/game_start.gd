@@ -39,6 +39,10 @@ func _ready():
 	# Инициализируем систему очков только на сервере
 	if is_multiplayer_authority():
 		setup_points_system()
+		
+		# Добавляем систему диагностики
+		var debug_system = preload("res://scripts/debug_system.gd").new()
+		add_child(debug_system)
 
 # Delete handler on scene exit
 func _exit_tree():
@@ -405,6 +409,11 @@ func unregister_bot(bot: Bot) -> void:
 	"""
 	if bot in active_bots:
 		active_bots.erase(bot)
+		
+		# Удаляем бота из системы команд
+		if Handlers.TeamHandler:
+			Handlers.TeamHandler.remove_bot_from_team(bot.bot_id)
+		
 		print("👋 GAME: Бот ", bot.bot_name, " удален из системы")
 
 func _connect_existing_units_to_bot(bot: Bot) -> void:
@@ -497,7 +506,7 @@ func initialize_hexes() -> void:
 		var overlay_atlas_coords = overlay_map.get_cell_atlas_coords(cell_pos)
 		var initial_team = -1  # По умолчанию нейтральный
 		
-		print("🎨 DEBUG: Гекс ", cell_pos, " OverlayMap atlas_coords: ", overlay_atlas_coords)
+		#print("🎨 DEBUG: Гекс ", cell_pos, " OverlayMap atlas_coords: ", overlay_atlas_coords)
 		
 		# Определяем команду по atlas координатам OverlayMap
 		# (0,0) - команда A (0), (1,0) - команда B (1), (2,0) - нейтральный (-1)
@@ -511,7 +520,7 @@ func initialize_hexes() -> void:
 		# Создаем объект гекса
 		var hex = preload("res://scripts/singletons/hex.gd").new(cell_pos, initial_team)
 		hexes_dict[cell_pos] = hex
-		print("🎯 DEBUG: Создан гекс ", cell_pos, " команда ", initial_team)
+		#print("🎯 DEBUG: Создан гекс ", cell_pos, " команда ", initial_team)
 	
 	print("🗺️ ГЕКСЫ: Инициализировано ", hexes_dict.size(), " гексов на ", server_or_client)
 	if hexes_dict.size() <= 20:  # Показываем список только если гексов немного
@@ -647,17 +656,13 @@ func get_hex_at_world_position(world_position: Vector2):
 	Конвертирует мировые координаты в координаты тайла
 	"""
 	if not overlay_map:
-		print("❌ DEBUG: overlay_map равен null в get_hex_at_world_position")
 		return null
 	
 	# Конвертируем мировые координаты в локальные координаты OverlayMap
 	var local_position = overlay_map.to_local(world_position)
 	var hex_coords = overlay_map.local_to_map(local_position)
 	
-	print("🗺️ DEBUG: world_position ", world_position, " -> local_position ", local_position, " -> hex_coords ", hex_coords)
-	
 	var hex = get_hex_at_position(hex_coords)
-	print("🎯 DEBUG: hex_coords ", hex_coords, " -> hex ", hex)
 	return hex
 
 ### LATE JOINER SYNCHRONIZATION ###

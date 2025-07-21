@@ -145,6 +145,11 @@ func _make_strategic_decisions() -> void:
 	print("  - Юнитов всего: ", bot_units.size())
 	print("  - Командных юнитов: ", command_units.size())
 	
+	# ОТЛАДКА: Показываем состояние юнитов бота
+	for unit in bot_units:
+		if is_instance_valid(unit):
+			print("    * Юнит ", unit.name, " состояние: ", BaseUnit.UNIT_STATES.keys()[unit.unit_state], " приказов: ", unit.orders.size())
+	
 	# Выполняем действия в зависимости от стратегии
 	match strategy_mode:
 		"expand":
@@ -216,14 +221,27 @@ func _execute_expansion_strategy() -> void:
 	"""
 	Выполняет стратегию расширения (захват новых гексов)
 	"""
-	# Ищем ближайшие нейтральные гексы для захвата
-	var target_hexes = _find_nearby_neutral_hexes()
+	# Отправляем свободных командных юнитов на захват БЛИЖАЙШИХ гексов
+	var idle_command_units = 0
+	var assigned_command_units = 0
 	
-	# Отправляем свободных командных юнитов на захват
 	for command_unit in command_units:
-		if _is_unit_idle(command_unit) and target_hexes.size() > 0:
-			var target_hex = target_hexes.pop_front()
-			_order_hex_capture(command_unit, target_hex)
+		if _is_unit_idle(command_unit):
+			idle_command_units += 1
+			
+			# Ищем ближайший нейтральный гекс для ЭТОГО конкретного юнита
+			var nearest_hex = _find_nearest_neutral_hex_for_unit(command_unit)
+			if nearest_hex != Vector2i.MAX:
+				print("🎯 BOT: ", command_unit.name, " захватывает ближайший гекс ", nearest_hex)
+				_order_hex_capture(command_unit, nearest_hex)
+				assigned_command_units += 1
+			else:
+				print("🚫 BOT: Для ", command_unit.name, " не найдены нейтральные гексы")
+	
+	print("📊 BOT КОМАНДНЫЕ: ", assigned_command_units, "/", idle_command_units, " получили задания")
+	
+	# Отправляем обычные юниты защищать командные или базу
+	_assign_defense_tasks_to_base_units()
 
 func _execute_defense_strategy() -> void:
 	"""
@@ -257,26 +275,26 @@ func _check_spawn_opportunity() -> void:
 	if not is_multiplayer_authority():
 		return
 	
-	print("⏰ BOT: Проверка возможности спавна для бота ", bot_name)
-	print("  - Текущих юнитов: ", bot_units.size())
-	print("  - Командных юнитов: ", command_units.size())
-		
+	# Умная отладка только каждые 10 секунд
+	var current_time = Time.get_unix_time_from_system()
+	if not has_meta("last_spawn_check_log") or (current_time - get_meta("last_spawn_check_log")) > 10:
+		set_meta("last_spawn_check_log", current_time)
+		print("⏰ BOT: Проверка возможности спавна для бота ", bot_name)
+		print("  - Текущих юнитов: ", bot_units.size())
+		print("  - Командных юнитов: ", command_units.size())
+	
 	# Получаем текущие очки найма бота
 	var current_points = _get_bot_recruitment_points()
-	print("  - Текущие очки: ", current_points)
 	
 	if current_points < 10:  # Недостаточно очков для базового юнита
-		print("  - Недостаточно очков для спавна (минимум 10)")
 		return
 	
 	# Определяем что спавнить
 	var unit_type = _decide_unit_to_spawn()
-	print("  - Решение: спавнить ", unit_type)
 	
 	if unit_type:
+		print("🎯 BOT: ", bot_name, " решил заспавнить ", unit_type, " (очки: ", current_points, ")")
 		_attempt_spawn_unit(unit_type)
-	else:
-		print("  - Тип юнита не определен")
 
 func _attempt_initial_spawn() -> void:
 	"""
@@ -444,16 +462,19 @@ func _get_bot_recruitment_points() -> float:
 	Получает текущие очки найма бота
 	"""
 	if not Handlers.GameHandler:
-		print("❌ BOT DEBUG: GameHandler не найден")
+		if not has_meta("no_gamehandler_logged"):
+			set_meta("no_gamehandler_logged", true)
+			print("❌ BOT DEBUG: GameHandler не найден")
 		return 0.0
 	
 	if not Handlers.GameHandler.player_points.has(bot_id):
-		print("❌ BOT DEBUG: bot_id ", bot_id, " не найден в player_points")
-		print("  - Доступные player_points keys: ", Handlers.GameHandler.player_points.keys())
+		if not has_meta("no_points_logged"):
+			set_meta("no_points_logged", true)
+			print("❌ BOT DEBUG: bot_id ", bot_id, " не найден в player_points")
+			print("  - Доступные player_points keys: ", Handlers.GameHandler.player_points.keys())
 		return 0.0
 	
 	var points = Handlers.GameHandler.player_points[bot_id]["recruitment_points"]
-	print("💰 BOT DEBUG: Очки найма бота ", bot_id, ": ", points)
 	return points
 
 func _find_nearby_neutral_hexes() -> Array[Vector2i]:
@@ -472,6 +493,84 @@ func _find_nearby_neutral_hexes() -> Array[Vector2i]:
 	
 	# Сортируем по расстоянию до наших юнитов (упрощенно)
 	return neutral_hexes.slice(0, 5)  # Возвращаем первые 5
+
+func _find_nearest_neutral_hex_for_unit(unit: BaseUnit) -> Vector2i:
+	"""
+	Ищет ближайший нейтральный гекс для конкретного юнита
+	"""
+	if not Handlers.GameHandler or not Handlers.GameHandler.overlay_map:
+		return Vector2i.MAX
+	
+	var unit_world_pos = unit.global_position
+	var nearest_hex = Vector2i.MAX
+	var min_distance = INF
+	
+	# Проходим по всем гексам на карте
+	for hex_pos in Handlers.GameHandler.hexes_dict.keys():
+		var hex = Handlers.GameHandler.hexes_dict[hex_pos]
+		if hex.team_owner == -1:  # Нейтральный гекс
+			# Конвертируем координаты гекса в мировые
+			var hex_world_pos = Handlers.GameHandler.overlay_map.map_to_local(hex_pos)
+			hex_world_pos = Handlers.GameHandler.overlay_map.to_global(hex_world_pos)
+			
+			# Вычисляем расстояние
+			var distance = unit_world_pos.distance_to(hex_world_pos)
+			if distance < min_distance:
+				min_distance = distance
+				nearest_hex = hex_pos
+	
+	if nearest_hex != Vector2i.MAX:
+		print("📍 BOT: Для ", unit.name, " ближайший гекс ", nearest_hex, " (расстояние: ", int(min_distance), ")")
+	
+	return nearest_hex
+
+func _assign_defense_tasks_to_base_units() -> void:
+	"""
+	Назначает задачи защиты обычным юнитам (BaseUnit)
+	"""
+	var idle_base_units = []
+	var assigned_defenders = 0
+	
+	# Собираем свободные обычные юниты
+	for unit in bot_units:
+		if unit is BaseUnit and not (unit is CommandUnit):
+			if _is_unit_idle(unit):
+				idle_base_units.append(unit)
+	
+	print("🛡️ BOT: Свободных защитников: ", idle_base_units.size())
+	
+	# Назначаем защитников к командным юнитам в движении
+	for command_unit in command_units:
+		if command_unit.unit_state == BaseUnit.UNIT_STATES.MOVING and idle_base_units.size() > 0:
+			var defender = idle_base_units.pop_front()
+			
+			# Отправляем защитника следовать за командным юнитом
+			var follow_position = command_unit.global_position + Vector2(randf_range(-80, 80), randf_range(-80, 80))
+			_order_unit_move(defender, follow_position)
+			assigned_defenders += 1
+			
+			print("🛡️ BOT: ", defender.name, " защищает ", command_unit.name)
+	
+	# Оставшихся защитников отправляем патрулировать вокруг FOB
+	var bot_fob = _find_bot_fob()
+	if bot_fob and idle_base_units.size() > 0:
+		for defender in idle_base_units:
+			var patrol_position = bot_fob.global_position + Vector2(randf_range(-150, 150), randf_range(-150, 150))
+			_order_unit_move(defender, patrol_position)
+			assigned_defenders += 1
+		
+		print("🏠 BOT: ", idle_base_units.size(), " защитников патрулируют базу")
+	
+	print("📊 BOT ЗАЩИТНИКИ: ", assigned_defenders, " получили задания")
+
+func _order_unit_move(unit: BaseUnit, world_position: Vector2) -> void:
+	"""
+	Отдает приказ любому юниту двигаться к позиции
+	"""
+	if is_multiplayer_authority():
+		unit.add_order(world_position, true)
+	else:
+		unit.rpc_id(1, "add_order", world_position, true)
 
 func _find_nearby_friendly_units(position: Vector2, radius: float) -> Array[BaseUnit]:
 	"""
@@ -519,15 +618,21 @@ func _order_hex_capture(command_unit: CommandUnit, hex_position: Vector2i) -> vo
 	Отдает приказ командному юниту захватить гекс
 	"""
 	if not Handlers.GameHandler or not Handlers.GameHandler.overlay_map:
+		print("❌ BOT: GameHandler или overlay_map не найден")
 		return
 	
 	# Конвертируем координаты гекса в мировые координаты
 	var world_position = Handlers.GameHandler.overlay_map.map_to_local(hex_position)
 	world_position = Handlers.GameHandler.overlay_map.to_global(world_position)
 	
-	# Отдаем приказ на движение к гексу
-	command_unit.rpc_id(1, "add_order", world_position, true)
-	print("🎯 BOT: Командный юнит направлен для захвата гекса ", hex_position)
+	# ИСПРАВЛЕНИЕ: Бот на сервере - вызываем функцию напрямую
+	if is_multiplayer_authority():
+		command_unit.add_order(world_position, true)
+	else:
+		# Если бот на клиенте (не используется сейчас)
+		command_unit.rpc_id(1, "add_order", world_position, true)
+	
+	print("🎯 BOT: Командный юнит ", command_unit.name, " → гекс ", hex_position)
 
 ### ФУНКЦИИ ОЦЕНКИ СИТУАЦИИ ###
 

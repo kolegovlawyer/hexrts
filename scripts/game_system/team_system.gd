@@ -113,3 +113,36 @@ func get_team(team):
 		print('TEAM_A')
 	elif team == 1:
 		print('TEAM_B')
+
+func add_bot_to_team(bot_id: int, team: GameTypes.Teams) -> void:
+	"""
+	Добавляет бота в систему команд
+	Вызывается на сервере при создании бота
+	"""
+	# Проверяем что бот еще не добавлен
+	if find_player_by_id(bot_id):
+		print("⚠️ TEAM: Бот ", bot_id, " уже в системе команд")
+		return
+	
+	# Создаем профиль бота и добавляем в команду
+	var bot_profile = PlayerProfile.new()
+	bot_profile.init(bot_id, team)
+	players.append(bot_profile)
+	
+	print("✅ TEAM: Бот ", bot_id, " добавлен в команду ", team)
+	print("  - Всего игроков в системе: ", players.size())
+	
+	# Выводим список всех игроков для отладки
+	print("  - Список игроков:")
+	for player in players:
+		print("    - ID: ", player.PlayerId, " Team: ", player.Team)
+
+func remove_bot_from_team(bot_id: int) -> void:
+	"""
+	Удаляет бота из системы команд
+	"""
+	for i in range(players.size()):
+		if players[i].PlayerId == bot_id:
+			players.pop_at(i)
+			print("👋 TEAM: Бот ", bot_id, " удален из системы команд")
+			break

@@ -63,20 +63,14 @@ func check_current_hex() -> void:
 	Проверяет гекс под юнитом и обновляет информацию о присутствии
 	Вызывается каждую секунду на сервере
 	"""
-	print("🔍 DEBUG: check_current_hex вызвана для ", name, " в позиции ", global_position)
-	
 	if not Handlers.GameHandler:
-		print("❌ DEBUG: GameHandler не найден в check_current_hex")
 		return
 		
 	# Получаем гекс по текущей позиции юнита
 	var hex = Handlers.GameHandler.get_hex_at_world_position(global_position)
-	print("🗺️ DEBUG: get_hex_at_world_position вернул: ", hex)
 	
 	# Если юнит сменил гекс
 	if hex != current_hex:
-		print("🔄 DEBUG: Смена гекса с ", current_hex, " на ", hex)
-		
 		# Останавливаем захват предыдущего гекса
 		if current_hex and is_capturing:
 			stop_capture("смена гекса")
@@ -89,41 +83,23 @@ func check_current_hex() -> void:
 		current_hex = hex
 		if current_hex:
 			current_hex.add_command_unit(self)
-			print("🎖️ ПОЗИЦИЯ: Командный юнит ", name, " переместился на гекс ", current_hex.position)
+			# Логируем только смену гекса
+			print("🎖️ ", name, " переместился на гекс ", current_hex.position)
 	
 	# Если юнит на гексе, проверяем возможность захвата
 	if current_hex:
-		var my_team_str = ""
-		var hex_team_str = ""
-		match owner_team:
-			0: my_team_str = "A"
-			1: my_team_str = "B"
-			-1: my_team_str = "нейтральный"
-			_: my_team_str = str(owner_team)
-		match current_hex.team_owner:
-			0: hex_team_str = "A"
-			1: hex_team_str = "B"
-			-1: hex_team_str = "нейтральный"
-			_: hex_team_str = str(current_hex.team_owner)
-		
-		print("📍 DEBUG: На гексе ", current_hex.position, " моя команда=", my_team_str, " владелец гекса=", hex_team_str, " состояние=", UNIT_STATES.keys()[unit_state])
 		
 		# УЛУЧШЕННАЯ ЛОГИКА: Захват возможен во всех состояниях кроме движения
 		if can_capture_while_in_state(unit_state) and current_hex.can_be_captured_by_team(owner_team):
 			if current_hex.capturing_team != owner_team:
 				start_capture()
-			print("🏁 ЗАХВАТ: Команда ", my_team_str, " захватывает гекс ", current_hex.position, " (", current_hex.capture_progress * 100, "%) в состоянии ", UNIT_STATES.keys()[unit_state])
 		else:
 			if not can_capture_while_in_state(unit_state):
 				if is_capturing:
 					stop_capture("нельзя захватывать в состоянии " + UNIT_STATES.keys()[unit_state])
-				print("🚫 DEBUG: Захват невозможен в состоянии ", UNIT_STATES.keys()[unit_state])
-			else:
-				print("🚫 DEBUG: Гекс ", current_hex.position, " нельзя захватить командой ", my_team_str)
 	else:
 		if is_capturing:
 			stop_capture("юнит покинул гекс")
-		print("❌ DEBUG: current_hex равен null - юнит не на гексе")
 
 func start_capture() -> void:
 	"""Начинает процесс захвата гекса (серверная логика)"""
@@ -212,27 +188,10 @@ func _physics_process(delta: float) -> void:
 	
 	# СЕРВЕРНАЯ ЛОГИКА
 	if is_multiplayer_authority():
-		# DEBUG: Проверяем основные переменные
-		if check_timer == 0.0:  # Выводим один раз при запуске
-			var team_str = ""
-			match owner_team:
-				0: team_str = "A"
-				1: team_str = "B"
-				-1: team_str = "нейтральный"
-				_: team_str = str(owner_team)
-			print("🎖️ DEBUG: CommandUnit команда ", team_str, " (", owner_team, ") owner_id=", owner_id, " position=", global_position)
-			if not Handlers.GameHandler:
-				print("❌ DEBUG: GameHandler не найден!")
-			elif Handlers.GameHandler.hexes_dict.size() == 0:
-				print("❌ DEBUG: hexes_dict пуст! Система гексов не инициализирована.")
-			else:
-				print("✅ DEBUG: GameHandler найден, hexes_dict содержит ", Handlers.GameHandler.hexes_dict.size(), " гексов")
-		
 		# Обновляем таймер проверки гексов (каждую секунду)
 		check_timer += delta
 		if check_timer >= CHECK_INTERVAL:
 			check_timer = 0.0
-			print("⏰ DEBUG: Таймер проверки гексов сработал для ", name)
 			check_current_hex()
 		
 		# Обновляем прогресс захвата если юнит захватывает гекс

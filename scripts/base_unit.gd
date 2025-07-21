@@ -379,9 +379,20 @@ func add_order(order_obj, clear_queue:bool=false) -> void:
 	# print("multiplayer.is_server(): ", multiplayer.is_server())
 	# print("multiplayer.get_unique_id(): ", multiplayer.get_unique_id())
 	
-	if owner_id != multiplayer.get_remote_sender_id(): # this must be in all units add_order
-		# print("Проверка owner_id не прошла")
+	# Проверка владельца: обычные игроки или сервер для ботов
+	var sender_id = multiplayer.get_remote_sender_id()
+	var is_bot = _get_bot_team_by_id(owner_id) != -1
+	
+	# Для прямых вызовов от ботов на сервере - разрешаем без проверки sender_id
+	if is_bot and is_multiplayer_authority():
+		# Прямой вызов разрешен
+		pass
+	elif not (owner_id == sender_id or (is_bot and sender_id == 1)):
 		return
+	
+	# Отладка только для ботов
+	if is_bot:
+		print("🤖 ORDER: Бот юнит ", name, " получил приказ")
 	if is_multiplayer_authority():
 		# print("Внутри is_multiplayer_authority")
 		match typeof(order_obj):
@@ -709,21 +720,23 @@ func update_visibility():
 					print("⚠️ VISIBILITY: Не удалось определить команду для owner_id ", owner_id)
 					return
 		
-		print("👁️ VISIBILITY: Настройка видимости для юнита ", name, " команда ", unit_team, " owner_id ", owner_id)
+		# Умная отладка только при первой настройке видимости
+		if not has_meta("visibility_debug_shown"):
+			set_meta("visibility_debug_shown", true)
+			print("👁️ VISIBILITY DEBUG: Настройка видимости для юнита ", name, " команда ", unit_team, " owner_id ", owner_id)
 		
 		# Сначала скрываем юнит от ВСЕХ игроков
 		for player_id in multiplayer.get_peers():
 			synchronizer.set_visibility_for(player_id, false)
-			print("  - Скрыт от player_id: ", player_id)
 		
 		# Затем показываем только союзникам
 		var team_players = Handlers.TeamHandler.get_team_players(unit_team)
 		if team_players:
 			for player in team_players:
 				synchronizer.set_visibility_for(player.PlayerId, true)
-				print("  - Показан союзнику player_id: ", player.PlayerId)
 		else:
-			print("⚠️ VISIBILITY: Нет союзников для команды ", unit_team)
+			if not has_meta("visibility_debug_shown"):
+				print("⚠️ VISIBILITY: Нет союзников для команды ", unit_team)
 			
 func set_visibility_for_enemy(is_visible:bool) -> void:
 	if is_multiplayer_authority():
@@ -742,16 +755,26 @@ func set_visibility_for_enemy(is_visible:bool) -> void:
 					print("⚠️ ENEMY_VISIBILITY: Не удалось определить команду для owner_id ", owner_id)
 					return
 		
-		print("👁️ ENEMY_VISIBILITY: Юнит ", name, " команда ", unit_team, " видимость для врагов: ", is_visible)
+		# Умная отладка только при изменении видимости
+		var debug_key = "enemy_visibility_" + str(is_visible)
+		if not has_meta(debug_key):
+			set_meta(debug_key, true)
+			print("👁️ ENEMY_VISIBILITY DEBUG: Юнит ", name, " команда ", unit_team, " видимость для врагов: ", is_visible)
 		
 		# Устанавливаем видимость для врагов
 		var enemy_players = Handlers.TeamHandler.get_enemy_team_players(unit_team)
 		if enemy_players:
 			for player in enemy_players:
 				synchronizer.set_visibility_for(player.PlayerId, is_visible)
-				print("  - Враг player_id: ", player.PlayerId, " видимость: ", is_visible)
 		else:
-			print("⚠️ ENEMY_VISIBILITY: Нет вражеских игроков для команды ", unit_team)
+			# Логируем проблему только один раз
+			if not has_meta("no_enemies_logged"):
+				set_meta("no_enemies_logged", true)
+				print("⚠️ ENEMY_VISIBILITY: Нет вражеских игроков для команды ", unit_team)
+				print("  - Доступные игроки в TeamHandler:")
+				if Handlers.TeamHandler:
+					for player in Handlers.TeamHandler.players:
+						print("    - PlayerId: ", player.PlayerId, " Team: ", player.Team)
 
 ## СИСТЕМА СОСТОЯНИЙ (STATE MACHINE)
 func _unit_state_exit(state: int) -> void:

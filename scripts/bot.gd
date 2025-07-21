@@ -221,24 +221,30 @@ func _execute_expansion_strategy() -> void:
 	"""
 	Выполняет стратегию расширения (захват новых гексов)
 	"""
-	# Отправляем свободных командных юнитов на захват БЛИЖАЙШИХ гексов
-	var idle_command_units = 0
-	var assigned_command_units = 0
-	
+	# Собираем всех свободных командных юнитов
+	var idle_command_units = []
 	for command_unit in command_units:
 		if _is_unit_idle(command_unit):
-			idle_command_units += 1
-			
-			# Ищем ближайший нейтральный гекс для ЭТОГО конкретного юнита
-			var nearest_hex = _find_nearest_neutral_hex_for_unit(command_unit)
-			if nearest_hex != Vector2i.MAX:
-				print("🎯 BOT: ", command_unit.name, " захватывает ближайший гекс ", nearest_hex)
-				_order_hex_capture(command_unit, nearest_hex)
-				assigned_command_units += 1
-			else:
-				print("🚫 BOT: Для ", command_unit.name, " не найдены нейтральные гексы")
+			idle_command_units.append(command_unit)
 	
-	print("📊 BOT КОМАНДНЫЕ: ", assigned_command_units, "/", idle_command_units, " получили задания")
+	print("📋 BOT: Свободных командных юнитов: ", idle_command_units.size())
+	
+	# Назначаем уникальные гексы каждому юниту
+	var assigned_hexes: Array[Vector2i] = []
+	var assigned_command_units = 0
+	
+	for command_unit in idle_command_units:
+		# Ищем ближайший НЕ назначенный гекс
+		var nearest_hex = _find_nearest_available_hex_for_unit(command_unit, assigned_hexes)
+		if nearest_hex != Vector2i.MAX:
+			assigned_hexes.append(nearest_hex)  # Резервируем гекс
+			print("🎯 BOT: ", command_unit.name, " → уникальный гекс ", nearest_hex)
+			_order_hex_capture(command_unit, nearest_hex)
+			assigned_command_units += 1
+		else:
+			print("🚫 BOT: Для ", command_unit.name, " не найдены свободные гексы")
+	
+	print("📊 BOT КОМАНДНЫЕ: ", assigned_command_units, "/", idle_command_units.size(), " получили задания")
 	
 	# Отправляем обычные юниты защищать командные или базу
 	_assign_defense_tasks_to_base_units()
@@ -273,6 +279,16 @@ func _check_spawn_opportunity() -> void:
 	Проверяет возможность спавна новых юнитов
 	"""
 	if not is_multiplayer_authority():
+		return
+	
+	# НОВАЯ ПРОВЕРКА: Не спавним если есть застрявшие юниты
+	var stuck_units = 0
+	for unit in bot_units:
+		if unit.unit_state == BaseUnit.UNIT_STATES.IDLE and unit.orders.size() > 0:
+			stuck_units += 1
+	
+	if stuck_units > 0:
+		print("⏸️ BOT: Отменяем спавн - есть ", stuck_units, " застрявших юнитов")
 		return
 	
 	# Умная отладка только каждые 10 секунд
@@ -494,9 +510,9 @@ func _find_nearby_neutral_hexes() -> Array[Vector2i]:
 	# Сортируем по расстоянию до наших юнитов (упрощенно)
 	return neutral_hexes.slice(0, 5)  # Возвращаем первые 5
 
-func _find_nearest_neutral_hex_for_unit(unit: BaseUnit) -> Vector2i:
+func _find_nearest_available_hex_for_unit(unit: BaseUnit, assigned_hexes: Array[Vector2i]) -> Vector2i:
 	"""
-	Ищет ближайший нейтральный гекс для конкретного юнита
+	Ищет ближайший нейтральный гекс для конкретного юнита, исключая уже назначенные
 	"""
 	if not Handlers.GameHandler or not Handlers.GameHandler.overlay_map:
 		return Vector2i.MAX
@@ -508,7 +524,9 @@ func _find_nearest_neutral_hex_for_unit(unit: BaseUnit) -> Vector2i:
 	# Проходим по всем гексам на карте
 	for hex_pos in Handlers.GameHandler.hexes_dict.keys():
 		var hex = Handlers.GameHandler.hexes_dict[hex_pos]
-		if hex.team_owner == -1:  # Нейтральный гекс
+		
+		# Проверяем что гекс нейтральный И не назначен другому юниту
+		if hex.team_owner == -1 and hex_pos not in assigned_hexes:
 			# Конвертируем координаты гекса в мировые
 			var hex_world_pos = Handlers.GameHandler.overlay_map.map_to_local(hex_pos)
 			hex_world_pos = Handlers.GameHandler.overlay_map.to_global(hex_world_pos)
@@ -520,7 +538,9 @@ func _find_nearest_neutral_hex_for_unit(unit: BaseUnit) -> Vector2i:
 				nearest_hex = hex_pos
 	
 	if nearest_hex != Vector2i.MAX:
-		print("📍 BOT: Для ", unit.name, " ближайший гекс ", nearest_hex, " (расстояние: ", int(min_distance), ")")
+		print("📍 BOT: Для ", unit.name, " ближайший СВОБОДНЫЙ гекс ", nearest_hex, " (расстояние: ", int(min_distance), ")")
+	else:
+		print("🚫 BOT: Для ", unit.name, " не найдено свободных гексов (назначено: ", assigned_hexes.size(), ")")
 	
 	return nearest_hex
 
@@ -625,6 +645,20 @@ func _order_hex_capture(command_unit: CommandUnit, hex_position: Vector2i) -> vo
 	var world_position = Handlers.GameHandler.overlay_map.map_to_local(hex_position)
 	world_position = Handlers.GameHandler.overlay_map.to_global(world_position)
 	
+	# УМНАЯ ПРОВЕРКА: Не отправляем приказ если юнит уже очень близко к гексу
+	var distance_to_hex = command_unit.global_position.distance_to(world_position)
+	if distance_to_hex < 40.0:  # Если юнит уже на гексе
+		print("🚫 BOT: ", command_unit.name, " уже на гексе ", hex_position, " (расстояние: ", int(distance_to_hex), ")")
+		return
+	
+	# Отладка: текущее состояние юнита
+	print("🔍 BOT DEBUG: ", command_unit.name, " ПЕРЕД приказом:")
+	print("  - Позиция: ", command_unit.global_position)
+	print("  - Состояние: ", command_unit.unit_state)
+	print("  - Приказов в очереди: ", command_unit.orders.size())
+	print("  - Гекс: ", hex_position, " → мировые: ", world_position)
+	print("  - Расстояние: ", int(distance_to_hex))
+	
 	# ИСПРАВЛЕНИЕ: Бот на сервере - вызываем функцию напрямую
 	if is_multiplayer_authority():
 		command_unit.add_order(world_position, true)
@@ -632,7 +666,22 @@ func _order_hex_capture(command_unit: CommandUnit, hex_position: Vector2i) -> vo
 		# Если бот на клиенте (не используется сейчас)
 		command_unit.rpc_id(1, "add_order", world_position, true)
 	
-	print("🎯 BOT: Командный юнит ", command_unit.name, " → гекс ", hex_position)
+	print("🎯 BOT: ", command_unit.name, " → гекс ", hex_position, " (расстояние: ", int(distance_to_hex), ")")
+	
+	# Отладка: состояние юнита ПОСЛЕ приказа
+	call_deferred("_debug_unit_state_after_order", command_unit)
+
+func _debug_unit_state_after_order(command_unit: CommandUnit) -> void:
+	"""
+	Отладочная функция для проверки состояния юнита после получения приказа
+	"""
+	# Проверяем что юнит не застрял - это главное
+	if command_unit.unit_state == BaseUnit.UNIT_STATES.IDLE and command_unit.orders.size() > 0:
+		print("⚠️ BOT WARNING: Юнит ", command_unit.name, " застрял в IDLE с приказами!")
+		print("  - Состояние: ", command_unit.unit_state)
+		print("  - Приказов в очереди: ", command_unit.orders.size())
+		if command_unit.orders.size() > 0:
+			print("  - Первый приказ: ", command_unit.orders[0])
 
 ### ФУНКЦИИ ОЦЕНКИ СИТУАЦИИ ###
 

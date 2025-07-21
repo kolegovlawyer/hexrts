@@ -299,11 +299,30 @@ func _physics_process(delta: float) -> void:
 		else:
 			set_visibility_for_enemy(false)
 		
+		# ОТЛАДКА: Проверяем обработку приказов для ботов
+		var is_bot = _get_bot_team_by_id(owner_id) != -1
+		if is_bot and orders.size() > 0:
+			# Отладка только каждые 3 секунды для каждого юнита
+			if not has_meta("last_physics_debug") or (Time.get_unix_time_from_system() - get_meta("last_physics_debug")) > 3:
+				set_meta("last_physics_debug", Time.get_unix_time_from_system())
+				print("🔍 PHYSICS DEBUG: ", name, " обрабатывает приказы:")
+				print("  - Состояние: ", unit_state, " (", UNIT_STATES.keys()[unit_state], ")")
+				print("  - Приказов: ", orders.size())
+				print("  - Текущий приказ: ", orders[0])
+		
 		# Обработка orders с учетом state machine
 		if orders.size() > 0:
 			var current_order = orders[0]
 			match current_order.type:
 				"move":
+					# ОТЛАДКА ДЛЯ БОТОВ: детальная информация перехода состояний
+					if is_bot and unit_state != UNIT_STATES.MOVING:
+						print("🤖 MOVE DEBUG: ", name, " переходит в MOVING")
+						print("  - Старое состояние: ", UNIT_STATES.keys()[unit_state])
+						print("  - Позиция юнита: ", global_position)
+						print("  - Цель движения: ", current_order.position)
+						print("  - Расстояние: ", global_position.distance_to(current_order.position))
+					
 					# Переключаемся в состояние движения
 					if unit_state != UNIT_STATES.MOVING:
 						unit_state = UNIT_STATES.MOVING
@@ -311,20 +330,35 @@ func _physics_process(delta: float) -> void:
 					var pos = current_order.position
 					navagent.target_position = pos
 					
-					# Новый: увеличенный порог и проверка навигатора
-					var close_enough = global_position.distance_to(pos) < 16.0
+					# Увеличенный порог для ботов (проблема малых расстояний!)
+					var distance_to_target = global_position.distance_to(pos)
+					var close_enough_threshold = 32.0 if is_bot else 16.0  # Больший порог для ботов
+					var close_enough = distance_to_target < close_enough_threshold
 					var nav_done = navagent.is_navigation_finished()
 					var moved = global_position.distance_to(last_move_position) > 1.0
 					
+					# ОТЛАДКА ДЛЯ БОТОВ: информация о проверках
+					if is_bot and (not has_meta("last_move_debug") or (Time.get_unix_time_from_system() - get_meta("last_move_debug")) > 2):
+						set_meta("last_move_debug", Time.get_unix_time_from_system())
+						print("🎯 MOVE CHECK: ", name)
+						print("  - distance_to_target: ", distance_to_target)
+						print("  - close_enough_threshold: ", close_enough_threshold)
+						print("  - close_enough: ", close_enough)
+						print("  - nav_done: ", nav_done)
+						print("  - moved: ", moved, " (", global_position.distance_to(last_move_position), " > 1.0)")
+						print("  - navagent.target_position: ", navagent.target_position)
+					
 					if close_enough or nav_done:
 						orders.pop_front()
-						# print("✅ ДВИЖЕНИЕ: Приказ движения выполнен для юнита ", name)
+						if is_bot:
+							print("✅ BOT ДВИЖЕНИЕ: ", name, " достиг цели и переходит в IDLE")
 						unit_state = UNIT_STATES.IDLE
 						stuck_timer = 0.0
 					elif not moved:
 						stuck_timer += delta
 						if stuck_timer > 2.0:
-							# print("⚠️ ДВИЖЕНИЕ: Юнит застрял, удаляем приказ")
+							if is_bot:
+								print("⚠️ BOT ДВИЖЕНИЕ: ", name, " застрял, удаляем приказ")
 							orders.pop_front()
 							unit_state = UNIT_STATES.IDLE
 							stuck_timer = 0.0

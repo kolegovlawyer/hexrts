@@ -496,7 +496,22 @@ func can_see_target(target: BaseUnit) -> bool:
 	"""Проверяет, может ли юнит видеть указанную цель"""
 	if not is_instance_valid(target):
 		return false
-	return has_vision_on.has(target)
+	
+	# ИСПРАВЛЕНИЕ ДЛЯ БОТОВ: Более гибкая проверка видимости
+	var is_bot = _get_bot_team_by_id(owner_id) != -1
+	if is_bot:
+		# Для ботов: проверяем расстояние до цели (упрощенная система видимости)
+		var distance_to_target = global_position.distance_to(target.global_position)
+		var can_see = distance_to_target <= 400.0  # Радиус видимости ботов
+		
+		if not has_meta("visibility_debug_" + target.name):
+			set_meta("visibility_debug_" + target.name, true)
+			print("👁️ BOT VISION: ", name, " → ", target.name, " расстояние: ", int(distance_to_target), " видно: ", can_see)
+		
+		return can_see
+	else:
+		# Для игроков: стандартная система видимости
+		return has_vision_on.has(target)
 	
 func attack(target: BaseUnit) -> void:
 	# Дополнительная проверка валидности цели

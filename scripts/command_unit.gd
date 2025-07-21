@@ -134,8 +134,8 @@ func stop_capture(reason: String = "") -> void:
 @rpc("authority", "reliable")
 func client_start_capture_visual(hex_position: Vector2i) -> void:
 	"""Показывает прогресс-бар захвата у клиента-владельца"""
-	# Показываем прогресс-бар только у владельца юнита
-	if owner_id == multiplayer.get_unique_id() and capture_progress_bar:
+	# БЕЗОПАСНАЯ ПРОВЕРКА: multiplayer может быть null при уничтожении юнита
+	if multiplayer and owner_id == multiplayer.get_unique_id() and capture_progress_bar:
 		capture_progress_bar.show()
 		capture_progress_bar.value = 0.0
 		capture_progress_bar.max_value = 100.0
@@ -144,8 +144,8 @@ func client_start_capture_visual(hex_position: Vector2i) -> void:
 @rpc("authority", "reliable")
 func client_stop_capture_visual() -> void:
 	"""Скрывает прогресс-бар захвата у клиента-владельца"""
-	# Скрываем прогресс-бар только у владельца юнита
-	if owner_id == multiplayer.get_unique_id() and capture_progress_bar:
+	# БЕЗОПАСНАЯ ПРОВЕРКА: multiplayer может быть null при уничтожении юнита
+	if multiplayer and owner_id == multiplayer.get_unique_id() and capture_progress_bar:
 		capture_progress_bar.hide()
 		capture_progress_bar.value = 0.0
 		print("⏹️ ВИЗУАЛ: Прогресс-бар захвата скрыт")
@@ -153,8 +153,8 @@ func client_stop_capture_visual() -> void:
 @rpc("authority", "unreliable")
 func client_update_capture_progress(progress_percent: float) -> void:
 	"""Обновляет прогресс захвата у клиента-владельца"""
-	# Обновляем прогресс только у владельца юнита
-	if owner_id == multiplayer.get_unique_id() and capture_progress_bar and capture_progress_bar.visible:
+	# БЕЗОПАСНАЯ ПРОВЕРКА: multiplayer может быть null при уничтожении юнита
+	if multiplayer and owner_id == multiplayer.get_unique_id() and capture_progress_bar and capture_progress_bar.visible:
 		capture_progress_bar.value = progress_percent
 		
 		# Отладочная информация только для значительных изменений

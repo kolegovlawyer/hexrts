@@ -391,13 +391,17 @@ func _on_unit_under_attack(attacker: BaseUnit, victim: BaseUnit) -> void:
 	if not victim or victim.owner_id != bot_id:
 		return  # Не наш юнит
 	
-	print("🚨 BOT: Юнит ", victim.name, " подвергается атаке!")
+	print("🚨 BOT: Юнит ", victim.name, " подвергается атаке от ", attacker.name if attacker else "неизвестный")
+	print("  - Позиция жертвы: ", victim.global_position)
+	print("  - Позиция атакующего: ", attacker.global_position if attacker else "неизвестно")
 	
 	# Если это командный юнит - планируем отступление
 	if victim is CommandUnit:
+		print("🏃 BOT: Планируем отступление командного юнита")
 		_plan_command_unit_retreat(victim, attacker)
 	
 	# Вызываем подкрепления
+	print("📞 BOT: Вызываем подкрепления для ", victim.name)
 	_call_emergency_reinforcements(victim, attacker)
 
 func _on_attack_started(attacker: BaseUnit, target: BaseUnit) -> void:
@@ -452,14 +456,37 @@ func _call_emergency_reinforcements(victim: BaseUnit, attacker: BaseUnit) -> voi
 	"""
 	Вызывает ближайшие юниты на помощь атакуемому
 	"""
+	print("🔍 BOT: Ищем подкрепления в радиусе ", UNIT_SEARCH_RADIUS, " от позиции ", victim.global_position)
 	var nearby_units = _find_nearby_friendly_units(victim.global_position, UNIT_SEARCH_RADIUS)
+	print("🔍 BOT: Найдено ближайших юнитов: ", nearby_units.size())
 	
+	var reinforcements_sent = 0
 	for unit in nearby_units:
 		if unit != victim and _is_unit_available_for_help(unit):
+			print("🔍 BOT: Проверяем юнит ", unit.name, " для подкрепления:")
+			print("  - Расстояние: ", int(unit.global_position.distance_to(victim.global_position)))
+			print("  - Состояние: ", unit.unit_state)
+			print("  - Приказов: ", unit.orders.size())
+			
 			# Отдаем приказ атаковать врага
 			if attacker and is_instance_valid(attacker):
-				unit.rpc_id(1, "add_order", attacker.UID, true)
-				print("⚔️ BOT: Юнит ", unit.name, " идет на помощь")
+				# ИСПРАВЛЕНИЕ: Используем прямой вызов для ботов на сервере
+				if is_multiplayer_authority():
+					unit.add_order(attacker.UID, true)
+				else:
+					unit.rpc_id(1, "add_order", attacker.UID, true)
+				
+				reinforcements_sent += 1
+				print("⚔️ BOT: Юнит ", unit.name, " отправлен на помощь (цель: ", attacker.name, ")")
+			else:
+				print("❌ BOT: Атакующий недоступен для нападения")
+		else:
+			if unit == victim:
+				print("🚫 BOT: Пропускаем жертву ", unit.name)
+			else:
+				print("🚫 BOT: Юнит ", unit.name, " недоступен для помощи")
+	
+	print("📊 BOT: Отправлено подкреплений: ", reinforcements_sent, "/", nearby_units.size())
 
 ### ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ###
 

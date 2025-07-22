@@ -33,6 +33,10 @@ var path_points : Array[Vector2] = []
 @onready var UID = ''
 
 var unit_profile = ''
+
+# Флаг для отложенной инициализации команды (когда setter вызван до добавления в дерево)
+var _pending_team_initialization: bool = false
+
 @export var owner_id : int = 1:
 	set(value):
 		if value == 1:
@@ -40,29 +44,46 @@ var unit_profile = ''
 			return
 		else:
 			owner_id = value
+		
+		# ИСПРАВЛЕНИЕ: Проверяем что юнит в дереве перед вызовом is_multiplayer_authority()
+		if not is_inside_tree():
+			# Юнит еще не в дереве - отложим инициализацию команды до _ready()
+			_pending_team_initialization = true
+			return
+		
 		if not is_multiplayer_authority():
 			#update_visual()
 			pass
 		else:
-			synchronizer.owner_id = value
-			
-			# Безопасно получаем команду для серверных ботов и обычных игроков
-			var bot_team = _get_bot_team_by_id(owner_id)
-			if bot_team != -1:
-				# Это бот
-				owner_team = bot_team
-			else:
-				# Это обычный игрок
-				var player = Handlers.TeamHandler.find_player_by_id(owner_id)
-				if player:
-					owner_team = player.Team
-				else:
-					print("⚠️ SETTER: Игрок с owner_id ", owner_id, " не найден")
-					return
-			
-			update_visibility()
+			_initialize_team_and_visibility()
 			
 var owner_team
+
+func _initialize_team_and_visibility() -> void:
+	"""
+	Инициализирует команду юнита и настраивает видимость
+	Вызывается из setter'а owner_id или из _ready() при отложенной инициализации
+	"""
+	if not is_multiplayer_authority():
+		return
+	
+	synchronizer.owner_id = owner_id
+	
+	# Безопасно получаем команду для серверных ботов и обычных игроков
+	var bot_team = _get_bot_team_by_id(owner_id)
+	if bot_team != -1:
+		# Это бот
+		owner_team = bot_team
+	else:
+		# Это обычный игрок
+		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
+		if player:
+			owner_team = player.Team
+		else:
+			print("⚠️ TEAM_INIT: Игрок с owner_id ", owner_id, " не найден")
+			return
+	
+	update_visibility()
 
 #@export var health : float
 
@@ -180,6 +201,12 @@ func _ready() -> void:
 	init_health_bar()
 	init_shield_bar()
 	
+	# ИСПРАВЛЕНИЕ: Выполняем отложенную инициализацию команды если нужно
+	if _pending_team_initialization:
+		_pending_team_initialization = false
+		_initialize_team_and_visibility()
+		print("🔧 DEFERRED_INIT: Выполнена отложенная инициализация команды для юнита ", name)
+	
 	# Создаем таймер автоматической атаки (только на сервере)
 	if is_multiplayer_authority():
 		_setup_auto_attack_timer()
@@ -207,52 +234,44 @@ func _ready() -> void:
 			Handlers.GameHandler.register_new_unit(self)
 		print('ОВНЕР АЙДИ ПЕРЕД ТЕМ КАК СЛОМАТЬСЯ ', owner_id)
 		print(Handlers.TeamHandler.find_player_by_id(owner_id))
-		# КРИТИЧЕСКИ ВАЖНО: Инициализируем owner_team для новых юнитов
-		if owner_id != 1:  # Не для дефолтного значения
-			# Сначала проверяем является ли это ботом
-			var bot_team = _get_bot_team_by_id(owner_id)
-			if bot_team != -1:
-				# Это бот - используем команду из системы ботов
-				owner_team = bot_team
-				print("🤖 ИНИЦИАЛИЗАЦИЯ: Бот owner_team установлен в ", owner_team, " для юнита ", name)
-			else:
-				# Это обычный игрок - используем TeamHandler
-				var player = Handlers.TeamHandler.find_player_by_id(owner_id)
-				if player:
-					owner_team = player.Team
-					print("🏷️ ИНИЦИАЛИЗАЦИЯ: Игрок owner_team установлен в ", owner_team, " для юнита ", name)
-				else:
-					print("⚠️ ОШИБКА: Игрок с owner_id ", owner_id, " не найден при инициализации юнита")
-					return
-			
+		# КРИТИЧЕСКИ ВАЖНО: Инициализируем owner_team если не было отложенной инициализации
+		if owner_id != 1 and owner_team == null:  # Не для дефолтного значения и еще не инициализировано
+			_initialize_team_and_visibility()
+			print("🔧 READY_INIT: Инициализация команды в _ready() для юнита ", name)
+		
+		# Запускаем дополнительные системы для всех юнитов (кроме дефолтных)
+		if owner_id != 1:
 			# Запускаем автоатаку с небольшой задержкой для полной инициализации
 			call_deferred("_start_auto_attack_delayed")
+			
+			# КРИТИЧЕСКИ ВАЖНО: Повторно настраиваем видимость после полной инициализации
+			# Это исправляет проблему когда боты видны противникам
+			call_deferred("_fix_visibility_after_init")
 	
 	update_visual()
 	last_move_position = global_position
 	
 func visibility_check_in(body):
-	# print('owner team in check ', owner_team)
-	var team = Handlers.TeamHandler.get_team(owner_team)
-	# print(team)
-	if body == self:
+	"""ОПТИМИЗИРОВАНО: Быстрая проверка входа в зону видимости"""
+	if body == self or not body is BaseUnit:
 		return
-	if body is BaseUnit:
-		if not has_vision_on.has(body):
-			# print('ЗАМЕЧЕН ВРАГ')
-			has_vision_on.append(body)
-		if not body.visible_by.has(self):
-			body.visible_by.append(self)
+	
+	# ОПТИМИЗАЦИЯ: Используем быстрые проверки without get_team
+	if not has_vision_on.has(body):
+		has_vision_on.append(body)
+	if not body.visible_by.has(self):
+		body.visible_by.append(self)
 	
 func visibility_check_out(body):
-	if body == self:
+	"""ОПТИМИЗИРОВАНО: Быстрая проверка выхода из зоны видимости"""
+	if body == self or not body is BaseUnit:
 		return
-	if body is BaseUnit:
-		if has_vision_on.has(body):
-			# print('ВРАГ ВЫШЕЛ ИЗ ПОЛЯ ЗРЕНИЯ: ', body.name)
-			has_vision_on.erase(body)
-		if body.visible_by.has(self):
-			body.visible_by.erase(self)
+	
+	# ОПТИМИЗАЦИЯ: Используем прямые операции с массивами
+	if has_vision_on.has(body):
+		has_vision_on.erase(body)
+	if body.visible_by.has(self):
+		body.visible_by.erase(self)
 	
 func on_velocity_computed(safe_velocity):
 	velocity = safe_velocity
@@ -298,97 +317,260 @@ func is_time_to_heavy_calculations() -> bool:
 func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority():
 		
-		if visible_by:
-			set_visibility_for_enemy(true)
-		else:
-			set_visibility_for_enemy(false)
+		# === ЛЕГКИЕ ВЫЧИСЛЕНИЯ (КАЖДЫЙ ФРЕЙМ - МГНОВЕННАЯ РЕАКЦИЯ) ===
 		
-		# Убираем спам логов - используем визуальную отладку через DebugLabel
+		# Быстрая локальная проверка видимости (без сетевых операций)
+		_quick_visibility_check()
+		
+		# ⚡ КРИТИЧЕСКИ ВАЖНО: Обработка приказов ТОЛЬКО ИГРОКОВ мгновенно!
 		var is_bot = _get_bot_team_by_id(owner_id) != -1
-		
-		# Обработка orders с учетом state machine
-		if orders.size() > 0:
+		if not is_bot and orders.size() > 0:
 			var current_order = orders[0]
 			match current_order.type:
 				"move":
-					# Переключаемся в состояние движения
-					if unit_state != UNIT_STATES.MOVING:
-						unit_state = UNIT_STATES.MOVING
-					
-					var pos = current_order.position
-					navagent.target_position = pos
-					
-					# УЛУЧШЕННАЯ НАВИГАЦИЯ: Проверяем доступность и используем альтернативы
-					if not navagent.is_target_reachable():
-						# Цель недоступна - используем систему умных альтернатив
-						var alternative_target = _find_alternative_path_target(pos)
-						navagent.target_position = alternative_target
-						
-						# Логируем проблему только для критических случаев
-						if is_bot:
-							var pos_key = "unreachable_logged_" + str(int(pos.x)) + "_" + str(int(pos.y))
-							if not has_meta(pos_key):
-								set_meta(pos_key, true)
-								print("🚧 NAV: ", name, " цель недоступна, используем альтернативный маршрут")
-					
-					# Увеличенный порог для ботов (проблема малых расстояний!)
-					var distance_to_target = global_position.distance_to(pos)
-					var close_enough_threshold = 24.0 if is_bot else 12.0  # Оптимизированные пороги
-					var close_enough = distance_to_target < close_enough_threshold
-					var nav_done = navagent.is_navigation_finished()
-					var moved = global_position.distance_to(last_move_position) > 1.5  # Чувствительность к движению
-					
-					if close_enough or nav_done:
-						orders.pop_front()
-						unit_state = UNIT_STATES.IDLE
-						stuck_timer = 0.0
-					elif not moved:
-						stuck_timer += delta
-						if stuck_timer > 2.5:  # Быстрее реагируем на застревание
-							# УЛУЧШЕННАЯ СИСТЕМА ОБХОДА ЗАСТРЕВАНИЯ
-							_execute_smart_unstuck_maneuver(pos)
-							stuck_timer = 0.0  # Сбрасываем таймер
-					else:
-						stuck_timer = 0.0
-					last_move_position = global_position
-					
+					_process_move_order_immediate(current_order, delta, is_bot)
 				"attack":
-					# Переключаемся в состояние атаки
-					if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
-						unit_state = UNIT_STATES.ATTACKING
-					
-					# Безопасная проверка цели
-					if not is_instance_valid(current_order.target):
-						orders.pop_front()
-						# print("Цель недействительна, приказ удален")  # DEBUG
-						unit_state = UNIT_STATES.IDLE
-					else:
-						var target: BaseUnit = current_order.target
-						# Проверяем видимость цели
-						if not can_see_target(target):
-							orders.pop_front()
-							# print("👁️ Цель ", target.name, " не видна, приказ отменен")  # DEBUG
-							unit_state = UNIT_STATES.IDLE
-						else:
-							attack(target)
-		else:
-			# Нет приказов - переходим в состояние ожидания для автоатаки
-			if unit_state != UNIT_STATES.IDLE and unit_state != UNIT_STATES.AUTO_ATTACKING:
-				unit_state = UNIT_STATES.IDLE
-
+					_process_attack_order_immediate(current_order)
+		
 		# Движение (только если navagent не завершен)
 		if not navagent.is_navigation_finished():
 			var current_unit_position = global_position
 			var next_path_position = navagent.get_next_path_position()
-			#arrow.look_at(to_global(navagent.target_position)) # TODO : пофиксить вращение стрелки к цели
-			# arrow.rotate(arrow.get_angle_to(navagent.target_position))
 			velocity = current_unit_position.direction_to(next_path_position)*speed
 			move_and_slide()
-			$DebugLabel.text = str(global_position)
-			$DebugLabel2.text = str(position)
 		
-		### проверка целей для атаки
-				
+		# === ТЯЖЕЛЫЕ ВЫЧИСЛЕНИЯ (РАСПРЕДЕЛЕННЫЕ ПО ФРЕЙМАМ - АВТОМАТИКА) ===
+		if is_time_to_heavy_calculations():
+			_process_heavy_server_calculations(delta)
+
+func _process_move_order_immediate(current_order: Dictionary, delta: float, is_bot: bool) -> void:
+	"""МГНОВЕННАЯ обработка приказов движения для отзывчивости игрока"""
+	# Переключаемся в состояние движения
+	if unit_state != UNIT_STATES.MOVING:
+		unit_state = UNIT_STATES.MOVING
+	
+	var pos = current_order.position
+	navagent.target_position = pos
+	
+	# УЛУЧШЕННАЯ НАВИГАЦИЯ: Проверяем доступность и используем альтернативы
+	if not navagent.is_target_reachable():
+		# Цель недоступна - используем систему умных альтернатив
+		var alternative_target = _find_alternative_path_target(pos)
+		navagent.target_position = alternative_target
+		
+		# Логируем проблему только для критических случаев
+		if is_bot:
+			# ИСПРАВЛЕНИЕ: Создаем валидный ASCII identifier (заменяем минус на подчеркивание)
+			var pos_key = "unreachable_logged_" + str(abs(int(pos.x))) + "_" + str(abs(int(pos.y)))
+			if pos.x < 0:
+				pos_key += "_negX"
+			if pos.y < 0:
+				pos_key += "_negY"
+			if not has_meta(pos_key):
+				set_meta(pos_key, true)
+				print("🚧 NAV: ", name, " цель недоступна, используем альтернативный маршрут")
+	
+	# Увеличенный порог для ботов (проблема малых расстояний!)
+	var distance_to_target = global_position.distance_to(pos)
+	var close_enough_threshold = 24.0 if is_bot else 12.0  # Оптимизированные пороги
+	var close_enough = distance_to_target < close_enough_threshold
+	var nav_done = navagent.is_navigation_finished()
+	var moved = global_position.distance_to(last_move_position) > 1.5  # Чувствительность к движению
+	
+	if close_enough or nav_done:
+		orders.pop_front()
+		unit_state = UNIT_STATES.IDLE
+		stuck_timer = 0.0
+	elif not moved:
+		stuck_timer += delta
+		if stuck_timer > 2.5:  # Быстрее реагируем на застревание
+			# УЛУЧШЕННАЯ СИСТЕМА ОБХОДА ЗАСТРЕВАНИЯ
+			_execute_smart_unstuck_maneuver(pos)
+			stuck_timer = 0.0  # Сбрасываем таймер
+	else:
+		stuck_timer = 0.0
+	last_move_position = global_position
+
+func _process_attack_order_immediate(current_order: Dictionary) -> void:
+	"""МГНОВЕННАЯ обработка приказов атаки для отзывчивости игрока"""
+	# Переключаемся в состояние атаки
+	if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
+		unit_state = UNIT_STATES.ATTACKING
+	
+	# Безопасная проверка цели
+	if not is_instance_valid(current_order.target):
+		orders.pop_front()
+		unit_state = UNIT_STATES.IDLE
+	else:
+		var target: BaseUnit = current_order.target
+		# Проверяем видимость цели
+		if not can_see_target(target):
+			orders.pop_front()
+			unit_state = UNIT_STATES.IDLE
+		else:
+			# Атакуем мгновенно!
+			attack(target)
+
+func _quick_visibility_check() -> void:
+	"""
+	БЫСТРАЯ проверка видимости без сетевых операций
+	Только локальные флаги, тяжелые сетевые операции в FrameGroup
+	"""
+	# Простая локальная проверка без set_visibility_for_enemy (которая тяжелая)
+	# Сохраняем текущее состояние для тяжелых вычислений
+	var currently_visible = visible_by.size() > 0
+	set_meta("visibility_state", currently_visible)
+
+func _process_heavy_server_calculations(delta: float) -> void:
+	"""
+	ПЕРЕРАБОТАНО: Тяжелые серверные вычисления для АВТОМАТИЧЕСКИХ систем и БОТОВ
+	Включает: обработку приказов ботов, автоатаку ИИ, сложные проверки видимости, отладку
+	ИСКЛЮЧЕНО: обработка приказов игроков (мгновенная!)
+	"""
+	var is_bot = _get_bot_team_by_id(owner_id) != -1
+	
+	# === ТЯЖЕЛЫЕ СЕТЕВЫЕ ОПЕРАЦИИ ВИДИМОСТИ ===
+	_process_visibility_heavy()
+	
+	# === ОБРАБОТКА ПРИКАЗОВ БОТОВ (ОТЛОЖЕННАЯ) ===
+	if is_bot and orders.size() > 0:
+		var current_order = orders[0]
+		match current_order.type:
+			"move":
+				_process_move_order_heavy_bot(current_order, delta)
+			"attack":
+				_process_attack_order_heavy_bot(current_order)
+	# === АВТОАТАКА (ПОИСК ЦЕЛЕЙ) - ТОЛЬКО ЕСЛИ НЕТ ПРИКАЗОВ ===
+	elif orders.size() == 0:
+		_process_auto_attack_heavy()
+	
+	# === ОБНОВЛЕНИЕ ОТЛАДОЧНОЙ ИНФОРМАЦИИ ===
+	if is_bot:
+		_update_debug_display_lightweight()
+
+func _process_visibility_heavy() -> void:
+	"""
+	Тяжелые сетевые операции видимости, выполняемые через FrameGroup
+	"""
+	# Получаем сохраненное состояние из быстрой проверки
+	if has_meta("visibility_state"):
+		var is_visible = get_meta("visibility_state")
+		# Теперь выполняем тяжелую сетевую операцию
+		set_visibility_for_enemy(is_visible)
+
+func _process_move_order_heavy_bot(current_order: Dictionary, delta: float) -> void:
+	"""ОТЛОЖЕННАЯ обработка приказов движения для БОТОВ (FrameGroup оптимизация)"""
+	# Переключаемся в состояние движения
+	if unit_state != UNIT_STATES.MOVING:
+		unit_state = UNIT_STATES.MOVING
+	
+	var pos = current_order.position
+	navagent.target_position = pos
+	
+	# УЛУЧШЕННАЯ НАВИГАЦИЯ: Проверяем доступность и используем альтернативы
+	if not navagent.is_target_reachable():
+		# Цель недоступна - используем систему умных альтернатив
+		var alternative_target = _find_alternative_path_target(pos)
+		navagent.target_position = alternative_target
+		
+		# Логируем проблему только для критических случаев (с исправленным metadata)
+		var pos_key = "unreachable_bot_" + str(abs(int(pos.x))) + "_" + str(abs(int(pos.y)))
+		if pos.x < 0:
+			pos_key += "_negX"
+		if pos.y < 0:
+			pos_key += "_negY"
+		if not has_meta(pos_key):
+			set_meta(pos_key, true)
+			print("🚧 BOT NAV: ", name, " цель недоступна, используем альтернативный маршрут")
+	
+	# Увеличенный порог для ботов (проблема малых расстояний!)
+	var distance_to_target = global_position.distance_to(pos)
+	var close_enough_threshold = 32.0  # Ботам нужен больший порог
+	var close_enough = distance_to_target < close_enough_threshold
+	var nav_done = navagent.is_navigation_finished()
+	var moved = global_position.distance_to(last_move_position) > 1.5
+	
+	if close_enough or nav_done:
+		orders.pop_front()
+		unit_state = UNIT_STATES.IDLE
+		stuck_timer = 0.0
+	elif not moved:
+		stuck_timer += delta
+		if stuck_timer > 3.0:  # Ботам можно дать больше времени
+			_execute_smart_unstuck_maneuver(pos)
+			stuck_timer = 0.0
+	else:
+		stuck_timer = 0.0
+	last_move_position = global_position
+
+func _process_attack_order_heavy_bot(current_order: Dictionary) -> void:
+	"""ОТЛОЖЕННАЯ обработка приказов атаки для БОТОВ (FrameGroup оптимизация)"""
+	# Переключаемся в состояние атаки
+	if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
+		unit_state = UNIT_STATES.ATTACKING
+	
+	# Безопасная проверка цели
+	if not is_instance_valid(current_order.target):
+		orders.pop_front()
+		unit_state = UNIT_STATES.IDLE
+	else:
+		var target: BaseUnit = current_order.target
+		# Проверяем видимость цели
+		if not can_see_target(target):
+			orders.pop_front()
+			unit_state = UNIT_STATES.IDLE
+		else:
+			# Атакуем через FrameGroup оптимизацию
+			attack(target)
+
+func _process_auto_attack_heavy() -> void:
+	"""Тяжелый поиск целей для автоатаки"""
+	# Нет приказов - переходим в состояние ожидания для автоатаки
+	if unit_state != UNIT_STATES.IDLE and unit_state != UNIT_STATES.AUTO_ATTACKING:
+		unit_state = UNIT_STATES.IDLE
+	
+	# Поиск целей для автоатаки (только в состоянии IDLE)
+	if unit_state == UNIT_STATES.IDLE:
+		var visible_enemies = _get_visible_enemies()
+		if not visible_enemies.is_empty():
+			var target_enemy = _select_best_target(visible_enemies)
+			if is_valid_unit(target_enemy):
+				orders.append({"type": "attack", "target": target_enemy})
+				unit_state = UNIT_STATES.AUTO_ATTACKING
+	
+func _update_debug_display_lightweight() -> void:
+	"""
+	УПРОЩЕННАЯ отладка для ботов - показываем только текущий приказ
+	"""
+	if not is_multiplayer_authority():
+		return
+	
+	var is_bot = _get_bot_team_by_id(owner_id) != -1
+	if not is_bot:
+		return  # Показываем отладку только для ботов
+	
+	# МИНИМАЛИСТИЧНАЯ отладка - только текущий приказ
+	var debug_text = ""
+	if orders.size() > 0:
+		var order = orders[0]
+		if order.type == "move":
+			var dist = int(global_position.distance_to(order.position))
+			debug_text = "Move→" + str(dist) + "px"
+		elif order.type == "attack":
+			if is_instance_valid(order.target):
+				debug_text = "Attack→" + order.target.name
+			else:
+				debug_text = "Attack→INVALID"
+	else:
+		debug_text = UNIT_STATES.keys()[unit_state]
+	
+	# Показываем только самую важную информацию
+	$DebugLabel.text = debug_text
+	
+	# УБИРАЕМ DebugLabel2 для экономии ресурсов
+	if has_node("DebugLabel2"):
+		$DebugLabel2.text = ""
+
 @rpc("any_peer", "reliable")
 func add_order(order_obj, clear_queue:bool=false) -> void:
 	# print("=== add_order ВЫЗВАНА ===")
@@ -479,25 +661,37 @@ func find_target_by_UID(target_uid: String) -> BaseUnit:
 		return null
 
 func can_see_target(target: BaseUnit) -> bool:
-	"""Проверяет, может ли юнит видеть указанную цель"""
+	"""ОПТИМИЗИРОВАНО: Проверяет, может ли юнит видеть указанную цель"""
 	if not is_instance_valid(target):
 		return false
 	
-	# ИСПРАВЛЕНИЕ ДЛЯ БОТОВ: Более гибкая проверка видимости
+	# КЭШИРОВАНИЕ: Проверяем кэш видимости цели
+	var target_cache_key = "can_see_" + target.name
+	var current_frame = Engine.get_physics_frames()
+	
+	if has_meta(target_cache_key + "_frame"):
+		var cached_frame = get_meta(target_cache_key + "_frame")
+		# Используем кэш в течение 3 фреймов
+		if current_frame - cached_frame < 3:
+			return get_meta(target_cache_key + "_result")
+	
+	# Вычисляем видимость
+	var can_see = false
 	var is_bot = _get_bot_team_by_id(owner_id) != -1
+	
 	if is_bot:
 		# Для ботов: проверяем расстояние до цели (упрощенная система видимости)
-		var distance_to_target = global_position.distance_to(target.global_position)
-		var can_see = distance_to_target <= 400.0  # Радиус видимости ботов
-		
-		if not has_meta("visibility_debug_" + target.name):
-			set_meta("visibility_debug_" + target.name, true)
-			print("👁️ BOT VISION: ", name, " → ", target.name, " расстояние: ", int(distance_to_target), " видно: ", can_see)
-		
-		return can_see
+		var distance_squared = global_position.distance_squared_to(target.global_position)
+		can_see = distance_squared <= 160000.0  # 400^2 = 160000 (избегаем sqrt)
 	else:
 		# Для игроков: стандартная система видимости
-		return has_vision_on.has(target)
+		can_see = has_vision_on.has(target)
+	
+	# Сохраняем в кэш
+	set_meta(target_cache_key + "_result", can_see)
+	set_meta(target_cache_key + "_frame", current_frame)
+	
+	return can_see
 	
 func attack(target: BaseUnit) -> void:
 	# Дополнительная проверка валидности цели
@@ -739,45 +933,69 @@ func update_sprite_color():
 			sprite.visibility_layer = 2
 		
 func update_visibility():
-	if is_multiplayer_authority():
-		# Безопасно получаем команду юнита
-		var unit_team = owner_team
-		if unit_team == null:
-			# Пытаемся определить команду если она не задана
-			var bot_team = _get_bot_team_by_id(owner_id)
-			if bot_team != -1:
-				unit_team = bot_team
-			else:
-				var player = Handlers.TeamHandler.find_player_by_id(owner_id)
-				if player:
-					unit_team = player.Team
-				else:
-					print("⚠️ VISIBILITY: Не удалось определить команду для owner_id ", owner_id)
-					return
+	"""ОПТИМИЗИРОВАНО: Обновление видимости с кэшированием"""
+	if not is_multiplayer_authority():
+		return
+	
+	# КЭШИРОВАНИЕ: Проверяем, нужно ли обновлять видимость
+	var current_frame = Engine.get_physics_frames()
+	var last_visibility_update_key = "last_visibility_update"
+	if has_meta(last_visibility_update_key):
+		var last_update = get_meta(last_visibility_update_key)
+		# Обновляем видимость только раз в 10 фреймов для экономии ресурсов
+		if current_frame - last_update < 10:
+			return
+	set_meta(last_visibility_update_key, current_frame)
+	
+	# Быстрое определение команды с кэшированием
+	var unit_team = _get_cached_team()
+	if unit_team == null:
+		# Дополнительная диагностика для ботов
+		var is_bot = _get_bot_team_by_id(owner_id) != -1
+		if is_bot:
+			print("❌ VISIBILITY: Бот ", name, " (owner_id: ", owner_id, ") - не удалось определить команду")
+		return
+	
+	# ИСПРАВЛЕНИЕ: Получаем список активных peer'ов
+	var active_peers = multiplayer.get_peers()
+	
+	# Сначала скрываем юнит от ВСЕХ игроков (только активных)
+	for player_id in active_peers:
+		_safe_set_visibility(player_id, false)
+	
+	# Затем показываем только союзникам
+	var team_players = Handlers.TeamHandler.get_team_players(unit_team)
+	if team_players:
+		var is_bot = _get_bot_team_by_id(owner_id) != -1
+		if is_bot:
+			print("✅ VISIBILITY: Бот ", name, " команда ", unit_team, " - показан ", team_players.size(), " союзникам")
 		
-		# Умная отладка только при первой настройке видимости
-		if not has_meta("visibility_debug_shown"):
-			set_meta("visibility_debug_shown", true)
-			print("👁️ VISIBILITY DEBUG: Настройка видимости для юнита ", name, " команда ", unit_team, " owner_id ", owner_id)
-		
-		# ИСПРАВЛЕНИЕ: Получаем список активных peer'ов
-		var active_peers = multiplayer.get_peers()
-		
-		# Сначала скрываем юнит от ВСЕХ игроков (только активных)
-		for player_id in active_peers:
-			_safe_set_visibility(player_id, false)
-		
-		# Затем показываем только союзникам
-		var team_players = Handlers.TeamHandler.get_team_players(unit_team)
-		if team_players:
-			for player in team_players:
-				# Проверяем что peer активен перед установкой видимости
-				if player.PlayerId in active_peers:
-					_safe_set_visibility(player.PlayerId, true)
+		for player in team_players:
+			# Проверяем что peer активен перед установкой видимости
+			if player.PlayerId in active_peers:
+				_safe_set_visibility(player.PlayerId, true)
+
+func _get_cached_team():
+	"""ОПТИМИЗАЦИЯ: Кэшированное получение команды юнита"""
+	if owner_team != null:
+		return owner_team
+	
+	# Пытаемся определить команду если она не задана
+	var bot_team = _get_bot_team_by_id(owner_id)
+	if bot_team != -1:
+		owner_team = bot_team
+		return owner_team
+	else:
+		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
+		if player:
+			owner_team = player.Team
+			return owner_team
 		else:
-			if not has_meta("no_team_players_logged"):
-				set_meta("no_team_players_logged", true)
-				print("⚠️ VISIBILITY: Нет союзников для команды ", unit_team)
+			# Логируем проблему только один раз
+			if not has_meta("team_resolve_error_logged"):
+				set_meta("team_resolve_error_logged", true)
+				print("⚠️ VISIBILITY: Не удалось определить команду для owner_id ", owner_id)
+			return null
 
 func _safe_set_visibility(peer_id: int, visible: bool) -> void:
 	"""
@@ -796,42 +1014,32 @@ func _safe_set_visibility(peer_id: int, visible: bool) -> void:
 	synchronizer.set_visibility_for(peer_id, visible)
 			
 func set_visibility_for_enemy(is_visible:bool) -> void:
-	if is_multiplayer_authority():
-		# Безопасно получаем команду юнита
-		var unit_team = owner_team
-		if unit_team == null:
-			# Пытаемся определить команду если она не задана
-			var bot_team = _get_bot_team_by_id(owner_id)
-			if bot_team != -1:
-				unit_team = bot_team
-			else:
-				var player = Handlers.TeamHandler.find_player_by_id(owner_id)
-				if player:
-					unit_team = player.Team
-				else:
-					print("⚠️ ENEMY_VISIBILITY: Не удалось определить команду для owner_id ", owner_id)
-					return
-		
-		# Умная отладка только при изменении видимости
-		var debug_key = "enemy_visibility_" + str(is_visible)
-		if not has_meta(debug_key):
-			set_meta(debug_key, true)
-			print("👁️ ENEMY_VISIBILITY DEBUG: Юнит ", name, " команда ", unit_team, " видимость для врагов: ", is_visible)
-		
-		# ИСПРАВЛЕНИЕ: Безопасное установление видимости для врагов
-		var enemy_players = Handlers.TeamHandler.get_enemy_team_players(unit_team)
-		var active_peers = multiplayer.get_peers()
-		
-		if enemy_players:
-			for player in enemy_players:
-				# Проверяем что enemy peer активен
-				if player.PlayerId in active_peers:
-					_safe_set_visibility(player.PlayerId, is_visible)
-		else:
-			# Логируем проблему только один раз
-			if not has_meta("no_enemies_logged"):
-				set_meta("no_enemies_logged", true)
-				print("⚠️ ENEMY_VISIBILITY: Нет вражеских игроков для команды ", unit_team)
+	"""ОПТИМИЗИРОВАНО: Установка видимости для врагов с кэшированием"""
+	if not is_multiplayer_authority():
+		return
+	
+	# КЭШИРОВАНИЕ: Проверяем, изменилась ли видимость
+	var last_enemy_visibility_key = "last_enemy_visibility"
+	if has_meta(last_enemy_visibility_key):
+		var last_visibility = get_meta(last_enemy_visibility_key)
+		if last_visibility == is_visible:
+			return  # Видимость не изменилась
+	set_meta(last_enemy_visibility_key, is_visible)
+	
+	# Быстрое определение команды с кэшированием
+	var unit_team = _get_cached_team()
+	if unit_team == null:
+		return
+	
+	# ИСПРАВЛЕНИЕ: Безопасное установление видимости для врагов
+	var enemy_players = Handlers.TeamHandler.get_enemy_team_players(unit_team)
+	var active_peers = multiplayer.get_peers()
+	
+	if enemy_players:
+		for player in enemy_players:
+			# Проверяем что enemy peer активен
+			if player.PlayerId in active_peers:
+				_safe_set_visibility(player.PlayerId, is_visible)
 
 ## СИСТЕМА СОСТОЯНИЙ (STATE MACHINE)
 func _unit_state_exit(state: int) -> void:
@@ -914,120 +1122,124 @@ func _start_auto_attack_delayed() -> void:
 		unit_state = UNIT_STATES.IDLE
 		# print("🎯 AUTO_ATTACK: Принудительно запущена автоатака для нового юнита ", name)
 
-func _on_auto_attack_timer_timeout() -> void:
+func _fix_visibility_after_init() -> void:
 	"""
-	Обработчик таймера автоматической атаки
-	Вызывается каждую секунду для поиска и атаки врагов
-	
-	ЛОГИКА АВТОАТАКИ:
-	1. Проверяет, нет ли текущих приказов (приоритет у ручных команд)
-	2. Ищет видимых врагов в зоне обзора
-	3. Выбирает ближайшего врага как цель
-	4. Добавляет приказ атаки в очередь
-	5. Переключает состояние на AUTO_ATTACKING
+	ИСПРАВЛЕНИЕ ВИДИМОСТИ: Повторно настраивает видимость после полной инициализации
+	Решает проблему когда боты видны противникам из-за неправильного порядка инициализации
 	"""
-	# Автоатака работает только на сервере
 	if not is_multiplayer_authority():
 		return
-	# print("🔄 AUTO_ATTACK: Таймер сработал для юнита ", name, " (orders: ", orders.size(), ")")
-	# Не атакуем автоматически если есть активные приказы (приоритет у игрока)
-	if orders.size() > 0:
-		# print("🤖 AUTO_ATTACK: ", name, " - есть приказы, автоатака отложена")
-		return
-	# Ищем видимых врагов
-	var visible_enemies = _get_visible_enemies()
-	# print("👁️ AUTO_ATTACK: ", name, " видит врагов: ", visible_enemies.size())
-	if visible_enemies.is_empty():
-		# Нет врагов - переходим в состояние ожидания
-		if unit_state != UNIT_STATES.IDLE:
-			unit_state = UNIT_STATES.IDLE
-		# print("😴 AUTO_ATTACK: ", name, " - нет врагов, остаемся в ожидании")
-		return
-	# Выбираем ближайшего врага (первый в списке)
-	var target_enemy = _select_best_target(visible_enemies)
-	if is_valid_unit(target_enemy):
-		# print("🎯 AUTO_ATTACK: ", name, " выбрал цель для автоатаки: ", target_enemy.name)
-		orders.append({"type": "attack", "target": target_enemy})
-		unit_state = UNIT_STATES.AUTO_ATTACKING
+	
+	var is_bot = _get_bot_team_by_id(owner_id) != -1
+	
+	# Принудительно обновляем видимость, игнорируя кэш
+	if has_meta("last_visibility_update"):
+		remove_meta("last_visibility_update")
+	
+	update_visibility()
+	
+	if is_bot:
+		print("🔧 VISIBILITY FIX: Исправлена видимость для бота ", name, " команда ", owner_team)
+
+func _on_auto_attack_timer_timeout() -> void:
+	"""
+	ОПТИМИЗИРОВАНО: Обработчик таймера автоматической атаки
+	Теперь логика перенесена в _process_auto_attack_heavy() для FrameGroup системы
+	"""
+	# Оставляем пустой обработчик - логика перенесена в FrameGroup систему
+	pass
 
 # === END ВСПОМОГАТЕЛЬНЫХ ===
 
 func _get_visible_enemies() -> Array[BaseUnit]:
 	"""
-	Возвращает список всех видимых вражеских юнитов
+	ОПТИМИЗИРОВАНО: Возвращает список всех видимых вражеских юнитов с кэшированием
 	Использует систему видимости has_vision_on и проверяет принадлежность к команде
 	"""
+	# КЭШИРОВАНИЕ: Проверяем кэш врагов для снижения нагрузки
+	var current_frame = Engine.get_physics_frames()
+	var enemies_cache_key = "visible_enemies_cache"
+	var enemies_frame_key = "visible_enemies_frame"
+	
+	if has_meta(enemies_cache_key) and has_meta(enemies_frame_key):
+		var cached_frame = get_meta(enemies_frame_key)
+		# Используем кэш в течение 5 фреймов (оптимизация для FrameGroup)
+		if current_frame - cached_frame < 5:
+			return get_meta(enemies_cache_key)
+	
+	# Пересчитываем список врагов
 	var enemies: Array[BaseUnit] = []
+	var my_team = _get_cached_team()
 	
 	for unit in has_vision_on:
 		if is_instance_valid(unit) and unit != self:
-			# КРИТИЧЕСКИ ВАЖНО: Проверяем, что это действительно враг, а не союзник
-			if _is_enemy_unit(unit):
+			# ОПТИМИЗАЦИЯ: Быстрая проверка команды
+			if _is_enemy_unit_fast(unit, my_team):
 				enemies.append(unit)
-			# else:
-				# print("🤝 АВТОАТАКА: Игнорируем союзника ", unit.name)  # DEBUG
+	
+	# Сохраняем в кэш
+	set_meta(enemies_cache_key, enemies)
+	set_meta(enemies_frame_key, current_frame)
 	
 	return enemies
 
-func _is_enemy_unit(unit: BaseUnit) -> bool:
+func _is_enemy_unit_fast(unit: BaseUnit, my_team) -> bool:
 	"""
-	Определяет, является ли юнит вражеским по отношению к этому юниту
-	
-	АЛГОРИТМ ОПРЕДЕЛЕНИЯ:
-	1. Проверяет команды через owner_team
-	2. Если команды не определены, сравнивает owner_id 
-	3. При неопределенности возвращает false (не атакуем)
-	
-	ВОЗВРАЩАЕТ:
-	- true: Юнит является врагом (можно атаковать)
-	- false: Юнит является союзником или неопределен (атаковать нельзя)
+	ОПТИМИЗИРОВАНО: Быстрая проверка является ли юнит врагом
+	Использует переданную команду для избежания повторных вызовов _get_cached_team()
 	"""
 	# Проверяем валидность объектов
 	if not is_valid_unit(unit):
 		return false  # Невалидные юниты не атакуем
 	
 	# СПОСОБ 1: Сравнение команд через owner_team (основной)
-	if owner_team != null and unit.owner_team != null:
-		var is_enemy = owner_team != unit.owner_team
-		# print("🔍 КОМАНДЫ: Моя команда (", owner_team, ") vs команда цели (", unit.owner_team, ") = враг: ", is_enemy)  # DEBUG
-		return is_enemy
+	if my_team != null and unit.owner_team != null:
+		return my_team != unit.owner_team
 	
 	# СПОСОБ 2: Сравнение через owner_id (резервный)
 	if owner_id != null and unit.owner_id != null:
-		var is_enemy = owner_id != unit.owner_id
-		# print("🔍 OWNER_ID: Мой owner_id (", owner_id, ") vs owner_id цели (", unit.owner_id, ") = враг: ", is_enemy)  # DEBUG
-		return is_enemy
+		return owner_id != unit.owner_id
 	
 	# СПОСОБ 3: По умолчанию НЕ считаем вражеским (осторожная стратегия)
-	# Лучше не атаковать неопределенную цель, чем атаковать союзника
-	# print("🔍 АВТОАТАКА: Не удалось определить принадлежность для ", unit.name, ", НЕ атакуем")  # DEBUG
 	return false
+
+func _is_enemy_unit(unit: BaseUnit) -> bool:
+	"""
+	УСТАРЕВШАЯ ФУНКЦИЯ: Используйте _is_enemy_unit_fast() для лучшей производительности
+	Оставлена для обратной совместимости
+	"""
+	var my_team = _get_cached_team()
+	return _is_enemy_unit_fast(unit, my_team)
 
 func _select_best_target(enemies: Array[BaseUnit]) -> BaseUnit:
 	"""
-	Выбирает лучшую цель из списка врагов
-	
-	АЛГОРИТМ ВЫБОРА:
-	1. Берет первого врага из списка (простейший алгоритм)
-	2. В будущем можно усложнить: ближайший, самый слабый, наиболее опасный
-	
-	ПАРАМЕТРЫ:
-	- enemies: Список доступных для атаки врагов
-	
-	ВОЗВРАЩАЕТ:
-	- BaseUnit: Выбранная цель или null если список пуст
+	ОПТИМИЗИРОВАНО: Выбирает лучшую цель из списка врагов
+	Добавлена проверка валидности и простая эвристика выбора
 	"""
 	if enemies.is_empty():
 		return null
 	
-	# Простейший алгоритм - берем первого
-	# TODO: Можно улучшить логику выбора цели:
-	# - Ближайший враг
-	# - Самый слабый (меньше здоровья)
-	# - Наиболее опасный (больше урона)
-	# - Приоритет по типу юнита
+	# ОПТИМИЗАЦИЯ: Фильтруем валидные цели
+	var valid_enemies: Array[BaseUnit] = []
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			valid_enemies.append(enemy)
 	
-	return enemies[0]
+	if valid_enemies.is_empty():
+		return null
+	
+	# УЛУЧШЕННЫЙ АЛГОРИТМ: Выбираем ближайшего врага
+	var best_target: BaseUnit = valid_enemies[0]
+	var best_distance = global_position.distance_squared_to(best_target.global_position)
+	
+	for i in range(1, valid_enemies.size()):
+		var enemy = valid_enemies[i]
+		var distance = global_position.distance_squared_to(enemy.global_position)
+		if distance < best_distance:
+			best_target = enemy
+			best_distance = distance
+	
+	return best_target
 
 func _get_bot_team_by_id(player_id: int) -> int:
 	"""
@@ -1203,61 +1415,8 @@ func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
 func _setup_debug_display() -> void:
 	"""
 	Настраивает визуальную отладку на сервере для отслеживания состояния юнитов
+	ОПТИМИЗИРОВАНО: Отладка теперь работает через FrameGroup систему
 	"""
-	if not is_multiplayer_authority():
-		return
-	
-	# Таймер для обновления отладочной информации каждые 2 секунды
-	var debug_timer = Timer.new()
-	debug_timer.wait_time = 2.0
-	debug_timer.timeout.connect(_update_debug_display)
-	debug_timer.autostart = true
-	add_child(debug_timer)
-
-func _update_debug_display() -> void:
-	"""
-	Обновляет отладочную информацию в DebugLabel каждые 2 секунды
-	"""
-	if not is_multiplayer_authority():
-		return
-	
-	var is_bot = _get_bot_team_by_id(owner_id) != -1
-	if not is_bot:
-		return  # Показываем отладку только для ботов
-	
-	# Формируем компактную отладочную информацию
-	var debug_info = []
-	debug_info.append(name)
-	debug_info.append(UNIT_STATES.keys()[unit_state])
-	debug_info.append("Orders:" + str(orders.size()))
-	
-	if orders.size() > 0:
-		var order = orders[0]
-		if order.type == "move":
-			var dist = int(global_position.distance_to(order.position))
-			debug_info.append("Move→" + str(dist) + "px")
-		elif order.type == "attack":
-			if is_instance_valid(order.target):
-				debug_info.append("Attack→" + order.target.name)
-			else:
-				debug_info.append("Attack→INVALID")
-	
-	# Показываем проблемы навигации
-	if navagent:
-		var nav_finished = navagent.is_navigation_finished()
-		var target_dist = int(global_position.distance_to(navagent.target_position))
-		debug_info.append("Nav:" + ("✓" if nav_finished else "→" + str(target_dist)))
-	
-	# Объединяем в одну строку
-	$DebugLabel.text = "\n".join(debug_info)
-	
-	# Второй label для дополнительной информации
-	if has_node("DebugLabel2"):
-		var debug_info2 = []
-		debug_info2.append("HP:" + str(_health) + "/" + str(max_health))
-		debug_info2.append("Pos:" + str(int(global_position.x)) + "," + str(int(global_position.y)))
-		if velocity.length() > 0.1:
-			debug_info2.append("Vel:" + str(int(velocity.length())))
-		else:
-			debug_info2.append("Vel:0")
-		$DebugLabel2.text = "\n".join(debug_info2)
+	# Отладка теперь встроена в _process_heavy_server_calculations()
+	# Удаляем отдельный таймер для экономии ресурсов
+	pass

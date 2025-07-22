@@ -786,9 +786,10 @@ func _is_unit_available_for_help(unit: BaseUnit) -> bool:
 	# Юнит свободен или выполняет некритичные задачи
 	return _is_unit_idle(unit) or unit.unit_state != BaseUnit.UNIT_STATES.ATTACKING
 
-func _order_hex_capture(command_unit: CommandUnit, hex_position: Vector2i) -> void:
+func _order_hex_capture(unit: BaseUnit, hex_position: Vector2i) -> void:
 	"""
-	Отдает приказ командному юниту захватить гекс
+	Отдает приказ юниту захватить гекс
+	Принимает любой BaseUnit (CommandUnit или обычный юнит)
 	"""
 	if not Handlers.GameHandler or not Handlers.GameHandler.overlay_map:
 		print("❌ BOT: GameHandler или overlay_map не найден")
@@ -799,42 +800,42 @@ func _order_hex_capture(command_unit: CommandUnit, hex_position: Vector2i) -> vo
 	world_position = Handlers.GameHandler.overlay_map.to_global(world_position)
 	
 	# УМНАЯ ПРОВЕРКА: Не отправляем приказ если юнит уже очень близко к гексу
-	var distance_to_hex = command_unit.global_position.distance_to(world_position)
+	var distance_to_hex = unit.global_position.distance_to(world_position)
 	if distance_to_hex < 40.0:  # Если юнит уже на гексе
-		print("🚫 BOT: ", command_unit.name, " уже на гексе ", hex_position, " (расстояние: ", int(distance_to_hex), ")")
+		print("🚫 BOT: ", unit.name, " уже на гексе ", hex_position, " (расстояние: ", int(distance_to_hex), ")")
 		return
 	
 	# Отладка: текущее состояние юнита
-	print("🔍 BOT DEBUG: ", command_unit.name, " ПЕРЕД приказом:")
-	print("  - Позиция: ", command_unit.global_position)
-	print("  - Состояние: ", command_unit.unit_state)
-	print("  - Приказов в очереди: ", command_unit.orders.size())
+	print("🔍 BOT DEBUG: ", unit.name, " ПЕРЕД приказом:")
+	print("  - Позиция: ", unit.global_position)
+	print("  - Состояние: ", unit.unit_state)
+	print("  - Приказов в очереди: ", unit.orders.size())
 	print("  - Гекс: ", hex_position, " → мировые: ", world_position)
 	print("  - Расстояние: ", int(distance_to_hex))
 	
 	# ИСПРАВЛЕНИЕ: Бот на сервере - вызываем функцию напрямую
 	if is_multiplayer_authority():
-		command_unit.add_order(world_position, true)
+		unit.add_order(world_position, true)
 	else:
 		# Если бот на клиенте (не используется сейчас)
-		command_unit.rpc_id(1, "add_order", world_position, true)
+		unit.rpc_id(1, "add_order", world_position, true)
 	
-	print("🎯 BOT: ", command_unit.name, " → гекс ", hex_position, " (расстояние: ", int(distance_to_hex), ")")
+	print("🎯 BOT: ", unit.name, " → гекс ", hex_position, " (расстояние: ", int(distance_to_hex), ")")
 	
 	# Отладка: состояние юнита ПОСЛЕ приказа
-	call_deferred("_debug_unit_state_after_order", command_unit)
+	call_deferred("_debug_unit_state_after_order", unit)
 
-func _debug_unit_state_after_order(command_unit: CommandUnit) -> void:
+func _debug_unit_state_after_order(unit: BaseUnit) -> void:
 	"""
 	Отладочная функция для проверки состояния юнита после получения приказа
 	"""
 	# Проверяем что юнит не застрял - это главное
-	if command_unit.unit_state == BaseUnit.UNIT_STATES.IDLE and command_unit.orders.size() > 0:
-		print("⚠️ BOT WARNING: Юнит ", command_unit.name, " застрял в IDLE с приказами!")
-		print("  - Состояние: ", command_unit.unit_state)
-		print("  - Приказов в очереди: ", command_unit.orders.size())
-		if command_unit.orders.size() > 0:
-			print("  - Первый приказ: ", command_unit.orders[0])
+	if unit.unit_state == BaseUnit.UNIT_STATES.IDLE and unit.orders.size() > 0:
+		print("⚠️ BOT WARNING: Юнит ", unit.name, " застрял в IDLE с приказами!")
+		print("  - Состояние: ", unit.unit_state)
+		print("  - Приказов в очереди: ", unit.orders.size())
+		if unit.orders.size() > 0:
+			print("  - Первый приказ: ", unit.orders[0])
 
 ### ФУНКЦИИ ОЦЕНКИ СИТУАЦИИ ###
 

@@ -27,6 +27,12 @@ var command_units: Array[CommandUnit] = []  # Командные юниты бо
 var controlled_hexes: Array[Vector2i] = []  # Контролируемые гексы
 var target_hexes: Array[Vector2i] = []  # Цели для захвата
 
+# НОВАЯ СИСТЕМА ЗАКРЕПЛЕННЫХ ЗАЩИТНИКОВ
+# Словарь: CommandUnit -> Array[BaseUnit] закрепленных защитников
+var assigned_defenders: Dictionary = {}
+const DEFENDERS_PER_COMMAND_UNIT: int = 3  # Количество закрепленных защитников за CommandUnit
+const PATROL_RADIUS: float = 120.0  # Радиус патрулирования вокруг CommandUnit
+
 # Стратегическое планирование
 var strategy_mode: String = "expand"  # "expand", "defend", "attack"
 var last_decision_time: float = 0.0
@@ -448,35 +454,39 @@ func _plan_command_unit_retreat(command_unit: CommandUnit, attacker: BaseUnit) -
 
 func _call_emergency_reinforcements(victim: BaseUnit, attacker: BaseUnit) -> void:
 	"""
-	Вызывает ближайшие юниты на помощь атакуемому
-	УЛУЧШЕНИЕ: Избегаем скопления вокруг CommandUnit
+	НОВАЯ ЛОГИКА: Только свободные юниты (без врагов в поле зрения) отправляются на помощь
+	Избегаем ослабления других фронтов
 	"""
+	# Ищем СВОБОДНЫХ юнитов в радиусе (без врагов в поле зрения)
+	var available_reinforcements: Array[BaseUnit] = []
 	var nearby_units = _find_nearby_friendly_units(victim.global_position, UNIT_SEARCH_RADIUS)
 	
-	var reinforcements_sent = 0
-	var max_reinforcements = 2 if victim is CommandUnit else 4  # Ограничиваем защитников CommandUnit
-	
 	for unit in nearby_units:
-		if unit != victim and _is_unit_available_for_help(unit) and reinforcements_sent < max_reinforcements:
-			# Для CommandUnit: отправляем защитников НЕ к самому юниту, а к атакующему
-			if victim is CommandUnit and attacker and is_instance_valid(attacker):
-				# Атакуем врага напрямую, а не следуем за CommandUnit
-				if is_multiplayer_authority():
-					unit.add_order(attacker.UID, true)
-				else:
-					unit.rpc_id(1, "add_order", attacker.UID, true)
-				reinforcements_sent += 1
-			elif not (victim is CommandUnit) and attacker and is_instance_valid(attacker):
-				# Для обычных юнитов используем стандартную логику
-				if is_multiplayer_authority():
-					unit.add_order(attacker.UID, true)
-				else:
-					unit.rpc_id(1, "add_order", attacker.UID, true)
-				reinforcements_sent += 1
+		if unit != victim and _is_unit_available_for_help(unit):
+			# КЛЮЧЕВОЕ УСЛОВИЕ: юнит не видит врагов (значит, может покинуть позицию)
+			if not _has_enemies_in_sight(unit):
+				available_reinforcements.append(unit)
 	
-	# Логируем только критические случаи
-	if victim is CommandUnit and reinforcements_sent > 0:
-		print("🚨 BOT: CommandUnit под атакой, отправлено ", reinforcements_sent, " защитников к атакующему")
+	# Ограничиваем количество подкреплений
+	var max_reinforcements = 2 if victim is CommandUnit else 3
+	var reinforcements_sent = 0
+	
+	for unit in available_reinforcements:
+		if reinforcements_sent >= max_reinforcements:
+			break
+		
+		if attacker and is_instance_valid(attacker):
+			# Отправляем атаковать врага напрямую
+			if is_multiplayer_authority():
+				unit.add_order(attacker.UID, true)
+			else:
+				unit.rpc_id(1, "add_order", attacker.UID, true)
+			reinforcements_sent += 1
+	
+	# Логируем только если отправлены подкрепления
+	if reinforcements_sent > 0:
+		var unit_type = "CommandUnit" if victim is CommandUnit else "юнит"
+		print("🆘 BOT: ", unit_type, " под атакой! Отправлено ", reinforcements_sent, " свободных подкреплений")
 
 ### ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ###
 
@@ -527,6 +537,62 @@ func _get_controlled_hexes() -> Array[Vector2i]:
 			controlled_hexes.append(hex_pos)
 	
 	return controlled_hexes
+
+func _get_available_base_units() -> Array[BaseUnit]:
+	"""
+	Возвращает доступных BaseUnit, которые не закреплены за CommandUnit
+	"""
+	var available_units: Array[BaseUnit] = []
+	
+	# Собираем всех уже назначенных защитников
+	var already_assigned: Array[BaseUnit] = []
+	for defenders_list in assigned_defenders.values():
+		already_assigned.append_array(defenders_list)
+	
+	# Ищем свободных юнитов
+	for unit in bot_units:
+		if unit is BaseUnit and not (unit is CommandUnit):
+			if unit not in already_assigned:
+				available_units.append(unit)
+	
+	return available_units
+
+func _get_free_base_units() -> Array[BaseUnit]:
+	"""
+	Возвращает свободных BaseUnit (не закрепленных за CommandUnit)
+	"""
+	return _get_available_base_units()
+
+func _has_enemies_in_sight(unit: BaseUnit) -> bool:
+	"""
+	Проверяет, видит ли юнит врагов в радиусе обзора
+	"""
+	if not is_instance_valid(unit):
+		return false
+	
+	# Используем встроенную систему видимости юнита
+	if unit.has_vision_on.size() > 0:
+		for visible_unit in unit.has_vision_on:
+			if is_instance_valid(visible_unit) and _is_enemy_unit_for_bot(visible_unit):
+				return true
+	
+	return false
+
+func _is_enemy_unit_for_bot(unit: BaseUnit) -> bool:
+	"""
+	Проверяет, является ли юнит вражеским по отношению к боту
+	"""
+	if not is_instance_valid(unit):
+		return false
+	
+	# Проверяем команды
+	if unit.owner_team != null:
+		var unit_team_int = int(unit.owner_team)
+		var bot_team_int = int(bot_team)
+		return unit_team_int != bot_team_int
+	
+	# Fallback: проверяем owner_id
+	return unit.owner_id != bot_id
 
 func _find_nearby_neutral_hexes() -> Array[Vector2i]:
 	"""
@@ -581,53 +647,94 @@ func _find_nearest_available_hex_for_unit(unit: BaseUnit, assigned_hexes: Array[
 
 func _assign_defense_tasks_to_base_units() -> void:
 	"""
-	Назначает задачи защиты обычным юнитам (BaseUnit)
+	НОВАЯ СИСТЕМА: Закрепленные защитники + свободные юниты
+	1. Назначаем защитников к CommandUnit (если их нет)
+	2. Закрепленные защитники патрулируют вокруг своего CommandUnit
+	3. Свободные юниты патрулируют территорию
 	"""
-	var idle_base_units = []
-	var assigned_defenders = 0
+	# Шаг 1: Обновляем список защитников для каждого CommandUnit
+	_update_assigned_defenders()
 	
-	# Собираем свободные обычные юниты
-	for unit in bot_units:
-		if unit is BaseUnit and not (unit is CommandUnit):
-			if _is_unit_idle(unit):
-				idle_base_units.append(unit)
+	# Шаг 2: Отдаем приказы закрепленным защитникам
+	_manage_assigned_defenders()
 	
-	if idle_base_units.is_empty():
-		return
-	
-	# ИСПРАВЛЕНИЕ: Отправляем защитников к СТАТИЧНЫМ позициям, а не к движущимся юнитам
-	# Ищем захваченные гексы для патрулирования
-	var controlled_hexes = _get_controlled_hexes()
-	
-	if controlled_hexes.size() > 0:
-		# Распределяем защитников по захваченным гексам
-		for i in range(idle_base_units.size()):
-			var defender = idle_base_units[i]
-			var hex_index = i % controlled_hexes.size()  # Равномерное распределение
-			var hex_pos = controlled_hexes[hex_index]
+	# Шаг 3: Управляем свободными юнитами
+	_manage_free_units()
+
+func _update_assigned_defenders() -> void:
+	"""
+	Обновляет назначения защитников для CommandUnit
+	Добавляет новых защитников если их не хватает
+	"""
+	for command_unit in command_units:
+		if not assigned_defenders.has(command_unit):
+			assigned_defenders[command_unit] = []
+		
+		var current_defenders = assigned_defenders[command_unit]
+		# Удаляем недействительных защитников
+		current_defenders = current_defenders.filter(func(unit): return is_instance_valid(unit))
+		assigned_defenders[command_unit] = current_defenders
+		
+		# Добавляем новых защитников если нужно
+		var needed_defenders = DEFENDERS_PER_COMMAND_UNIT - current_defenders.size()
+		if needed_defenders > 0:
+			var available_units = _get_available_base_units()
+			for i in range(min(needed_defenders, available_units.size())):
+				var new_defender = available_units[i]
+				current_defenders.append(new_defender)
+
+func _manage_assigned_defenders() -> void:
+	"""
+	Управляет закрепленными защитниками - патрулирование вокруг CommandUnit
+	"""
+	for command_unit in assigned_defenders.keys():
+		if not is_instance_valid(command_unit):
+			assigned_defenders.erase(command_unit)
+			continue
+		
+		var defenders = assigned_defenders[command_unit]
+		for i in range(defenders.size()):
+			var defender = defenders[i]
+			if not is_instance_valid(defender):
+				continue
 			
-			# Конвертируем координаты гекса в мировые
-			var hex_world_pos = Handlers.GameHandler.overlay_map.map_to_local(hex_pos)
-			hex_world_pos = Handlers.GameHandler.overlay_map.to_global(hex_world_pos)
-			
-			# Добавляем случайное смещение чтобы защитники не стояли в одной точке
-			var patrol_offset = Vector2(randf_range(-60, 60), randf_range(-60, 60))
-			var patrol_position = hex_world_pos + patrol_offset
-			
-			_order_unit_move(defender, patrol_position)
-			assigned_defenders += 1
-	else:
-		# Если нет захваченных гексов, патрулируем вокруг FOB
-		var bot_fob = _find_bot_fob()
-		if bot_fob:
-			for defender in idle_base_units:
-				var patrol_position = bot_fob.global_position + Vector2(randf_range(-120, 120), randf_range(-120, 120))
-				_order_unit_move(defender, patrol_position)
-				assigned_defenders += 1
+			# Если защитник не имеет врагов в поле зрения, патрулирует вокруг CommandUnit
+			if not _has_enemies_in_sight(defender):
+				if _is_unit_idle(defender):
+					# Создаем позицию патрулирования вокруг CommandUnit
+					var angle = (i * 2.0 * PI / DEFENDERS_PER_COMMAND_UNIT) + (Time.get_unix_time_from_system() * 0.1)
+					var patrol_offset = Vector2(cos(angle), sin(angle)) * PATROL_RADIUS
+					var patrol_position = command_unit.global_position + patrol_offset
+					_order_unit_move(defender, patrol_position)
+
+func _manage_free_units() -> void:
+	"""
+	Управляет свободными юнитами (не закрепленными за CommandUnit)
+	"""
+	var free_units = _get_free_base_units()
+	var assigned_count = 0
 	
-	# Логируем только общий результат без спама
-	if assigned_defenders > 0:
-		print("🛡️ BOT: Назначено ", assigned_defenders, " защитников на оборону")
+	# Отправляем свободных юнитов патрулировать территорию
+	var controlled_hexes_list = _get_controlled_hexes()
+	if controlled_hexes_list.size() > 0:
+		for i in range(free_units.size()):
+			var unit = free_units[i]
+			if _is_unit_idle(unit) and not _has_enemies_in_sight(unit):
+				var hex_index = i % controlled_hexes_list.size()
+				var hex_pos = controlled_hexes_list[hex_index]
+				
+				var hex_world_pos = Handlers.GameHandler.overlay_map.map_to_local(hex_pos)
+				hex_world_pos = Handlers.GameHandler.overlay_map.to_global(hex_world_pos)
+				
+				var patrol_offset = Vector2(randf_range(-80, 80), randf_range(-80, 80))
+				var patrol_position = hex_world_pos + patrol_offset
+				
+				_order_unit_move(unit, patrol_position)
+				assigned_count += 1
+	
+	# Логируем результат
+	if assigned_count > 0:
+		print("🗺️ BOT: ", assigned_count, " свободных юнитов отправлены на патруль территории")
 
 func _order_unit_move(unit: BaseUnit, world_position: Vector2) -> void:
 	"""
@@ -856,7 +963,12 @@ func _call_reinforcements_to_position(position: Vector2) -> void:
 	var available_units = _get_available_attack_units()
 	if available_units.size() > 0:
 		var reinforcement = available_units[0]
-		reinforcement.rpc_id(1, "add_order", position, true)
+		
+		# ИСПРАВЛЕНИЕ: Используем прямой вызов для ботов на сервере
+		if is_multiplayer_authority():
+			reinforcement.add_order(position, true)
+		else:
+			reinforcement.rpc_id(1, "add_order", position, true)
 		print("🚁 BOT: Отправлено подкрепление к позиции ", position)
 
 func _exit_tree() -> void:

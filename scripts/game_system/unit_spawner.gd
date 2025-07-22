@@ -92,7 +92,7 @@ func _internal_spawn_unit(spawn_point: Vector2, unit_type: String, player_id: in
 	
 	var unit = Handlers.NetworkSpawner.spawn({
 		"path": scene_path,
-		"resource_info": "null",
+		"resource_info": null,  # ИСПРАВЛЕНИЕ: null вместо строки "null"
 		"position": spawn_point,
 		"owner_id": player_id
 	})

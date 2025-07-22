@@ -81,17 +81,20 @@ material = SubResource("CanvasItemMaterial_uoolu")
 texture = ExtResource("4_3coue")
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
-path_desired_distance = 8.0
-target_desired_distance = 16.0
-path_max_distance = 200.0
+path_desired_distance = 4.0
+target_desired_distance = 8.0
+path_max_distance = 500.0
+path_postprocessing = 1
 simplify_path = true
 avoidance_enabled = true
-radius = 15.0
-neighbor_distance = 100.0
-time_horizon_agents = 1.5
+radius = 12.0
+neighbor_distance = 80.0
+max_neighbors = 8
+time_horizon_obstacles = 0.5
 max_speed = 300.0
 
 [node name="DebugLabel" type="Label" parent="."]
+visible = false
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5

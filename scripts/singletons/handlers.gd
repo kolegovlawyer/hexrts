@@ -9,5 +9,5 @@ var NetworkSpawner : MultiplayerSpawner
 var ProjectileHandler : ProjectileSystem
 var UIHandler : GameUI
 #var NavigationHandler : NavHandler # Bad approach, but signals dont work without it
-#var FrameGroupHandler : FrameGroup
+var FrameGroupHandler : FrameGroup
 #var GameLogHandler : GameLogs

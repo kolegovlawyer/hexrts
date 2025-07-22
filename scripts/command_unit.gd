@@ -23,6 +23,14 @@ var emergency_escape_attempts: int = 0
 const MAX_ESCAPE_ATTEMPTS: int = 3
 const COMMAND_STUCK_THRESHOLD: float = 4.0  # Больше времени для командных юнитов
 
+# СИСТЕМА ОТСТУПЛЕНИЯ ПРИ АТАКЕ
+var is_under_attack: bool = false
+var is_retreating: bool = false
+var retreat_target_position: Vector2 = Vector2.ZERO
+const SAFE_RETREAT_DISTANCE: float = 400.0  # Дистанция отступления
+var enemy_check_timer: float = 0.0
+const ENEMY_CHECK_INTERVAL: float = 1.0  # Проверка врагов каждую секунду
+
 func _ready() -> void:
 	super._ready()
 	
@@ -42,6 +50,10 @@ func _ready() -> void:
 		
 		# Инициализируем позицию для анти-застревания
 		last_command_position = global_position
+		
+		# Подключаемся к собственному сигналу атаки для отступления
+		if not under_attack.is_connected(_on_command_unit_under_attack):
+			under_attack.connect(_on_command_unit_under_attack)
 
 func can_capture_while_in_state(state: int) -> bool:
 	"""
@@ -172,17 +184,26 @@ func _physics_process(delta: float) -> void:
 	
 	# СЕРВЕРНАЯ ЛОГИКА
 	if is_multiplayer_authority():
-		# СИСТЕМЫ АНТИ-ЗАСТРЕВАНИЯ для CommandUnit
-		_handle_command_unit_stuck_detection(delta)
+		# СИСТЕМЫ АНТИ-ЗАСТРЕВАНИЯ для CommandUnit (только если не отступаем)
+		if not is_retreating:
+			_handle_command_unit_stuck_detection(delta)
 		
-		# Обновляем таймер проверки гексов (каждую секунду)
-		check_timer += delta
-		if check_timer >= CHECK_INTERVAL:
-			check_timer = 0.0
-			check_current_hex()
+		# СИСТЕМА ПРОВЕРКИ БЕЗОПАСНОСТИ ПРИ ОТСТУПЛЕНИИ
+		if is_retreating or is_under_attack:
+			enemy_check_timer += delta
+			if enemy_check_timer >= ENEMY_CHECK_INTERVAL:
+				enemy_check_timer = 0.0
+				_check_retreat_safety()
 		
-		# Обновляем прогресс захвата если юнит захватывает гекс
-		if is_capturing and current_hex and current_hex.capturing_team == owner_team:
+		# Обновляем таймер проверки гексов (каждую секунду) - НЕ во время отступления
+		if not is_retreating:
+			check_timer += delta
+			if check_timer >= CHECK_INTERVAL:
+				check_timer = 0.0
+				check_current_hex()
+		
+		# Обновляем прогресс захвата если юнит захватывает гекс - НЕ во время отступления
+		if not is_retreating and is_capturing and current_hex and current_hex.capturing_team == owner_team:
 			var capture_speed = 1.0 / CAPTURE_TIME  # Скорость захвата
 			var capture_completed = current_hex.update_capture_progress(delta, capture_speed)
 			
@@ -327,6 +348,122 @@ func _emergency_teleport_random() -> void:
 	if not has_meta("random_teleport_logged"):
 		set_meta("random_teleport_logged", true)
 		print("🎲 COMMAND ESCAPE: Случайная телепортация CommandUnit на ", int(teleport_distance), "px")
+
+func _on_command_unit_under_attack(attacker: BaseUnit, victim: BaseUnit) -> void:
+	"""
+	Обработчик атаки на CommandUnit - инициирует отступление
+	"""
+	if victim != self:
+		return  # Не наш CommandUnit
+	
+	is_under_attack = true
+	
+	# Останавливаем захват при атаке
+	if is_capturing:
+		stop_capture("под атакой")
+	
+	# Начинаем отступление к базе
+	_initiate_retreat()
+
+func _initiate_retreat() -> void:
+	"""
+	Инициирует отступление CommandUnit к безопасной позиции
+	"""
+	if is_retreating:
+		return  # Уже отступаем
+	
+	is_retreating = true
+	
+	# Находим позицию для отступления (база или безопасная зона)
+	retreat_target_position = _find_safe_retreat_position()
+	
+	# Очищаем текущие приказы и отступаем
+	orders.clear()
+	add_order(retreat_target_position, true)
+	
+	print("🏃 RETREAT: CommandUnit ", name, " начинает отступление к безопасной позиции")
+
+func _find_safe_retreat_position() -> Vector2:
+	"""
+	Находит безопасную позицию для отступления (база или удаленная от врагов зона)
+	"""
+	# Пытаемся найти свою базу (FOB)
+	var bot_fob = _find_own_fob()
+	if bot_fob:
+		return bot_fob.global_position
+	
+	# Если база не найдена, отступаем в противоположную сторону от врагов
+	var enemy_center = _calculate_enemy_center_position()
+	if enemy_center != Vector2.ZERO:
+		var retreat_direction = (global_position - enemy_center).normalized()
+		return global_position + retreat_direction * SAFE_RETREAT_DISTANCE
+	
+	# Fallback: отступаем в случайном направлении
+	var random_direction = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
+	return global_position + random_direction * SAFE_RETREAT_DISTANCE
+
+func _find_own_fob() -> Node:
+	"""
+	Находит собственную базу (FOB) по owner_id
+	"""
+	var all_fobs = get_tree().get_nodes_in_group("fobs")
+	for fob in all_fobs:
+		if fob.has_method("get") and fob.owner_id == owner_id:
+			return fob
+	return null
+
+func _calculate_enemy_center_position() -> Vector2:
+	"""
+	Вычисляет центр позиций всех видимых врагов
+	"""
+	var enemy_positions: Array[Vector2] = []
+	
+	for visible_unit in has_vision_on:
+		if is_instance_valid(visible_unit) and _is_enemy_for_command_unit(visible_unit):
+			enemy_positions.append(visible_unit.global_position)
+	
+	if enemy_positions.is_empty():
+		return Vector2.ZERO
+	
+	# Вычисляем центр
+	var center = Vector2.ZERO
+	for pos in enemy_positions:
+		center += pos
+	center /= enemy_positions.size()
+	
+	return center
+
+func _is_enemy_for_command_unit(unit: BaseUnit) -> bool:
+	"""
+	Проверяет, является ли юнит вражеским для данного CommandUnit
+	"""
+	if not is_instance_valid(unit):
+		return false
+	
+	# Проверяем команды
+	if owner_team != null and unit.owner_team != null:
+		return owner_team != unit.owner_team
+	
+	# Fallback: проверяем owner_id
+	return owner_id != unit.owner_id
+
+func _check_retreat_safety() -> void:
+	"""
+	Проверяет безопасность - завершает отступление если врагов не видно
+	"""
+	var enemies_visible = false
+	
+	for visible_unit in has_vision_on:
+		if is_instance_valid(visible_unit) and _is_enemy_for_command_unit(visible_unit):
+			enemies_visible = true
+			break
+	
+	if not enemies_visible:
+		# Враги исчезли - завершаем отступление
+		is_under_attack = false
+		is_retreating = false
+		retreat_target_position = Vector2.ZERO
+		print("✅ RETREAT: CommandUnit ", name, " в безопасности, отступление завершено")
 
 func _exit_tree() -> void:
 	"""Очищаем ссылки при удалении юнита"""

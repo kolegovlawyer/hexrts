@@ -152,6 +152,7 @@ var _shield = 15
 	get:
 		return _shield
 
+var frame_group : int
 var preview
 
 # Отладочные переменные для предотвращения спама в логах
@@ -184,6 +185,7 @@ func _ready() -> void:
 		_setup_auto_attack_timer()
 		_setup_shield_regeneration_timer()
 		_setup_debug_display()  # Визуальная отладка на сервере
+		frame_group = Handlers.FrameGroupHandler.add_to_framegroup(self)
 	
 	
 	if not is_multiplayer_authority():
@@ -290,7 +292,8 @@ func handle_input(viewport, event, shape_idx):
 		elif event is InputEventMouseButton:
 			get_viewport().set_input_as_handled()
 
-
+func is_time_to_heavy_calculations() -> bool:
+	return (Engine.get_physics_frames() % Handlers.FrameGroupHandler.num_groups) == frame_group
 
 func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority():
@@ -315,23 +318,25 @@ func _physics_process(delta: float) -> void:
 					var pos = current_order.position
 					navagent.target_position = pos
 					
-					# КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем доступность навигации
+					# УЛУЧШЕННАЯ НАВИГАЦИЯ: Проверяем доступность и используем альтернативы
 					if not navagent.is_target_reachable():
-						# Цель недоступна - ищем ближайшую доступную точку
-						var closest_reachable = navagent.get_final_position()
-						navagent.target_position = closest_reachable
+						# Цель недоступна - используем систему умных альтернатив
+						var alternative_target = _find_alternative_path_target(pos)
+						navagent.target_position = alternative_target
 						
 						# Логируем проблему только для критических случаев
-						if is_bot and not has_meta("unreachable_logged"):
-							set_meta("unreachable_logged", true)
-							print("🚧 NAV WARNING: ", name, " цель недоступна, перенаправляем к ближайшей точке")
+						if is_bot:
+							var pos_key = "unreachable_logged_" + str(int(pos.x)) + "_" + str(int(pos.y))
+							if not has_meta(pos_key):
+								set_meta(pos_key, true)
+								print("🚧 NAV: ", name, " цель недоступна, используем альтернативный маршрут")
 					
 					# Увеличенный порог для ботов (проблема малых расстояний!)
 					var distance_to_target = global_position.distance_to(pos)
-					var close_enough_threshold = 32.0 if is_bot else 16.0  # Больший порог для ботов
+					var close_enough_threshold = 24.0 if is_bot else 12.0  # Оптимизированные пороги
 					var close_enough = distance_to_target < close_enough_threshold
 					var nav_done = navagent.is_navigation_finished()
-					var moved = global_position.distance_to(last_move_position) > 2.0  # Увеличиваем до 2.0 для лучшего обнаружения
+					var moved = global_position.distance_to(last_move_position) > 1.5  # Чувствительность к движению
 					
 					if close_enough or nav_done:
 						orders.pop_front()
@@ -339,16 +344,9 @@ func _physics_process(delta: float) -> void:
 						stuck_timer = 0.0
 					elif not moved:
 						stuck_timer += delta
-						if stuck_timer > 3.0:  # Увеличиваем время до 3 секунд
-							# КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Попытаемся переместиться случайно
-							var random_offset = Vector2(randf_range(-100, 100), randf_range(-100, 100))
-							var fallback_position = global_position + random_offset
-							navagent.target_position = fallback_position
-							
-							if is_bot and not has_meta("stuck_fallback_logged"):
-								set_meta("stuck_fallback_logged", true)
-								print("🔄 NAV FALLBACK: ", name, " застрял, пробуем случайное направление")
-							
+						if stuck_timer > 2.5:  # Быстрее реагируем на застревание
+							# УЛУЧШЕННАЯ СИСТЕМА ОБХОДА ЗАСТРЕВАНИЯ
+							_execute_smart_unstuck_maneuver(pos)
 							stuck_timer = 0.0  # Сбрасываем таймер
 					else:
 						stuck_timer = 0.0
@@ -762,18 +760,40 @@ func update_visibility():
 			set_meta("visibility_debug_shown", true)
 			print("👁️ VISIBILITY DEBUG: Настройка видимости для юнита ", name, " команда ", unit_team, " owner_id ", owner_id)
 		
-		# Сначала скрываем юнит от ВСЕХ игроков
-		for player_id in multiplayer.get_peers():
-			synchronizer.set_visibility_for(player_id, false)
+		# ИСПРАВЛЕНИЕ: Получаем список активных peer'ов
+		var active_peers = multiplayer.get_peers()
+		
+		# Сначала скрываем юнит от ВСЕХ игроков (только активных)
+		for player_id in active_peers:
+			_safe_set_visibility(player_id, false)
 		
 		# Затем показываем только союзникам
 		var team_players = Handlers.TeamHandler.get_team_players(unit_team)
 		if team_players:
 			for player in team_players:
-				synchronizer.set_visibility_for(player.PlayerId, true)
+				# Проверяем что peer активен перед установкой видимости
+				if player.PlayerId in active_peers:
+					_safe_set_visibility(player.PlayerId, true)
 		else:
-			if not has_meta("visibility_debug_shown"):
+			if not has_meta("no_team_players_logged"):
+				set_meta("no_team_players_logged", true)
 				print("⚠️ VISIBILITY: Нет союзников для команды ", unit_team)
+
+func _safe_set_visibility(peer_id: int, visible: bool) -> void:
+	"""
+	Безопасно устанавливает видимость для peer'а с проверкой существования
+	"""
+	# Проверяем что peer существует и synchronizer валидный
+	if not is_instance_valid(synchronizer):
+		return
+	
+	# Дополнительная проверка существования peer'а
+	var active_peers = multiplayer.get_peers()
+	if peer_id not in active_peers and peer_id != 1:  # 1 - это сервер
+		return
+	
+	# Устанавливаем видимость
+	synchronizer.set_visibility_for(peer_id, visible)
 			
 func set_visibility_for_enemy(is_visible:bool) -> void:
 	if is_multiplayer_authority():
@@ -798,20 +818,20 @@ func set_visibility_for_enemy(is_visible:bool) -> void:
 			set_meta(debug_key, true)
 			print("👁️ ENEMY_VISIBILITY DEBUG: Юнит ", name, " команда ", unit_team, " видимость для врагов: ", is_visible)
 		
-		# Устанавливаем видимость для врагов
+		# ИСПРАВЛЕНИЕ: Безопасное установление видимости для врагов
 		var enemy_players = Handlers.TeamHandler.get_enemy_team_players(unit_team)
+		var active_peers = multiplayer.get_peers()
+		
 		if enemy_players:
 			for player in enemy_players:
-				synchronizer.set_visibility_for(player.PlayerId, is_visible)
+				# Проверяем что enemy peer активен
+				if player.PlayerId in active_peers:
+					_safe_set_visibility(player.PlayerId, is_visible)
 		else:
 			# Логируем проблему только один раз
 			if not has_meta("no_enemies_logged"):
 				set_meta("no_enemies_logged", true)
 				print("⚠️ ENEMY_VISIBILITY: Нет вражеских игроков для команды ", unit_team)
-				print("  - Доступные игроки в TeamHandler:")
-				if Handlers.TeamHandler:
-					for player in Handlers.TeamHandler.players:
-						print("    - PlayerId: ", player.PlayerId, " Team: ", player.Team)
 
 ## СИСТЕМА СОСТОЯНИЙ (STATE MACHINE)
 func _unit_state_exit(state: int) -> void:
@@ -1109,6 +1129,75 @@ func _on_shield_regeneration_timeout() -> void:
 		shield_regeneration_timer.start()
 	else:
 		shield_regeneration_timer.stop()
+
+## УЛУЧШЕННАЯ СИСТЕМА НАВИГАЦИИ
+func _find_alternative_path_target(original_target: Vector2) -> Vector2:
+	"""
+	Ищет альтернативную цель когда прямой путь недоступен
+	Использует алгоритм поиска доступных точек вокруг цели
+	"""
+	# Пробуем несколько точек вокруг оригинальной цели
+	var test_distances = [50.0, 100.0, 150.0]  # Радиусы поиска
+	var test_angles = [0, PI/4, PI/2, 3*PI/4, PI, 5*PI/4, 3*PI/2, 7*PI/4]  # 8 направлений
+	
+	for distance in test_distances:
+		for angle in test_angles:
+			var test_offset = Vector2(cos(angle), sin(angle)) * distance
+			var test_position = original_target + test_offset
+			
+			# Проверяем доступность этой точки
+			navagent.target_position = test_position
+			if navagent.is_target_reachable():
+				return test_position
+	
+	# Если ничего не найдено, используем ближайшую доступную точку
+	navagent.target_position = original_target
+	return navagent.get_final_position()
+
+func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
+	"""
+	Выполняет умный маневр для выхода из застревания
+	Анализирует окружение и выбирает оптимальное направление
+	"""
+	var is_bot = _get_bot_team_by_id(owner_id) != -1
+	
+	# Стратегия 1: Попытка обойти препятствие по дуге
+	var direction_to_target = (original_target - global_position).normalized()
+	var perpendicular_directions = [
+		Vector2(-direction_to_target.y, direction_to_target.x),  # Левый перпендикуляр
+		Vector2(direction_to_target.y, -direction_to_target.x)   # Правый перпендикуляр
+	]
+	
+	# Пробуем обход по левой и правой стороне
+	for perpendicular in perpendicular_directions:
+		var detour_position = global_position + perpendicular * 80.0
+		navagent.target_position = detour_position
+		
+		if navagent.is_target_reachable():
+			if is_bot and not has_meta("detour_logged"):
+				set_meta("detour_logged", true)
+				print("🔄 NAV: ", name, " использует обходной маневр")
+			return
+	
+	# Стратегия 2: Отступление назад для поиска нового пути
+	var retreat_direction = -direction_to_target
+	var retreat_position = global_position + retreat_direction * 60.0
+	navagent.target_position = retreat_position
+	
+	if navagent.is_target_reachable():
+		if is_bot and not has_meta("retreat_logged"):
+			set_meta("retreat_logged", true)
+			print("🔙 NAV: ", name, " отступает для поиска нового пути")
+		return
+	
+	# Стратегия 3: Случайное направление (последняя мера)
+	var random_direction = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
+	var random_position = global_position + random_direction * 100.0
+	navagent.target_position = random_position
+	
+	if is_bot and not has_meta("random_unstuck_logged"):
+		set_meta("random_unstuck_logged", true)
+		print("🎲 NAV: ", name, " использует случайный маневр выхода")
 
 ## СИСТЕМА ВИЗУАЛЬНОЙ ОТЛАДКИ
 func _setup_debug_display() -> void:

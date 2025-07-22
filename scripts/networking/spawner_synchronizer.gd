@@ -9,9 +9,23 @@ func _exit_tree():
 
 func custom_spawner(data:Dictionary):
 	var unit = load(data["path"]).instantiate()
-	var unit_profile = load(data["resource_info"])
-	#unit.set_script(GameTypes.get_unit_script_by_class(unit_profile.unit_type))
+	
+	# ИСПРАВЛЕНИЕ: Безопасная загрузка профиля юнита
+	var unit_profile = null
+	if data.has("resource_info") and data["resource_info"] != null and data["resource_info"] != "":
+		unit_profile = load(data["resource_info"])
+	
 	unit.position = data["position"]
-	unit.unit_profile = unit_profile
-	#unit.owner_id = data["owner_id"] # <- Надо переписать код BaseUnit, пока что айдишник меняется после появления юнита у всех клиентов
+	
+	# Устанавливаем профиль только если он успешно загружен
+	if unit_profile:
+		unit.unit_profile = unit_profile
+	
+	# ИСПРАВЛЕНИЕ: Устанавливаем owner_id если предоставлен
+	if data.has("owner_id"):
+		unit.owner_id = data["owner_id"]
+		print("✅ SPAWNER: Установлен owner_id ", unit.owner_id, " для юнита ", unit.name)
+	else:
+		print("⚠️ SPAWNER: owner_id не предоставлен для юнита ", unit.name)
+		
 	return unit

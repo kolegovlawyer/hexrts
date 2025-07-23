@@ -1,5 +1,8 @@
 extends  Camera2D
 
+signal camera_moved()
+signal camera_zoomed()
+
 @export var edge_margin = 100
 @export var camera_speed = 400.0
 @onready var un_zoomed_viewport_size = get_viewport().size#Vector2(640,360)
@@ -9,6 +12,15 @@ var follow_mouse : bool = true
 var has_focus : bool = true
 var TOP_CORNER
 var BOTTOM_CORNER
+
+# Для оптимизации: отслеживаем предыдущую позицию и зум
+var _last_position: Vector2
+var _last_zoom: Vector2
+
+func _ready():
+	# Инициализируем переменные отслеживания
+	_last_position = position
+	_last_zoom = zoom
 
 func set_bounds():
 	TOP_CORNER = get_node('/root/Game/Map').get_children()[0].get_node('CameraCornerBottomRight').position
@@ -61,7 +73,14 @@ func _process(delta: float) -> void:
 		elif mouse_position.y >= un_zoomed_viewport_size.y - edge_margin - 100:
 			move_vector.y += camera_speed * delta
 	
+	# Применяем движение
+	var old_position = position
 	position += move_vector
+	
+	# ОПТИМИЗАЦИЯ: Отправляем сигнал только при реальном изменении позиции
+	if position != _last_position:
+		_last_position = position
+		camera_moved.emit()
 
 func _notification(notification):
 	if notification == MainLoop.NOTIFICATION_APPLICATION_FOCUS_IN:
@@ -79,11 +98,23 @@ func _input(event):
 		if zoom_x > 0.2:
 			zoom_x -= 0.1
 			zoom_y -= 0.1
-			zoom = Vector2(zoom_x, zoom_y)
+			var new_zoom = Vector2(zoom_x, zoom_y)
+			zoom = new_zoom
+			
+			# ОПТИМИЗАЦИЯ: Отправляем сигнал изменения зума
+			if new_zoom != _last_zoom:
+				_last_zoom = new_zoom
+				camera_zoomed.emit()
 			#position += (mouse_position - position) * (Vector2(1,1) - pre_zoom_value / zoom)
 	elif event is InputEventMouseButton and event.button_index == 4 and event.pressed==true:
 		if zoom_x < 0.8:
 			zoom_x += 0.1
 			zoom_y += 0.1
-			zoom = Vector2(zoom_x, zoom_y)
+			var new_zoom = Vector2(zoom_x, zoom_y)
+			zoom = new_zoom
+			
+			# ОПТИМИЗАЦИЯ: Отправляем сигнал изменения зума
+			if new_zoom != _last_zoom:
+				_last_zoom = new_zoom
+				camera_zoomed.emit()
 			#position += (mouse_position - position) * (Vector2(1,1) - pre_zoom_value / zoom)

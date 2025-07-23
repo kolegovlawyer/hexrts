@@ -13,7 +13,6 @@ const SPEED = 300.0
 @onready var selection_ring = get_node("%UnitSelectionRing")
 @onready var sprite = get_node("%UnitSelfSprite")
 @onready var arrow = get_node("%ArrowSprite")
-@onready var light = get_node("%Light")
 @onready var synchronizer = get_node("%MultiplayerSynchronizer")
 @onready var visibility_area = get_node("%VisibilityArea")
 @onready var reload_timer = get_node("%ReloadTimer")
@@ -926,8 +925,6 @@ func update_sprite_color():
 		sprite.self_modulate = Color(0, 0, 1)
 	else:
 		sprite.self_modulate = Color(1, 0, 0)
-		if light:
-			light.hide()
 		if sprite:
 			sprite.light_mask = 2
 			sprite.visibility_layer = 2

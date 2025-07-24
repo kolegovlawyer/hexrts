@@ -31,6 +31,7 @@ input_pickable = true
 script = ExtResource("1_hdomf")
 
 [node name="CollisionShape" type="CollisionShape2D" parent="."]
+z_index = 4
 shape = SubResource("RectangleShape2D_mru0y")
 
 [node name="Sprite" type="Sprite2D" parent="."]

@@ -2,7 +2,7 @@
 
 [ext_resource type="Texture2D" uid="uid://b3w7ew2anfo3h" path="res://assets/tilemap/tilesetBart.png" id="2_52j0i"]
 
-[sub_resource type="NavigationPolygon" id="NavigationPolygon_55qbm"]
+[sub_resource type="NavigationPolygon" id="NavigationPolygon_mhg3i"]
 vertices = PackedVector2Array(128, -64, 128, 64, 0, 128, -128, 64, -128, -64, 0, -128)
 polygons = Array[PackedInt32Array]([PackedInt32Array(0, 1, 2, 3, 4, 5)])
 outlines = Array[PackedVector2Array]([PackedVector2Array(0, -128, -128, -64, -128, 64, 0, 128, 128, 64, 128, -64)])
@@ -360,7 +360,7 @@ agent_radius = 0.0
 texture = ExtResource("2_52j0i")
 texture_region_size = Vector2i(256, 256)
 0:0/0 = 0
-0:0/0/navigation_layer_0/polygon = SubResource("NavigationPolygon_55qbm")
+0:0/0/navigation_layer_0/polygon = SubResource("NavigationPolygon_mhg3i")
 1:0/0 = 0
 1:0/0/navigation_layer_0/polygon = SubResource("NavigationPolygon_lnngk")
 2:0/0 = 0

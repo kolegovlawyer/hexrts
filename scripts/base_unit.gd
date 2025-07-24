@@ -317,7 +317,6 @@ func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority():
 		
 		# === ЛЕГКИЕ ВЫЧИСЛЕНИЯ (КАЖДЫЙ ФРЕЙМ - МГНОВЕННАЯ РЕАКЦИЯ) ===
-		
 		# Быстрая локальная проверка видимости (без сетевых операций)
 		_quick_visibility_check()
 		

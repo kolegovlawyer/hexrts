@@ -197,8 +197,8 @@ func _configure_fog_manager() -> void:
 	# Настройки производительности
 	fog_manager.max_units_processed = 64
 	fog_manager.update_frequency = 0.016
-	fog_manager.distance_culling_enabled = true
-	fog_manager.max_visibility_distance = 2000.0
+	#fog_manager.distance_culling_enabled = true
+	#fog_manager.max_visibility_distance = 2000.0
 	
 	# Настройки внешнего вида
 	fog_manager.fog_intensity = 0.8

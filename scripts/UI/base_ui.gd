@@ -1,4 +1,4 @@
-class_name GameUI extends Control
+class_name GameUI extends Node
 
 @onready var window_size = Vector2(ProjectSettings.get_setting("display/window/size/viewport_width"),
 ProjectSettings.get_setting("display/window/size/viewport_height"))

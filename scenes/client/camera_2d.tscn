@@ -5,6 +5,7 @@
 [node name="Camera2D" type="Camera2D"]
 position = Vector2(-507, -294)
 zoom = Vector2(0.5, 0.5)
+limit_smoothed = true
 position_smoothing_enabled = true
 script = ExtResource("1_uolbo")
 camera_speed = 1000.0

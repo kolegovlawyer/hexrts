@@ -1,4 +1,4 @@
-[gd_scene load_steps=29 format=3 uid="uid://ba0l1pr5dv2bx"]
+[gd_scene load_steps=27 format=3 uid="uid://ba0l1pr5dv2bx"]
 
 [ext_resource type="Script" uid="uid://4d6x1qmqxrcy" path="res://scripts/UI/base_ui.gd" id="1_euhh7"]
 [ext_resource type="Texture2D" uid="uid://bwtna2m5tej4e" path="res://assets/icons/icon-close.png" id="2_swtpc"]
@@ -16,11 +16,6 @@
 [ext_resource type="Texture2D" uid="uid://bc8umjrm6jlcv" path="res://assets/all_icons/circle-l.png" id="11_qqbvp"]
 [ext_resource type="Texture2D" uid="uid://dsgnvbrceotps" path="res://assets/icons/icon-loop.png" id="11_ycjsq"]
 [ext_resource type="Texture2D" uid="uid://cs1se2d3w5hsj" path="res://assets/icons/icon-follow.png" id="12_k0xlx"]
-
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_u0edd"]
-
-[sub_resource type="Theme" id="Theme_xtg0l"]
-PanelContainer/styles/panel = SubResource("StyleBoxEmpty_u0edd")
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_27yfh"]
 bg_color = Color(0.133333, 0.133333, 0.180392, 1)
@@ -91,7 +86,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 1
-theme = SubResource("Theme_xtg0l")
 script = ExtResource("1_euhh7")
 
 [node name="MainRack" type="VBoxContainer" parent="."]

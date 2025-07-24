@@ -16,8 +16,9 @@ var camera: Camera2D
 @export_group("Performance Settings")
 @export var max_units_processed: int = 64 ## Максимальное количество обрабатываемых юнитов
 @export var update_frequency: float = 0.0  # 0.0 = каждый фрейм ## Частота обновления (60 FPS = 0.016)
-@export var distance_culling_enabled: bool = true ## Включить отсечение по расстоянию
-@export var max_visibility_distance: float = 2000.0 ## Максимальное расстояние видимости для отсечения
+# Удаляем неиспользуемые настройки отсечения по расстоянию
+#@export var distance_culling_enabled: bool = true
+#@export var max_visibility_distance: float = 2000.0
 
 # Настройки тумана
 @export_group("Fog Appearance")
@@ -164,13 +165,7 @@ func _collect_unit_data() -> void:
 		if not _is_ally_unit(unit, player_team):
 			continue
 		
-		# ОПТИМИЗАЦИЯ: Отсечение по расстоянию от камеры
-		if distance_culling_enabled:
-			var distance_to_camera = camera.global_position.distance_to(unit.global_position)
-			if distance_to_camera > max_visibility_distance:
-				_debug_units_culled += 1
-				continue
-		
+		# Убираем проверку расстояния до камеры - она больше не нужна
 		visible_units.append(unit)
 		_debug_units_processed += 1
 		
@@ -190,7 +185,7 @@ func _collect_unit_data() -> void:
 		_unit_positions[i * 2] = viewport_pos.x
 		_unit_positions[i * 2 + 1] = viewport_pos.y
 		
-		# Масштабируем радиус видимости с учетом зума камеры
+		# Получаем радиус видимости
 		var visibility_radius = 512.0
 		if unit.has_node("%VisibilityArea"):
 			var visibility_area = unit.get_node("%VisibilityArea")
@@ -199,7 +194,7 @@ func _collect_unit_data() -> void:
 				if shape is CircleShape2D:
 					visibility_radius = shape.radius
 		
-		# Применяем масштабирование к радиусу
+		# Применяем масштабирование к радиусу для вьюпорта
 		_unit_radii[i] = visibility_radius * camera.zoom.x
 
 func _update_shader_data() -> void:
@@ -344,23 +339,15 @@ func set_performance_preset(preset: String) -> void:
 		"low":
 			max_units_processed = 16
 			update_frequency = 0.033 # 30 FPS
-			distance_culling_enabled = true
-			max_visibility_distance = 1000.0
 		"medium":
 			max_units_processed = 32
 			update_frequency = 0.025 # 40 FPS
-			distance_culling_enabled = true
-			max_visibility_distance = 1500.0
 		"high":
 			max_units_processed = 48
 			update_frequency = 0.020 # 50 FPS
-			distance_culling_enabled = true
-			max_visibility_distance = 2000.0
 		"ultra":
 			max_units_processed = 64
 			update_frequency = 0.016 # 60 FPS
-			distance_culling_enabled = false
-			max_visibility_distance = 3000.0
 		_:
 			print("⚠️ FOG_MANAGER: Неизвестная предустановка производительности: ", preset)
 			return

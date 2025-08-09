@@ -155,10 +155,12 @@ func move_camera_to_fob():
 	print('КНОПКА НАЖАЛАСЬ')
 
 func stop_camera_move():
-	camera.follow_mouse = false
+	#camera.follow_mouse = false
+	pass
 	
 func continue_camera_move():
-	camera.follow_mouse = true
+	#camera.follow_mouse = true
+	pass
 	
 func update_visible_units():
 	for n in Handlers.GameHandler.get_all_units():

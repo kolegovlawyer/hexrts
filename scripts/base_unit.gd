@@ -414,9 +414,19 @@ func _quick_visibility_check() -> void:
 	БЫСТРАЯ проверка видимости без сетевых операций
 	Только локальные флаги, тяжелые сетевые операции в FrameGroup
 	"""
-	# Простая локальная проверка без set_visibility_for_enemy (которая тяжелая)
+	# Проверяем видимость ИМЕННО для врагов: если хотя бы один вражеский юнит видит нас
+	var currently_visible: bool = false
+	var my_team = _get_cached_team()
+	if my_team != null:
+		for viewer in visible_by:
+			if is_instance_valid(viewer) and _is_enemy_unit_fast(viewer, my_team):
+				currently_visible = true
+				break
+	else:
+		# Если команда пока неизвестна, осторожно считаем что враги нас не видят
+		currently_visible = false
+	
 	# Сохраняем текущее состояние для тяжелых вычислений
-	var currently_visible = visible_by.size() > 0
 	set_meta("visibility_state", currently_visible)
 
 func _process_heavy_server_calculations(delta: float) -> void:
@@ -892,9 +902,9 @@ func update_visual():
 		if not preview:
 			var self_preview = preload("res://prefabs/ui/unit_preview.tscn").instantiate()
 			preview = self_preview
-		Handlers.UIHandler.unit_container.add_child(preview)
-		preview.unit = self
-		return
+			Handlers.UIHandler.unit_container.add_child(preview)
+			preview.unit = self
+			return
 	elif Handlers.TeamHandler.find_player_by_id(owner_id).Team == Handlers.TeamHandler.my_profile.Team:
 		update_sprite_color()
 		# print('ALLY')

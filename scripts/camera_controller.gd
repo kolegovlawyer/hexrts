@@ -3,8 +3,9 @@ extends  Camera2D
 signal camera_moved()
 signal camera_zoomed()
 
-@export var edge_margin = 100
+@export var edge_margin = 10
 @export var camera_speed = 400.0
+@export var return_speed = 300.0  # Скорость возврата камеры в границы
 @onready var un_zoomed_viewport_size = get_viewport().size#Vector2(640,360)
 var zoom_x = 0.5
 var zoom_y = 0.5
@@ -12,6 +13,7 @@ var follow_mouse : bool = true
 var has_focus : bool = true
 var TOP_CORNER
 var BOTTOM_CORNER
+var is_returning : bool = false  # Флаг, указывающий что камера возвращается в границы
 
 # Для оптимизации: отслеживаем предыдущую позицию и зум
 var _last_position: Vector2
@@ -35,11 +37,36 @@ func check_maps_bound(pos):
 		return true
 	
 
+func get_clamped_position(pos: Vector2) -> Vector2:
+	return Vector2(
+		clamp(pos.x, BOTTOM_CORNER.x, TOP_CORNER.x),
+		clamp(pos.y, BOTTOM_CORNER.y, TOP_CORNER.y)
+	)
+
 func _process(delta: float) -> void:
-	if TOP_CORNER != null and BOTTOM_CORNER != null:
-		if check_maps_bound(position) == false:
-			return
+	if TOP_CORNER == null or BOTTOM_CORNER == null:
+		return
+		
+	if not check_maps_bound(position):
+		is_returning = true
+		var target_pos = get_clamped_position(position)
+		var direction = (target_pos - position).normalized()
+		position += direction * return_speed * delta
+		
+		# Если мы достаточно близко к целевой позиции, считаем что вернулись
+		if position.distance_to(target_pos) < 1.0:
+			position = target_pos
+			is_returning = false
+			
+		# Отправляем сигнал о движении камеры
+		if position != _last_position:
+			_last_position = position
+			camera_moved.emit()
+		return
 	
+	if is_returning:
+		is_returning = false
+		
 	var move_vector = Vector2.ZERO
 	
 	# WASD keyboard movement (only when window has focus)
@@ -70,7 +97,7 @@ func _process(delta: float) -> void:
 		
 		if mouse_position.y <= edge_margin:
 			move_vector.y -= camera_speed * delta
-		elif mouse_position.y >= un_zoomed_viewport_size.y - edge_margin - 100:
+		elif mouse_position.y >= un_zoomed_viewport_size.y - edge_margin:
 			move_vector.y += camera_speed * delta
 	
 	# Применяем движение
@@ -84,10 +111,10 @@ func _process(delta: float) -> void:
 
 func _notification(notification):
 	if notification == MainLoop.NOTIFICATION_APPLICATION_FOCUS_IN:
-		has_focus = true
+		#has_focus = true
 		print('Window focused - camera movement enabled')
 	elif notification == MainLoop.NOTIFICATION_APPLICATION_FOCUS_OUT:
-		has_focus = false
+		#has_focus = false
 		print('Window lost focus - camera movement disabled')
 	
 func _input(event):

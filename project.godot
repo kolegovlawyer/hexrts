@@ -13,7 +13,7 @@ config_version=5
 config/name="SimpleRTS"
 config/tags=PackedStringArray("client", "server", "strategy")
 run/main_scene="res://scenes/lobby.tscn"
-config/features=PackedStringArray("4.4", "Mobile")
+config/features=PackedStringArray("4.5", "Mobile")
 
 [autoload]
 

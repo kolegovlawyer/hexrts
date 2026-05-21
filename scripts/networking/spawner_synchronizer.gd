@@ -28,10 +28,9 @@ func custom_spawner(data:Dictionary):
 	else:
 		# Клиентская инстанция
 		if is_command_unit:
-			# Для командных юнитов пока используем обычный клиентский скрипт
-			var client_script = load("res://scripts/base_unit_client.gd")
+			var client_script = load("res://scripts/command_unit_client.gd")
 			unit.set_script(client_script)
-			Handlers.dprint("💻 SPAWNER: client script (command) %s" % unit.name)
+			Handlers.dprint("💻 SPAWNER: command client script %s" % unit.name)
 		else:
 			var client_script = load("res://scripts/base_unit_client.gd")
 			unit.set_script(client_script)

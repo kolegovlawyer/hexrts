@@ -1,0 +1,21 @@
+[gd_scene format=3 uid="uid://xfm4b371r1tg"]
+
+[ext_resource type="Script" path="res://scripts/singletons/perf_overlay.gd" id="1"]
+
+[node name="PerfOverlay" type="CanvasLayer"]
+script = ExtResource("1")
+
+[node name="Label" type="Label" parent="."]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -280.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = 72.0
+grow_horizontal = 0
+theme_override_colors/font_color = Color(0.9, 0.95, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+text = "FPS: --"

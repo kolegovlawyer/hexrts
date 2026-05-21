@@ -23,6 +23,7 @@ config/features=PackedStringArray("4.6", "Mobile")
 
 Handlers="*res://scripts/singletons/handlers.gd"
 GameTypes="*res://scripts/singletons/game_types.gd"
+PerfOverlay="*res://scenes/perf_overlay.tscn"
 
 [file_customization]
 

@@ -32,7 +32,7 @@ properties/4/spawn = true
 properties/4/replication_mode = 2
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_ryk4y"]
-radius = 512.0
+radius = 400.0
 
 [sub_resource type="Gradient" id="Gradient_uwpg7"]
 offsets = PackedFloat32Array(0.994845, 1)
@@ -117,6 +117,7 @@ grow_vertical = 2
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
 unique_name_in_owner = true
 replication_config = SubResource("SceneReplicationConfig_gofvq")
+replication_interval = 0.05
 public_visibility = false
 script = ExtResource("5_c8msn")
 

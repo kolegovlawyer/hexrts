@@ -1,4 +1,4 @@
-class_name GameManager extends Node
+﻿class_name GameManager extends Node
 
 var game_type = "UNKNOWN"
 var map
@@ -54,7 +54,7 @@ func setup_points_system() -> void:
 	"""
 	Инициализирует систему очков на сервере
 	"""
-	print("🏆 POINTS: Инициализация системы очков на сервере")
+	Handlers.dprint("🏆 POINTS: Инициализация системы очков на сервере")
 	
 	# Создаем таймер для обновления очков
 	points_timer = Timer.new()
@@ -80,27 +80,27 @@ func _initialize_player_points(player_id: int) -> void:
 	"""
 	Инициализирует очки для нового игрока
 	"""
-	print("🎯 GAME DEBUG: Инициализация очков для player_id: ", player_id)
+	Handlers.dprint("🎯 GAME DEBUG: Инициализация очков для player_id: ", player_id)
 	
 	player_points[player_id] = {
 		"recruitment_points": 50.0,  # Начальные очки найма (5 юнитов)
 		"victory_points": 0.0
 	}
-	print("💰 POINTS: Инициализированы очки для игрока ", player_id)
-	print("  - recruitment_points: ", player_points[player_id]["recruitment_points"])
-	print("  - victory_points: ", player_points[player_id]["victory_points"])
+	Handlers.dprint("💰 POINTS: Инициализированы очки для игрока ", player_id)
+	Handlers.dprint("  - recruitment_points: ", player_points[player_id]["recruitment_points"])
+	Handlers.dprint("  - victory_points: ", player_points[player_id]["victory_points"])
 	
 	# Проверяем является ли это ботом
 	var is_bot = _is_player_bot(player_id)
 	if is_bot:
-		print("🤖 GAME DEBUG: Игрок ", player_id, " определен как бот")
+		Handlers.dprint("🤖 GAME DEBUG: Игрок ", player_id, " определен как бот")
 	
 	# Отправляем начальные очки клиенту (только если это не сервер и не бот)
 	if player_id != 1 and not is_bot:
-		print("📡 GAME DEBUG: Отправляем начальные очки RPC игроку ", player_id)
+		Handlers.dprint("📡 GAME DEBUG: Отправляем начальные очки RPC игроку ", player_id)
 		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
 	else:
-		print("🚫 GAME DEBUG: Пропускаем RPC для player_id: ", player_id, " (сервер: ", player_id == 1, ", бот: ", is_bot, ")")
+		Handlers.dprint("🚫 GAME DEBUG: Пропускаем RPC для player_id: ", player_id, " (сервер: ", player_id == 1, ", бот: ", is_bot, ")")
 
 func _on_player_connected(player_id: int) -> void:
 	"""
@@ -114,7 +114,7 @@ func _on_player_disconnected(player_id: int) -> void:
 	"""
 	if player_points.has(player_id):
 		player_points.erase(player_id)
-	print("👋 POINTS: Удалены очки игрока ", player_id)
+	Handlers.dprint("👋 POINTS: Удалены очки игрока ", player_id)
 
 func _on_points_timer_timeout() -> void:
 	"""
@@ -134,7 +134,7 @@ func _update_player_points(player_id: int) -> void:
 	Обновляет очки конкретного игрока на основе контролируемых гексов
 	"""
 	if not player_points.has(player_id):
-		print("⚠️ POINTS DEBUG: player_id ", player_id, " не найден в player_points")
+		Handlers.dprint("⚠️ POINTS DEBUG: player_id ", player_id, " не найден в player_points")
 		return
 	
 	# Подсчитываем количество гексов игрока
@@ -162,7 +162,7 @@ func _update_player_points(player_id: int) -> void:
 	
 	# Логируем только для ботов или каждые 10 секунд для остальных
 	if is_bot or Time.get_unix_time_from_system() as int % 10 == 0:
-		print("📊 POINTS: Игрок ", player_id, " (бот: ", is_bot, ") гексы: ", player_hexes_count, " очки найма: +", recruitment_gain, " очки победы: +", victory_gain)
+		Handlers.dprint("📊 POINTS: Игрок ", player_id, " (бот: ", is_bot, ") гексы: ", player_hexes_count, " очки найма: +", recruitment_gain, " очки победы: +", victory_gain)
 
 func _count_player_hexes(player_id: int) -> int:
 	"""
@@ -185,7 +185,7 @@ func _get_player_team(player_id: int) -> int:
 	Получает номер команды игрока через существующую систему команд
 	"""
 	if not Handlers.TeamHandler:
-		print("⚠️ POINTS: TeamHandler не найден!")
+		Handlers.dprint("⚠️ POINTS: TeamHandler не найден!")
 		return -1
 	
 	# Сначала проверяем является ли это ботом
@@ -195,20 +195,20 @@ func _get_player_team(player_id: int) -> int:
 		for bot in active_bots:
 			if bot.bot_id == player_id:
 				var team_int = int(bot.bot_team)
-				print("🤖 POINTS: Бот ", player_id, " команда ", team_int)
+				Handlers.dprint("🤖 POINTS: Бот ", player_id, " команда ", team_int)
 				return team_int
-		print("❌ POINTS: Бот ", player_id, " не найден в active_bots!")
+		Handlers.dprint("❌ POINTS: Бот ", player_id, " не найден в active_bots!")
 		return -1
 	
 	# Для обычных игроков используем TeamHandler
 	var player = Handlers.TeamHandler.find_player_by_id(player_id)
 	if not player:
-		print("⚠️ POINTS: Игрок ", player_id, " не найден в TeamHandler!")
+		Handlers.dprint("⚠️ POINTS: Игрок ", player_id, " не найден в TeamHandler!")
 		return -1
 	
 	# Конвертируем GameTypes.Teams в int
 	var team_int = int(player.Team)
-	#print("🏷️ POINTS: Игрок ", player_id, " команда ", team_int)
+	#Handlers.dprint("🏷️ POINTS: Игрок ", player_id, " команда ", team_int)
 	return team_int
 
 func _calculate_recruitment_bonus(hexes_count: int) -> float:
@@ -244,7 +244,7 @@ func _handle_player_victory(player_id: int) -> void:
 	"""
 	Обрабатывает победу игрока
 	"""
-	print("🏆 VICTORY: Игрок ", player_id, " победил!")
+	Handlers.dprint("🏆 VICTORY: Игрок ", player_id, " победил!")
 	# TODO: Реализовать логику завершения игры
 	announce_victory.rpc(player_id)
 
@@ -254,7 +254,7 @@ func sync_player_points(recruitment_points: float, victory_points: float) -> voi
 	RPC для синхронизации очков с клиентом
 	"""
 	if is_multiplayer_authority():
-		print("⚠️ POINTS: sync_player_points вызвана на сервере!")
+		Handlers.dprint("⚠️ POINTS: sync_player_points вызвана на сервере!")
 		return
 	
 	# Обновляем UI на клиенте
@@ -266,7 +266,7 @@ func announce_victory(winner_player_id: int) -> void:
 	"""
 	RPC для объявления победы
 	"""
-	print("🎉 VICTORY: Игрок ", winner_player_id, " выиграл игру!")
+	Handlers.dprint("🎉 VICTORY: Игрок ", winner_player_id, " выиграл игру!")
 	# TODO: Показать экран победы
 
 ### SPAWN VALIDATION SYSTEM ###
@@ -276,34 +276,34 @@ func validate_unit_spawn(player_id: int, unit_cost: int = UNIT_SPAWN_COST) -> bo
 	Проверяет, может ли игрок заспавнить юнита
 	Вызывается перед добавлением в очередь отложенного спавна
 	"""
-	print("🔍 GAME DEBUG: validate_unit_spawn для player_id: ", player_id, " cost: ", unit_cost)
-	print("  - player_points keys: ", player_points.keys())
+	Handlers.dprint("🔍 GAME DEBUG: validate_unit_spawn для player_id: ", player_id, " cost: ", unit_cost)
+	Handlers.dprint("  - player_points keys: ", player_points.keys())
 	
 	if not player_points.has(player_id):
-		print("❌ SPAWN: Игрок ", player_id, " не найден в системе очков")
+		Handlers.dprint("❌ SPAWN: Игрок ", player_id, " не найден в системе очков")
 		return false
 	
 	var current_points = player_points[player_id]["recruitment_points"]
-	print("💰 GAME DEBUG: Текущие очки игрока ", player_id, ": ", current_points)
+	Handlers.dprint("💰 GAME DEBUG: Текущие очки игрока ", player_id, ": ", current_points)
 	
 	if current_points < unit_cost:
-		print("❌ SPAWN: У игрока ", player_id, " недостаточно очков (", current_points, "/", unit_cost, ")")
+		Handlers.dprint("❌ SPAWN: У игрока ", player_id, " недостаточно очков (", current_points, "/", unit_cost, ")")
 		return false
 	
 	# Списываем очки
 	player_points[player_id]["recruitment_points"] -= unit_cost
-	print("✅ SPAWN: Списано ", unit_cost, " очков у игрока ", player_id, " (осталось: ", player_points[player_id]["recruitment_points"], ")")
+	Handlers.dprint("✅ SPAWN: Списано ", unit_cost, " очков у игрока ", player_id, " (осталось: ", player_points[player_id]["recruitment_points"], ")")
 	
 	# Проверяем является ли player_id ботом (для отладки RPC ошибки)
 	var is_bot = _is_player_bot(player_id)
 	
-	print("📡 GAME DEBUG: Отправка RPC player_id: ", player_id, " is_bot: ", is_bot)
+	Handlers.dprint("📡 GAME DEBUG: Отправка RPC player_id: ", player_id, " is_bot: ", is_bot)
 	
 	# Отправляем обновленные очки клиенту (только если это не бот и не сервер)
 	if not is_bot and player_id != 1:
 		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
 	else:
-		print("🤖 GAME DEBUG: Пропускаем RPC для player_id: ", player_id, " (бот: ", is_bot, ", сервер: ", player_id == 1, ")")
+		Handlers.dprint("🤖 GAME DEBUG: Пропускаем RPC для player_id: ", player_id, " (бот: ", is_bot, ", сервер: ", player_id == 1, ")")
 	
 	return true
 
@@ -383,25 +383,25 @@ func register_bot(bot: Bot) -> void:
 	"""
 	Регистрирует бота в системе управления
 	"""
-	print("📋 GAME DEBUG: Попытка регистрации бота:")
-	print("  - bot_name: ", bot.bot_name if bot.bot_name else "не задано")
-	print("  - bot_id: ", bot.bot_id)
-	print("  - bot_team: ", bot.bot_team)
-	print("  - активных ботов до: ", active_bots.size())
+	Handlers.dprint("📋 GAME DEBUG: Попытка регистрации бота:")
+	Handlers.dprint("  - bot_name: ", bot.bot_name if bot.bot_name else "не задано")
+	Handlers.dprint("  - bot_id: ", bot.bot_id)
+	Handlers.dprint("  - bot_team: ", bot.bot_team)
+	Handlers.dprint("  - активных ботов до: ", active_bots.size())
 	
 	if bot not in active_bots:
 		active_bots.append(bot)
-		print("🤖 GAME: Зарегистрирован бот ", bot.bot_name, " (всего ботов: ", active_bots.size(), ")")
+		Handlers.dprint("🤖 GAME: Зарегистрирован бот ", bot.bot_name, " (всего ботов: ", active_bots.size(), ")")
 		
 		# Убеждаемся что у бота есть очки в системе
 		if not player_points.has(bot.bot_id):
-			print("💰 GAME DEBUG: Инициализируем очки для нового бота ", bot.bot_id)
+			Handlers.dprint("💰 GAME DEBUG: Инициализируем очки для нового бота ", bot.bot_id)
 			_initialize_player_points(bot.bot_id)
 		
 		# Подключаем существующие юниты к новому боту
 		_connect_existing_units_to_bot(bot)
 	else:
-		print("⚠️ GAME DEBUG: Бот уже зарегистрирован")
+		Handlers.dprint("⚠️ GAME DEBUG: Бот уже зарегистрирован")
 
 func unregister_bot(bot: Bot) -> void:
 	"""
@@ -414,7 +414,7 @@ func unregister_bot(bot: Bot) -> void:
 		if Handlers.TeamHandler:
 			Handlers.TeamHandler.remove_bot_from_team(bot.bot_id)
 		
-		print("👋 GAME: Бот ", bot.bot_name, " удален из системы")
+		Handlers.dprint("👋 GAME: Бот ", bot.bot_name, " удален из системы")
 
 func _connect_existing_units_to_bot(bot: Bot) -> void:
 	"""
@@ -429,32 +429,32 @@ func _connect_unit_signals_to_bots(unit: BaseUnit) -> void:
 	"""
 	Подключает сигналы юнита ко всем активным ботам
 	"""
-	print("📡 GAME: Подключение сигналов юнита ", unit.name, " к ботам (", active_bots.size(), " ботов)")
+	Handlers.dprint("📡 GAME: Подключение сигналов юнита ", unit.name, " к ботам (", active_bots.size(), " ботов)")
 	
 	for bot in active_bots:
-		print("  - Подключение к боту ", bot.bot_name)
+		Handlers.dprint("  - Подключение к боту ", bot.bot_name)
 		
 		# Подключаем сигнал атаки
 		if not unit.under_attack.is_connected(bot._on_unit_under_attack):
 			unit.under_attack.connect(bot._on_unit_under_attack)
-			print("    ✅ Подключен сигнал under_attack")
+			Handlers.dprint("    ✅ Подключен сигнал under_attack")
 		
 		# Подключаем сигнал начала атаки
 		if not unit.attack_started.is_connected(bot._on_attack_started):
 			unit.attack_started.connect(bot._on_attack_started)
-			print("    ✅ Подключен сигнал attack_started")
+			Handlers.dprint("    ✅ Подключен сигнал attack_started")
 		
 		# Подключаем сигнал смерти
 		if not unit.unit_died.is_connected(bot._on_unit_died):
 			unit.unit_died.connect(bot._on_unit_died)
-			print("    ✅ Подключен сигнал unit_died")
+			Handlers.dprint("    ✅ Подключен сигнал unit_died")
 
 func _on_new_unit_spawned(unit: BaseUnit) -> void:
 	"""
 	Вызывается при спавне нового юнита для подключения к ботам
 	"""
 	if is_multiplayer_authority():
-		print("🎯 GAME: Новый юнит заспавнен: ", unit.name, " owner_id: ", unit.owner_id)
+		Handlers.dprint("🎯 GAME: Новый юнит заспавнен: ", unit.name, " owner_id: ", unit.owner_id)
 		_connect_unit_signals_to_bots(unit)
 
 func register_new_unit(unit: BaseUnit) -> void:
@@ -474,31 +474,31 @@ func initialize_hexes() -> void:
 	Вызывается и на сервере, и на клиентах
 	"""
 	var server_or_client = "СЕРВЕР" if is_multiplayer_authority() else "КЛИЕНТ"
-	print("🔧 DEBUG: initialize_hexes вызвана на ", server_or_client)
+	Handlers.dprint("🔧 DEBUG: initialize_hexes вызвана на ", server_or_client)
 	
 	var map_node = get_node("Map").get_child(0) # test_world_1
-	print("🔧 DEBUG: map_node найден: ", map_node)
+	Handlers.dprint("🔧 DEBUG: map_node найден: ", map_node)
 	
 	# Ищем MainMap для получения позиций гексов
 	var main_map = map_node.get_node("MainMap")
 	if not main_map:
-		print("⚠️ ГЕКСЫ: MainMap не найден!")
+		Handlers.dprint("⚠️ ГЕКСЫ: MainMap не найден!")
 		return
 	else:
-		print("✅ DEBUG: MainMap найден: ", main_map)
+		Handlers.dprint("✅ DEBUG: MainMap найден: ", main_map)
 	
 	# Ищем OverlayMap для управления визуалом
 	overlay_map = map_node.get_node("OverlayMap")
 	if not overlay_map:
-		print("⚠️ ГЕКСЫ: OverlayMap не найден!")
+		Handlers.dprint("⚠️ ГЕКСЫ: OverlayMap не найден!")
 		return
 	else:
-		print("✅ DEBUG: OverlayMap найден: ", overlay_map)
-		print("📍 DEBUG: OverlayMap position: ", overlay_map.position)
+		Handlers.dprint("✅ DEBUG: OverlayMap найден: ", overlay_map)
+		Handlers.dprint("📍 DEBUG: OverlayMap position: ", overlay_map.position)
 	
 	# Получаем все используемые ячейки из MainMap (фактические позиции гексов)
 	var used_cells = main_map.get_used_cells()
-	print("📊 DEBUG: Найдено гексов в MainMap: ", used_cells.size())
+	Handlers.dprint("📊 DEBUG: Найдено гексов в MainMap: ", used_cells.size())
 	hexes_dict.clear()
 	
 	for cell_pos in used_cells:
@@ -506,7 +506,7 @@ func initialize_hexes() -> void:
 		var overlay_atlas_coords = overlay_map.get_cell_atlas_coords(cell_pos)
 		var initial_team = -1  # По умолчанию нейтральный
 		
-		#print("🎨 DEBUG: Гекс ", cell_pos, " OverlayMap atlas_coords: ", overlay_atlas_coords)
+		#Handlers.dprint("🎨 DEBUG: Гекс ", cell_pos, " OverlayMap atlas_coords: ", overlay_atlas_coords)
 		
 		# Определяем команду по atlas координатам OverlayMap
 		# (0,0) - команда A (0), (1,0) - команда B (1), (2,0) - нейтральный (-1)
@@ -520,11 +520,11 @@ func initialize_hexes() -> void:
 		# Создаем объект гекса
 		var hex = preload("res://scripts/singletons/hex.gd").new(cell_pos, initial_team)
 		hexes_dict[cell_pos] = hex
-		#print("🎯 DEBUG: Создан гекс ", cell_pos, " команда ", initial_team)
+		#Handlers.dprint("🎯 DEBUG: Создан гекс ", cell_pos, " команда ", initial_team)
 	
-	print("🗺️ ГЕКСЫ: Инициализировано ", hexes_dict.size(), " гексов на ", server_or_client)
+	Handlers.dprint("🗺️ ГЕКСЫ: Инициализировано ", hexes_dict.size(), " гексов на ", server_or_client)
 	if hexes_dict.size() <= 20:  # Показываем список только если гексов немного
-		print("📋 DEBUG: Список всех гексов:")
+		Handlers.dprint("📋 DEBUG: Список всех гексов:")
 		for pos in hexes_dict.keys():
 			var team_str = ""
 			match hexes_dict[pos].team_owner:
@@ -532,21 +532,21 @@ func initialize_hexes() -> void:
 				1: team_str = "B"
 				-1: team_str = "нейтральный"
 				_: team_str = str(hexes_dict[pos].team_owner)
-			print("  - Гекс ", pos, " команда ", team_str, " (", hexes_dict[pos].team_owner, ")")
+			Handlers.dprint("  - Гекс ", pos, " команда ", team_str, " (", hexes_dict[pos].team_owner, ")")
 	else:
-		print("📊 DEBUG: Слишком много гексов для детального отображения (", hexes_dict.size(), ")")
+		Handlers.dprint("📊 DEBUG: Слишком много гексов для детального отображения (", hexes_dict.size(), ")")
 
 func get_hex_at_position(hex_position: Vector2i):
 	"""Возвращает объект гекса по позиции или null если гекса нет"""
 	var hex = hexes_dict.get(hex_position, null)
 	
 	if not hex:
-		print("❌ DEBUG: Гекс с координатами ", hex_position, " не найден!")
-		print("🔍 DEBUG: Ближайшие гексы:")
+		Handlers.dprint("❌ DEBUG: Гекс с координатами ", hex_position, " не найден!")
+		Handlers.dprint("🔍 DEBUG: Ближайшие гексы:")
 		for pos in hexes_dict.keys():
 			var distance = hex_position.distance_to(pos)
 			if distance <= 3:  # Показываем гексы в радиусе 3 тайлов
-				print("  - ", pos, " (расстояние: ", distance, ")")
+				Handlers.dprint("  - ", pos, " (расстояние: ", distance, ")")
 	
 	return hex
 
@@ -556,14 +556,14 @@ func update_hex_overlay(hex_position: Vector2i, team_owner: int) -> void:
 	Вызывается только на сервере при захвате гекса
 	"""
 	if not is_multiplayer_authority():
-		print("⚠️ ГЕКСЫ: update_hex_overlay должна вызываться только на сервере!")
+		Handlers.dprint("⚠️ ГЕКСЫ: update_hex_overlay должна вызываться только на сервере!")
 		return
 		
 	if not overlay_map:
-		print("⚠️ ГЕКСЫ: OverlayMap не найден для обновления!")
+		Handlers.dprint("⚠️ ГЕКСЫ: OverlayMap не найден для обновления!")
 		return
 	
-	print("🔧 DEBUG: update_hex_overlay (СЕРВЕР) для гекса ", hex_position, " команда ", team_owner)
+	Handlers.dprint("🔧 DEBUG: update_hex_overlay (СЕРВЕР) для гекса ", hex_position, " команда ", team_owner)
 	
 	# Обновляем серверную OverlayMap
 	_update_overlay_visual(hex_position, team_owner, team_owner)
@@ -577,7 +577,7 @@ func update_hex_overlay(hex_position: Vector2i, team_owner: int) -> void:
 		1: team_str = "B"
 		-1: team_str = "нейтральный"
 		_: team_str = str(team_owner)
-	print("📡 ГЕКСЫ: RPC отправлен всем клиентам о захвате гекса ", hex_position, " командой ", team_str)
+	Handlers.dprint("📡 ГЕКСЫ: RPC отправлен всем клиентам о захвате гекса ", hex_position, " командой ", team_str)
 
 @rpc("authority", "call_remote", "reliable")
 func sync_hex_capture(hex_position: Vector2i, new_owner_team: int) -> void:
@@ -586,24 +586,24 @@ func sync_hex_capture(hex_position: Vector2i, new_owner_team: int) -> void:
 	Каждый клиент обновляет визуал в зависимости от своей команды
 	"""
 	if is_multiplayer_authority():
-		print("⚠️ ГЕКСЫ: sync_hex_capture не должна вызываться на сервере!")
+		Handlers.dprint("⚠️ ГЕКСЫ: sync_hex_capture не должна вызываться на сервере!")
 		return
 	
-	print("📨 КЛИЕНТ: Получен RPC о захвате гекса ", hex_position, " командой ", new_owner_team)
+	Handlers.dprint("📨 КЛИЕНТ: Получен RPC о захвате гекса ", hex_position, " командой ", new_owner_team)
 	
 	# Обновляем объект гекса в локальном словаре
 	var hex = get_hex_at_position(hex_position)
 	if hex:
 		hex.team_owner = new_owner_team
-		print("✅ КЛИЕНТ: Обновлен локальный объект гекса ", hex_position)
+		Handlers.dprint("✅ КЛИЕНТ: Обновлен локальный объект гекса ", hex_position)
 	
 	# Определяем как отображать гекс с точки зрения этого клиента
 	var my_team = -1
 	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
 		my_team = Handlers.TeamHandler.my_profile.Team
-		print("👤 КЛИЕНТ: Моя команда = ", my_team)
+		Handlers.dprint("👤 КЛИЕНТ: Моя команда = ", my_team)
 	else:
-		print("❌ КЛИЕНТ: TeamHandler или my_profile не найден!")
+		Handlers.dprint("❌ КЛИЕНТ: TeamHandler или my_profile не найден!")
 	
 	# Обновляем визуал OverlayMap для клиента
 	_update_overlay_visual(hex_position, new_owner_team, my_team)
@@ -615,7 +615,7 @@ func _update_overlay_visual(hex_position: Vector2i, hex_owner_team: int, viewer_
 	viewer_team - кто смотрит (для определения союзник/враг)
 	"""
 	if not overlay_map:
-		print("⚠️ ГЕКСЫ: OverlayMap не найден!")
+		Handlers.dprint("⚠️ ГЕКСЫ: OverlayMap не найден!")
 		return
 	
 	var atlas_coords = Vector2i(2, 0)  # По умолчанию нейтральный
@@ -648,7 +648,7 @@ func _update_overlay_visual(hex_position: Vector2i, hex_owner_team: int, viewer_
 		-1: viewer_str = "нейтральный"
 		_: viewer_str = str(viewer_team)
 	
-	print("🎨 ВИЗУАЛ: Гекс ", hex_position, " владелец=", owner_str, " наблюдатель=", viewer_str, " atlas=", atlas_coords)
+	Handlers.dprint("🎨 ВИЗУАЛ: Гекс ", hex_position, " владелец=", owner_str, " наблюдатель=", viewer_str, " atlas=", atlas_coords)
 
 func get_hex_at_world_position(world_position: Vector2):
 	"""
@@ -674,23 +674,23 @@ func send_full_map_state_to_new_player(player_id: int):
 	Вызывается только на сервере при подключении нового игрока
 	"""
 	if not is_multiplayer_authority():
-		print("⚠️ SYNC: send_full_map_state_to_new_player вызвана не на сервере!")
+		Handlers.dprint("⚠️ SYNC: send_full_map_state_to_new_player вызвана не на сервере!")
 		return
 	
 	# Проверяем является ли это ботом
 	var is_bot = _is_player_bot(player_id)
-	print("🔍 SYNC DEBUG: send_full_map_state для player_id: ", player_id, " is_bot: ", is_bot)
+	Handlers.dprint("🔍 SYNC DEBUG: send_full_map_state для player_id: ", player_id, " is_bot: ", is_bot)
 	
 	# Отправляем очки новому игроку (только если не бот)
 	if player_points.has(player_id) and not is_bot:
 		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
-		print("📡 SYNC: Отправлены очки игроку ", player_id)
+		Handlers.dprint("📡 SYNC: Отправлены очки игроку ", player_id)
 	elif is_bot:
-		print("🤖 SYNC: Пропускаем отправку очков боту ", player_id)
+		Handlers.dprint("🤖 SYNC: Пропускаем отправку очков боту ", player_id)
 	
 	# Проверяем что гексы инициализированы
 	if hexes_dict.is_empty():
-		print("⚠️ SYNC: Гексы еще не инициализированы, пропускаем синхронизацию")
+		Handlers.dprint("⚠️ SYNC: Гексы еще не инициализированы, пропускаем синхронизацию")
 		return
 	
 	# Собираем данные о всех захваченных гексах
@@ -708,7 +708,7 @@ func send_full_map_state_to_new_player(player_id: int):
 			})
 	
 	# Отправляем состояние карты (ботам тоже нужно знать состояние карты)
-	print("📡 SYNC: Отправляем ", captured_hexes.size(), " захваченных гексов игроку ", player_id)
+	Handlers.dprint("📡 SYNC: Отправляем ", captured_hexes.size(), " захваченных гексов игроку ", player_id)
 	sync_full_map_state.rpc_id(player_id, captured_hexes)
 
 @rpc("authority", "call_remote", "reliable")
@@ -718,10 +718,10 @@ func sync_full_map_state(captured_hexes_data: Array):
 	Вызывается только на клиентах при подключении к серверу
 	"""
 	if is_multiplayer_authority():
-		print("⚠️ SYNC: sync_full_map_state вызвана на сервере, пропускаем")
+		Handlers.dprint("⚠️ SYNC: sync_full_map_state вызвана на сервере, пропускаем")
 		return
 	
-	print("📥 SYNC: Получили данные о ", captured_hexes_data.size(), " захваченных гексах")
+	Handlers.dprint("📥 SYNC: Получили данные о ", captured_hexes_data.size(), " захваченных гексах")
 	
 	# Применяем состояние к каждому гексу
 	for hex_data in captured_hexes_data:
@@ -743,7 +743,7 @@ func sync_full_map_state(captured_hexes_data: Array):
 					if unit:
 						hex.command_units.append(unit)
 			
-			print("✅ SYNC: Обновлен гекс ", hex_pos, " team: ", hex.team_owner, " progress: ", hex.capture_progress)
+			Handlers.dprint("✅ SYNC: Обновлен гекс ", hex_pos, " team: ", hex.team_owner, " progress: ", hex.capture_progress)
 			
 			# Обновляем визуал для этого гекса
 			# Получаем команду локального игрока для правильного отображения
@@ -752,6 +752,6 @@ func sync_full_map_state(captured_hexes_data: Array):
 				local_player_team = Handlers.TeamHandler.my_profile.Team
 			_update_overlay_visual(hex_pos, hex.team_owner, local_player_team)
 		else:
-			print("❌ SYNC: Гекс не найден по позиции ", hex_pos)
+			Handlers.dprint("❌ SYNC: Гекс не найден по позиции ", hex_pos)
 	
-	print("🎯 SYNC: Синхронизация состояния карты завершена")
+	Handlers.dprint("🎯 SYNC: Синхронизация состояния карты завершена")

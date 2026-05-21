@@ -186,7 +186,7 @@ func _unit_state_enter(state: int) -> void:
 
 # Переопределяем _physics_process для системы захвата гексов
 func _physics_process(delta: float) -> void:
-	# super._physics_process(delta)  # Временно отключено из-за проблем с загрузкой
+	super._physics_process(delta)
 	
 	# СЕРВЕРНАЯ ЛОГИКА
 	if is_multiplayer_authority():

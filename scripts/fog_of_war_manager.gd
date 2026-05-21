@@ -15,7 +15,7 @@ var camera: Camera2D
 # Настройки производительности
 @export_group("Performance Settings")
 @export var max_units_processed: int = 64 ## Максимальное количество обрабатываемых юнитов
-@export var update_frequency: float = 0.0  # 0.0 = каждый фрейм ## Частота обновления (60 FPS = 0.016)
+@export var update_frequency: float = 0.05  ## 20 Hz; 0.0 = каждый фрейм
 # Удаляем неиспользуемые настройки отсечения по расстоянию
 #@export var distance_culling_enabled: bool = true
 #@export var max_visibility_distance: float = 2000.0
@@ -46,7 +46,7 @@ var _debug_units_culled: int = 0
 
 func _ready() -> void:
 	"""Инициализация менеджера тумана войны"""
-	print("🌫️ FOG_MANAGER: Инициализация менеджера тумана войны")
+	Handlers.dprint("🌫️ FOG_MANAGER: Инициализация")
 	
 	# Инициализируем массивы для данных юнитов
 	_unit_positions = PackedFloat32Array()
@@ -75,7 +75,7 @@ func _apply_initial_settings() -> void:
 	"""Применяет начальные настройки шейдера"""
 	if fog_material:
 		_update_shader_settings()
-		print("✅ FOG_MANAGER: Начальные настройки применены")
+		Handlers.dprint("✅ FOG_MANAGER: Начальные настройки применены")
 
 func setup_fog_rendering(material: ShaderMaterial, color_rect: ColorRect, cam: Camera2D) -> void:
 	"""
@@ -90,7 +90,7 @@ func setup_fog_rendering(material: ShaderMaterial, color_rect: ColorRect, cam: C
 	fog_color_rect = color_rect
 	camera = cam
 	
-	print("🔗 FOG_MANAGER: Связи настроены - Material:", fog_material != null, "ColorRect:", fog_color_rect != null, "Camera:", camera != null)
+	Handlers.dprint("🔗 FOG_MANAGER: Связи настроены")
 	
 	if fog_material:
 		_update_shader_settings()
@@ -186,7 +186,7 @@ func _collect_unit_data() -> void:
 		_unit_positions[i * 2 + 1] = viewport_pos.y
 		
 		# Получаем радиус видимости
-		var visibility_radius = 512.0
+		var visibility_radius = 400.0
 		if unit.has_node("%VisibilityArea"):
 			var visibility_area = unit.get_node("%VisibilityArea")
 			if visibility_area.has_node("VisibilityShape"):
@@ -285,7 +285,7 @@ func _get_bot_team_by_id(player_id: int) -> int:
 func _on_viewport_size_changed() -> void:
 	"""Обработчик изменения размера viewport"""
 	_current_viewport_size = get_viewport().get_visible_rect().size
-	print("📏 FOG_MANAGER: Размер viewport изменен на ", _current_viewport_size)
+	Handlers.dprint("📏 FOG_MANAGER: viewport %s" % _current_viewport_size)
 
 # ========================================================================
 # ПУБЛИЧНЫЕ МЕТОДЫ ДЛЯ НАСТРОЙКИ
@@ -325,7 +325,7 @@ func get_debug_info() -> Dictionary:
 func toggle_debug_mode() -> void:
 	"""Переключает режим отладки"""
 	_debug_enabled = !_debug_enabled
-	print("🐛 FOG_MANAGER: Режим отладки ", "включен" if _debug_enabled else "выключен")
+	Handlers.dprint("🐛 FOG_MANAGER: debug %s" % ("on" if _debug_enabled else "off"))
 
 # ========================================================================
 # ОПТИМИЗАЦИЯ ПРОИЗВОДИТЕЛЬНОСТИ
@@ -350,10 +350,10 @@ func set_performance_preset(preset: String) -> void:
 			max_units_processed = 64
 			update_frequency = 0.016 # 60 FPS
 		_:
-			print("⚠️ FOG_MANAGER: Неизвестная предустановка производительности: ", preset)
+			Handlers.dprint("⚠️ FOG_MANAGER: неизвестная предустановка: %s" % preset)
 			return
 	
-	print("⚙️ FOG_MANAGER: Установлена предустановка производительности: ", preset.to_upper()) 
+	Handlers.dprint("⚙️ FOG_MANAGER: preset %s" % preset.to_upper()) 
 
 func update_shader_camera_data(cam: Camera2D):
 	"""

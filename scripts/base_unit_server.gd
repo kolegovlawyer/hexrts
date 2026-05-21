@@ -21,8 +21,19 @@ var shield_regeneration_timer: Timer
 @onready var navagent : NavigationAgent2D = $NavigationAgent2D
 var path_points : Array[Vector2] = []
 
-# DEBUG
-var DEBUG_COMBAT: bool = true
+# DEBUG (логи через Handlers.dprint, DEBUG_LOG_ENABLED в handlers.gd)
+var DEBUG_COMBAT: bool = false
+
+# Кэши без set_meta / аллокаций строк на горячих путях
+var _visibility_state_cached: bool = false
+var _last_enemy_visibility: bool = false
+var _last_enemy_visibility_valid: bool = false
+var _last_visibility_update_frame: int = -100
+var _team_resolve_error_logged: bool = false
+var _can_see_target_uid: String = ""
+var _can_see_result: bool = false
+var _can_see_frame: int = -100
+var _enemies_in_vision: Array[BaseUnitServer] = []
 
 # Флаг для отложенной инициализации команды (когда setter вызван до добавления в дерево)
 var _pending_team_initialization: bool = false
@@ -42,15 +53,15 @@ func _initialize_team_and_visibility() -> void:
 	if bot_team != -1:
 		# Это бот
 		owner_team = bot_team
-		print("🤖 TEAM INIT: ", name, " - бот, команда = ", owner_team)
+		Handlers.dprint("🤖 TEAM INIT: %s - бот, команда = %s" % [name, owner_team])
 	else:
 		# Это обычный игрок
 		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
 		if player:
 			owner_team = player.Team
-			print("👤 TEAM INIT: ", name, " - игрок, команда = ", owner_team)
+			Handlers.dprint("👤 TEAM INIT: %s - игрок, команда = %s" % [name, owner_team])
 		else:
-			print("⚠️ TEAM INIT: ", name, " - игрок не найден! owner_id = ", owner_id)
+			Handlers.dprint("⚠️ TEAM INIT: %s - игрок не найден! owner_id = %s" % [name, owner_id])
 			return
 	
 	update_visibility()
@@ -100,12 +111,12 @@ func get_profile_stats() -> Dictionary:
 
 func log_profile_stats() -> void:
 	"""Выводит статистику профилирования в консоль"""
-	print("=== ПРОФИЛЬ ПРОИЗВОДИТЕЛЬНОСТИ ЮНИТА ", name, " ===")
+	Handlers.dprint("=== ПРОФИЛЬ ПРОИЗВОДИТЕЛЬНОСТИ ЮНИТА %s ===" % name)
 	for func_name in _profile_data.keys():
 		var data = _profile_data[func_name]
 		var avg_time = data["total_time"] / data["calls"] if data["calls"] > 0 else 0
-		print("  ", func_name, ": ", data["calls"], " вызовов, среднее время: ", avg_time, "с, макс: ", data["max_time"], "с")
-	print("=== КОНЕЦ ПРОФИЛЯ ===")
+		Handlers.dprint("  %s: %d вызовов, среднее: %s с, макс: %s с" % [func_name, data["calls"], avg_time, data["max_time"]])
+	Handlers.dprint("=== КОНЕЦ ПРОФИЛЯ ===")
 
 # Добавляем переменные для контроля застревания
 var stuck_timer: float = 0.0
@@ -130,7 +141,7 @@ func _ready() -> void:
 	
 	# Отладочная сводка по коллизиям/команде
 	if is_multiplayer_authority() and DEBUG_COMBAT:
-		print("🧩 UNIT READY: ", name, " UID=", UID, " owner_id=", owner_id, " team=", owner_team, " layer=", self.collision_layer, " mask=", self.collision_mask)
+		Handlers.dprint("🧩 UNIT READY: %s UID=%s owner_id=%s team=%s" % [name, UID, owner_id, owner_team])
 	
 	# Создаем таймер автоматической атаки (только на сервере)
 	if is_multiplayer_authority():
@@ -139,11 +150,10 @@ func _ready() -> void:
 		# ИСПРАВЛЕНИЕ: Инициализируем frame_group для тяжелых вычислений
 		if Handlers.FrameGroupHandler:
 			frame_group = Handlers.FrameGroupHandler.add_to_framegroup(self)
-			print("🔧 FRAMEGROUP: ", name, " добавлен в группу ", frame_group)
+			Handlers.dprint("🔧 FRAMEGROUP: %s группа %d" % [name, frame_group])
 		else:
-			# Временное решение: случайная группа если FrameGroupHandler не доступен
 			frame_group = randi() % 60
-			print("⚠️ FRAMEGROUP: ", name, " случайная группа ", frame_group)
+			Handlers.dprint("⚠️ FRAMEGROUP: %s случайная группа %d (handler недоступен)" % [name, frame_group])
 	
 	if is_multiplayer_authority():
 		UID = str(generate_numeric_id(10))
@@ -154,25 +164,19 @@ func _ready() -> void:
 			if not Handlers.GameHandler.units_dict.has(UID):
 				Handlers.GameHandler.units_dict[UID] = self
 		navagent.connect("velocity_computed", on_velocity_computed)
+		_set_navigation_avoidance(false)
 		visibility_area.connect("body_entered", visibility_check_in)
 		visibility_area.connect("body_exited", visibility_check_out)
 		
-		# Регистрируем юнит в GameManager для подключения к ботам
-		# TODO: Обновить GameHandler для работы с BaseUnitServer
-		# if Handlers.GameHandler:
-		#	Handlers.GameHandler.register_new_unit(self)
-		
-		# КРИТИЧЕСКИ ВАЖНО: Инициализируем owner_team если не было отложенной инициализации
-		if owner_id != 1 and owner_team == null:  # Не для дефолтного значения и еще не инициализировано
+		if owner_id != 1 and owner_team == null:
 			_initialize_team_and_visibility()
 		
-		# Запускаем дополнительные системы для всех юнитов (кроме дефолтных)
 		if owner_id != 1:
-			# Запускаем автоатаку с небольшой задержкой для полной инициализации
 			call_deferred("_start_auto_attack_delayed")
-			
-			# КРИТИЧЕСКИ ВАЖНО: Повторно настраиваем видимость после полной инициализации
 			call_deferred("_fix_visibility_after_init")
+	else:
+		visibility_area.monitoring = false
+		visibility_area.monitorable = false
 	
 	last_move_position = global_position
 	
@@ -184,35 +188,38 @@ func _exit_tree() -> void:
 	if is_in_group("units"):
 		remove_from_group("units")
 	
-func visibility_check_in(body):
-	"""ОПТИМИЗИРОВАНО: Быстрая проверка входа в зону видимости"""
+func visibility_check_in(body) -> void:
+	"""Быстрая проверка входа в зону видимости"""
 	if body == self or not body is BaseUnitServer:
 		return
 	
-	# ОПТИМИЗАЦИЯ: Используем быстрые проверки without get_team
 	if not has_vision_on.has(body):
 		has_vision_on.append(body)
 	if not body.visible_by.has(self):
 		body.visible_by.append(self)
 	
-func visibility_check_out(body):
-	"""ОПТИМИЗИРОВАНО: Быстрая проверка выхода из зоны видимости"""
+	var my_team = _get_cached_team()
+	if my_team != null and _is_enemy_unit_fast(body, my_team) and body not in _enemies_in_vision:
+		_enemies_in_vision.append(body)
+	
+func visibility_check_out(body) -> void:
+	"""Быстрая проверка выхода из зоны видимости"""
 	if body == self or not body is BaseUnitServer:
 		return
 	
-	# ОПТИМИЗАЦИЯ: Используем прямые операции с массивами
 	if has_vision_on.has(body):
 		has_vision_on.erase(body)
 	if body.visible_by.has(self):
 		body.visible_by.erase(self)
+	if body in _enemies_in_vision:
+		_enemies_in_vision.erase(body)
 	
 func on_velocity_computed(safe_velocity):
 	velocity = safe_velocity
 
 func is_time_to_heavy_calculations() -> bool:
-	# Безопасная проверка: если FrameGroupHandler не доступен, обрабатываем каждый фрейм
 	if not Handlers.FrameGroupHandler or Handlers.FrameGroupHandler.num_groups <= 0:
-		return true
+		return false
 	
 	return (Engine.get_physics_frames() % Handlers.FrameGroupHandler.num_groups) == frame_group
 
@@ -328,8 +335,7 @@ func _quick_visibility_check() -> void:
 		# Если команда пока неизвестна, осторожно считаем что враги нас не видят
 		currently_visible = false
 	
-	# Сохраняем текущее состояние для тяжелых вычислений
-	set_meta("visibility_state", currently_visible)
+	_visibility_state_cached = currently_visible
 
 func _process_heavy_server_calculations(delta: float) -> void:
 	"""
@@ -362,11 +368,7 @@ func _process_visibility_heavy() -> void:
 	"""
 	Тяжелые сетевые операции видимости, выполняемые через FrameGroup
 	"""
-	# Получаем сохраненное состояние из быстрой проверки
-	if has_meta("visibility_state"):
-		var visibility_state = get_meta("visibility_state")
-		# Теперь выполняем тяжелую сетевую операцию
-		set_visibility_for_enemy(visibility_state)
+	set_visibility_for_enemy(_visibility_state_cached)
 
 func _process_move_order_heavy_bot(order: Dictionary, delta: float) -> void:
 	"""ОТЛОЖЕННАЯ обработка приказов движения для БОТОВ (FrameGroup оптимизация)"""
@@ -437,7 +439,8 @@ func _process_auto_attack_heavy() -> void:
 		if not visible_enemies.is_empty():
 			var target_enemy = _select_best_target(visible_enemies)
 			if is_valid_unit(target_enemy):
-				print("🎯 ATTACK: ", name, " атакует ", target_enemy.name, " (owner_team=", owner_team, " target.owner_team=", target_enemy.owner_team, ")")
+				if DEBUG_COMBAT:
+					Handlers.dprint("🎯 ATTACK: %s -> %s" % [name, target_enemy.name])
 				orders.append({"type": "attack", "target": target_enemy})
 				unit_state = UNIT_STATES.AUTO_ATTACKING
 
@@ -520,7 +523,7 @@ func rpc_apply_damage_to_uid(target_uid: String, amount: int, instigator_uid: St
 	var target: BaseUnitServer = find_target_by_UID(target_uid)
 	if not is_valid_unit(target):
 		if DEBUG_COMBAT:
-			print("❌ RPC DMG: target not found uid=", target_uid, " sender=", sender_id)
+			Handlers.dprint("❌ RPC DMG: target not found uid=%s sender=%s" % [target_uid, sender_id])
 		return
 	
 	var instigator: BaseUnitServer = null
@@ -530,12 +533,12 @@ func rpc_apply_damage_to_uid(target_uid: String, amount: int, instigator_uid: St
 	# Friendly-fire фильтр с логом (не наносим урон союзникам, если команды известны)
 	if is_valid_unit(instigator) and instigator.owner_team != null and target.owner_team != null and instigator.owner_team == target.owner_team:
 		if DEBUG_COMBAT:
-			print("🛡️ RPC DMG BLOCKED (FF): instigator=", instigator.name, "(", instigator.owner_team, ") -> target=", target.name, "(", target.owner_team, ") amount=", amount)
+			Handlers.dprint("🛡️ RPC DMG BLOCKED (FF): %s -> %s" % [instigator.name, target.name])
 		return
 	
 	if DEBUG_COMBAT:
 		var inst_name = instigator.name if is_valid_unit(instigator) else "null"
-		print("✅ RPC DMG: ", amount, " uid=", target_uid, " target=", target.name, " inst=", inst_name, " sender=", sender_id)
+		Handlers.dprint("✅ RPC DMG: %d -> %s inst=%s" % [amount, target.name, inst_name])
 	
 	target.apply_damage(amount, instigator)
 
@@ -561,45 +564,32 @@ func rpc_apply_aoe_damage(center: Vector2, radius: float, amount: int, instigato
 				# FF фильтр с логом
 				if is_valid_unit(instigator) and instigator.owner_team != null and unit.owner_team != null and instigator.owner_team == unit.owner_team:
 					if DEBUG_COMBAT:
-						print("🛡️ AOE DMG SKIP (FF): inst=", instigator.name, "(", instigator.owner_team, ") target=", unit.name, "(", unit.owner_team, ")")
+						Handlers.dprint("🛡️ AOE DMG SKIP (FF): %s -> %s" % [instigator.name, unit.name])
 					continue
 				
 				if DEBUG_COMBAT:
 					var inst_name = instigator.name if is_valid_unit(instigator) else "null"
-					print("🌊 AOE DMG: ", amount, " at=", center, " R=", radius, " -> ", unit.name, " inst=", inst_name)
+					Handlers.dprint("🌊 AOE DMG: %d -> %s inst=%s" % [amount, unit.name, inst_name])
 				unit.apply_damage(amount, instigator)
 
 func can_see_target(target: BaseUnitServer) -> bool:
-	"""ОПТИМИЗИРОВАНО: Проверяет, может ли юнит видеть указанную цель"""
+	"""Проверяет, может ли юнит видеть указанную цель (кэш на 3 физ. кадра)."""
 	if not is_instance_valid(target):
 		return false
 	
-	# КЭШИРОВАНИЕ: Проверяем кэш видимости цели
-	var target_cache_key = "can_see_" + target.name
-	var current_frame = Engine.get_physics_frames()
+	var current_frame := Engine.get_physics_frames()
+	if target.UID == _can_see_target_uid and current_frame - _can_see_frame < 3:
+		return _can_see_result
 	
-	if has_meta(target_cache_key + "_frame"):
-		var cached_frame = get_meta(target_cache_key + "_frame")
-		# Используем кэш в течение 3 фреймов
-		if current_frame - cached_frame < 3:
-			return get_meta(target_cache_key + "_result")
-	
-	# Вычисляем видимость
-	var can_see = false
-	var is_bot = _get_bot_team_by_id(owner_id) != -1
-	
-	if is_bot:
-		# Для ботов: проверяем расстояние до цели (упрощенная система видимости)
-		var distance_squared = global_position.distance_squared_to(target.global_position)
-		can_see = distance_squared <= 160000.0  # 400^2 = 160000 (избегаем sqrt)
+	var can_see := false
+	if _get_bot_team_by_id(owner_id) != -1:
+		can_see = global_position.distance_squared_to(target.global_position) <= 160000.0
 	else:
-		# Для игроков: стандартная система видимости
 		can_see = has_vision_on.has(target)
 	
-	# Сохраняем в кэш
-	set_meta(target_cache_key + "_result", can_see)
-	set_meta(target_cache_key + "_frame", current_frame)
-	
+	_can_see_target_uid = target.UID
+	_can_see_result = can_see
+	_can_see_frame = current_frame
 	return can_see
 	
 func attack(target: BaseUnitServer) -> void:
@@ -608,7 +598,7 @@ func attack(target: BaseUnitServer) -> void:
 	# Дополнительная проверка валидности цели
 	if not is_instance_valid(target):
 		if DEBUG_COMBAT:
-			print("❌ ATTACK CANCELLED: target invalid for ", name)
+			Handlers.dprint("❌ ATTACK CANCELLED: target invalid for %s" % name)
 		_profile_function_end("attack")
 		return
 	
@@ -618,7 +608,7 @@ func attack(target: BaseUnitServer) -> void:
 		if orders.size() > 0 and orders[0].type == "attack":
 			orders.pop_front()
 		if DEBUG_COMBAT:
-			print("👁️ ATTACK BLOCKED (no vision): ", name, " -> ", target.name)
+			Handlers.dprint("👁️ ATTACK BLOCKED (no vision): %s -> %s" % [name, target.name])
 		_profile_function_end("attack")
 		return
 		
@@ -647,11 +637,11 @@ func attack(target: BaseUnitServer) -> void:
 	if Handlers.ProjectileHandler:
 		var explosion_radius = 50.0  # Радиус взрыва (можно сделать настраиваемым параметром юнита)
 		if DEBUG_COMBAT:
-			print("🚀 PROJECTILE CREATE: shooter=", name, "(", UID, ", team=", owner_team, ") target=", target.name, "(", target.UID, ", team=", target.owner_team, ") dmg=", damage, " R=", explosion_radius, " auth=", is_multiplayer_authority())
+			Handlers.dprint("🚀 PROJECTILE: %s -> %s dmg=%d" % [name, target.name, damage])
 		Handlers.ProjectileHandler.rpc("create_projectile", UID, target.UID, damage, explosion_radius)
 	else:
 		if DEBUG_COMBAT:
-			print("⚠️ PROJECTILE HANDLER MISSING: cannot fire from ", name)
+			Handlers.dprint("⚠️ PROJECTILE HANDLER MISSING: %s" % name)
 	
 	reload_timer.wait_time = reload_time  # Убеждаемся, что используется правильное время
 	reload_timer.start()
@@ -678,7 +668,7 @@ func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 	
 	if DEBUG_COMBAT:
 		var instigator_name = from.name if from and is_instance_valid(from) else "null"
-		print("💥 APPLY DAMAGE: ", name, "(", UID, ", team=", owner_team, ") <= ", amount, " from=", instigator_name, " auth=", is_multiplayer_authority(), " pre[hp=", _health, ", sh=", _shield, "]")
+		Handlers.dprint("💥 APPLY DAMAGE: %s <= %d from=%s" % [name, amount, instigator_name])
 	
 	var remaining_damage = amount
 	
@@ -706,7 +696,7 @@ func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 	rpc("sync_shield", _shield)
 	
 	if DEBUG_COMBAT:
-		print("🧮 AFTER DAMAGE: ", name, " hp=", _health, "/", max_health, " sh=", _shield, "/", max_shield)
+		Handlers.dprint("🧮 AFTER DAMAGE: %s hp=%d/%d sh=%d/%d" % [name, _health, max_health, _shield, max_shield])
 	
 	# Проверяем смерть по серверному значению
 	if _health <= 0:
@@ -729,14 +719,23 @@ func sync_shield(new_shield_value: int) -> void:
 		_shield = new_shield_value
 
 func die() -> void:
-	# Испускаем сигнал смерти для системы ботов
 	unit_died.emit(self)
 	
-	# Очищаем все ссылки на этот юнит
+	var observers: Array[BaseUnit] = []
+	for viewer in visible_by:
+		if is_instance_valid(viewer) and viewer not in observers:
+			observers.append(viewer)
+	for seen in has_vision_on:
+		if is_instance_valid(seen) and seen not in observers:
+			observers.append(seen)
+	
 	visible_by.clear()
 	has_vision_on.clear()
-	# Уведомляем всех, кто мог на нас ссылаться
-	get_tree().call_group("units", "_on_unit_died", self)
+	_enemies_in_vision.clear()
+	
+	for observer in observers:
+		if observer.has_method("_on_unit_died"):
+			observer._on_unit_died(self)
 	# Снимаем регистрацию из словаря и групп
 	if Handlers.GameHandler and Handlers.GameHandler.has_method("get"):
 		if Handlers.GameHandler.units_dict.has(UID):
@@ -746,11 +745,12 @@ func die() -> void:
 	queue_free()
 
 func _on_unit_died(dead_unit: BaseUnit) -> void:
-	# Удаляем умершего юнита из наших списков
 	if dead_unit in visible_by:
 		visible_by.erase(dead_unit)
 	if dead_unit in has_vision_on:
 		has_vision_on.erase(dead_unit)
+	if dead_unit is BaseUnitServer and dead_unit in _enemies_in_vision:
+		_enemies_in_vision.erase(dead_unit)
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РЕФАКТОРИНГА ===
 func is_valid_unit(unit) -> bool:
@@ -762,15 +762,10 @@ func update_visibility():
 	if not is_multiplayer_authority():
 		return
 	
-	# КЭШИРОВАНИЕ: Проверяем, нужно ли обновлять видимость
-	var current_frame = Engine.get_physics_frames()
-	var last_visibility_update_key = "last_visibility_update"
-	if has_meta(last_visibility_update_key):
-		var last_update = get_meta(last_visibility_update_key)
-		# Обновляем видимость только раз в 10 фреймов для экономии ресурсов
-		if current_frame - last_update < 10:
-			return
-	set_meta(last_visibility_update_key, current_frame)
+	var current_frame := Engine.get_physics_frames()
+	if current_frame - _last_visibility_update_frame < 10:
+		return
+	_last_visibility_update_frame = current_frame
 	
 	# Быстрое определение команды с кэшированием
 	var unit_team = _get_cached_team()
@@ -808,9 +803,7 @@ func _get_cached_team():
 			owner_team = player.Team
 			return owner_team
 		else:
-			# Логируем проблему только один раз
-			if not has_meta("team_resolve_error_logged"):
-				set_meta("team_resolve_error_logged", true)
+			_team_resolve_error_logged = true
 			return null
 
 func _safe_set_visibility(peer_id: int, is_visible_flag: bool) -> void:
@@ -834,13 +827,10 @@ func set_visibility_for_enemy(is_visible_flag: bool) -> void:
 	if not is_multiplayer_authority():
 		return
 	
-	# КЭШИРОВАНИЕ: Проверяем, изменилась ли видимость
-	var last_enemy_visibility_key = "last_enemy_visibility"
-	if has_meta(last_enemy_visibility_key):
-		var last_visibility = get_meta(last_enemy_visibility_key)
-		if last_visibility == is_visible_flag:
-			return  # Видимость не изменилась
-	set_meta(last_enemy_visibility_key, is_visible_flag)
+	if _last_enemy_visibility_valid and _last_enemy_visibility == is_visible_flag:
+		return
+	_last_enemy_visibility = is_visible_flag
+	_last_enemy_visibility_valid = true
 	
 	# Быстрое определение команды с кэшированием
 	var unit_team = _get_cached_team()
@@ -858,6 +848,10 @@ func set_visibility_for_enemy(is_visible_flag: bool) -> void:
 				_safe_set_visibility(player.PlayerId, is_visible_flag)
 
 ## СИСТЕМА СОСТОЯНИЙ (STATE MACHINE)
+func _set_navigation_avoidance(enabled: bool) -> void:
+	if navagent and navagent.avoidance_enabled != enabled:
+		navagent.avoidance_enabled = enabled
+
 func _unit_state_exit(state: int) -> void:
 	"""
 	Выход из состояния - очистка и завершение текущих действий
@@ -883,7 +877,7 @@ func _unit_state_enter(state: int) -> void:
 	"""
 	match state:
 		UNIT_STATES.IDLE:
-			# В состоянии ожидания запускаем поиск целей для автоатаки
+			_set_navigation_avoidance(false)
 			if auto_attack_timer and is_multiplayer_authority():
 				auto_attack_timer.start()
 			# В состоянии ожидания начинаем восстановление щита (если щит не полный)
@@ -891,19 +885,19 @@ func _unit_state_enter(state: int) -> void:
 				shield_regeneration_timer.wait_time = shield_regen_delay
 				shield_regeneration_timer.start()
 		UNIT_STATES.MOVING:
-			# В состоянии движения останавливаем поиск целей и восстановление щита
+			_set_navigation_avoidance(true)
 			if auto_attack_timer:
 				auto_attack_timer.stop()
 			if shield_regeneration_timer and is_multiplayer_authority():
 				shield_regeneration_timer.stop()
 		UNIT_STATES.ATTACKING:
-			# В состоянии атаки останавливаем поиск целей и восстановление щита
+			_set_navigation_avoidance(false)
 			if auto_attack_timer:
 				auto_attack_timer.stop()
 			if shield_regeneration_timer and is_multiplayer_authority():
 				shield_regeneration_timer.stop()
 		UNIT_STATES.AUTO_ATTACKING:
-			# В состоянии автоатаки таймер поиска работает, но восстановление щита останавливается
+			_set_navigation_avoidance(false)
 			if auto_attack_timer and is_multiplayer_authority():
 				auto_attack_timer.start()
 			if shield_regeneration_timer and is_multiplayer_authority():
@@ -938,11 +932,19 @@ func _fix_visibility_after_init() -> void:
 	if not is_multiplayer_authority():
 		return
 	
-	# Принудительно обновляем видимость, игнорируя кэш
-	if has_meta("last_visibility_update"):
-		remove_meta("last_visibility_update")
-	
+	_last_visibility_update_frame = -100
 	update_visibility()
+	_rebuild_enemies_in_vision()
+
+func _rebuild_enemies_in_vision() -> void:
+	_enemies_in_vision.clear()
+	var my_team = _get_cached_team()
+	if my_team == null:
+		return
+	for unit in has_vision_on:
+		if is_instance_valid(unit) and unit is BaseUnitServer and _is_enemy_unit_fast(unit, my_team):
+			if unit not in _enemies_in_vision:
+				_enemies_in_vision.append(unit)
 
 func _on_auto_attack_timer_timeout() -> void:
 	"""
@@ -953,83 +955,23 @@ func _on_auto_attack_timer_timeout() -> void:
 	pass
 
 func _get_visible_enemies() -> Array[BaseUnitServer]:
-	"""
-	ОПТИМИЗИРОВАНО: Возвращает список всех видимых вражеских юнитов с кэшированием
-	Использует систему видимости has_vision_on и проверяет принадлежность к команде
-	"""
+	"""Список врагов в зоне видимости (поддерживается сигналами Area2D)."""
 	_profile_function_start("_get_visible_enemies")
-	
-	# КЭШИРОВАНИЕ: Проверяем кэш врагов для снижения нагрузки
-	var current_frame = Engine.get_physics_frames()
-	var enemies_cache_key = "visible_enemies_cache"
-	var enemies_frame_key = "visible_enemies_frame"
-	
-	if has_meta(enemies_cache_key) and has_meta(enemies_frame_key):
-		var cached_frame = get_meta(enemies_frame_key)
-		# Используем кэш в течение 5 фреймов (оптимизация для FrameGroup)
-		if current_frame - cached_frame < 5:
-			_profile_function_end("_get_visible_enemies")
-			return get_meta(enemies_cache_key)
-	
-	# Пересчитываем список врагов
-	var enemies: Array[BaseUnitServer] = []
-	var my_team = _get_cached_team()
-	
-	# DEBUG: Логирование для диагностики проблем
-	if not has_meta("enemy_debug_logged"):
-		set_meta("enemy_debug_logged", true)
-		print("🐛 DEBUG: ", name, " owner_team=", owner_team, " my_team=", my_team, " has_vision_on.size()=", has_vision_on.size())
-	
-	for unit in has_vision_on:
-		if is_instance_valid(unit) and unit != self:
-			# DEBUG: Детальное логирование
-			var is_enemy = _is_enemy_unit_fast(unit, my_team)
-			if not has_meta("enemy_debug_logged"):
-				print("  - ", unit.name, " owner_team=", unit.owner_team, " is_enemy=", is_enemy)
-			
-			# ОПТИМИЗАЦИЯ: Быстрая проверка команды
-			if is_enemy:
-				enemies.append(unit)
-	
-	# Сохраняем в кэш
-	set_meta(enemies_cache_key, enemies)
-	set_meta(enemies_frame_key, current_frame)
-	
+	var i := _enemies_in_vision.size() - 1
+	while i >= 0:
+		if not is_instance_valid(_enemies_in_vision[i]):
+			_enemies_in_vision.remove_at(i)
+		i -= 1
 	_profile_function_end("_get_visible_enemies")
-	return enemies
+	return _enemies_in_vision
 
 func _is_enemy_unit_fast(unit: BaseUnitServer, my_team) -> bool:
-	"""
-	ОПТИМИЗИРОВАНО: Быстрая проверка является ли юнит врагом
-	Использует переданную команду для избежания повторных вызовов _get_cached_team()
-	"""
-	# Проверяем валидность объектов
 	if not is_valid_unit(unit):
-		return false  # Невалидные юниты не атакуем
-	
-	# DEBUG: Логирование для понимания проблемы
-	var debug_key = "enemy_check_" + unit.name
-	if not has_meta(debug_key):
-		set_meta(debug_key, true)
-		print("🔍 ENEMY CHECK: ", name, " vs ", unit.name, " my_team=", my_team, " unit.owner_team=", unit.owner_team, " owner_id=", owner_id, " unit.owner_id=", unit.owner_id)
-	
-	# СПОСОБ 1: Сравнение команд через owner_team (основной)
+		return false
 	if my_team != null and unit.owner_team != null:
-		var is_enemy = my_team != unit.owner_team
-		if not has_meta(debug_key):
-			print("  → СПОСОБ 1: owner_team сравнение = ", is_enemy)
-		return is_enemy
-	
-	# СПОСОБ 2: Сравнение через owner_id (резервный)
+		return my_team != unit.owner_team
 	if owner_id != null and unit.owner_id != null:
-		var is_enemy = owner_id != unit.owner_id
-		if not has_meta(debug_key):
-			print("  → СПОСОБ 2: owner_id сравнение = ", is_enemy)
-		return is_enemy
-	
-	# СПОСОБ 3: По умолчанию НЕ считаем вражеским (осторожная стратегия)
-	if not has_meta(debug_key):
-		print("  → СПОСОБ 3: По умолчанию НЕ враг")
+		return owner_id != unit.owner_id
 	return false
 
 func _select_best_target(enemies: Array[BaseUnitServer]) -> BaseUnitServer:

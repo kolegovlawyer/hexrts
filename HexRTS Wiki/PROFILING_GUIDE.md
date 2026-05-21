@@ -194,3 +194,41 @@ unit.log_profile_stats()
 5. **Тестируйте изменения** до и после оптимизации
 
 Помните: **оптимизация без измерения - это гадание**. Всегда измеряйте производительность до и после изменений!
+
+## 🌐 Фризы при запуске с другого компьютера (Remote Debug)
+
+Встроенный Profiler в редакторе плохо ловит спайки, когда клиент гоняется на второй машине. Используйте этот чеклист.
+
+### Шаг 1. Overlay CPU vs FPS (autoload `PerfOverlay`)
+
+В правом верхнем углу: FPS, Process ms, Physics ms.
+
+- **FPS падает, Process/Physics низкие** → сеть, рендер или **Remote Debugger** (не логика юнитов).
+- **Process/Physics растут** → узкое место в GDScript/физике.
+
+### Шаг 2. Отключить print
+
+`Handlers.DEBUG_LOG_ENABLED = false` в `handlers.gd`. Горячие пути через `Handlers.dprint()` (как `print`, до 12 аргументов).
+
+Для проверки: один прогон с `DEBUG_LOG_ENABLED = true` локально, один с `false` на удалённом клиенте. Если фризы исчезли — виноват поток print в Remote Debug.
+
+### Шаг 3. Network Profiler
+
+`Debug → Network Profiler`. 2 клиента, 30–50 юнитов. Трафик **> 50–100 KB/s** → избыточная репликация позиций.
+
+Тест: в `base_unit.tscn` временно `replication_mode = 0` для `position`. Фризы ушли — подтверждение (юниты будут дёргаться — нормально для теста).
+
+Сейчас: `replication_interval = 0.05` (20 Hz) на `MultiplayerSynchronizer`.
+
+### Шаг 4. Physics 2D Monitors
+
+`Debug → Monitors → Physics 2D → Active Objects`. **> 1000** пар → проверьте `VisibilityArea` (радиус 400, на клиенте `monitoring = false`).
+
+### Шаг 5. Remote Debug off
+
+`Project → Project Settings → Network → Debug → Remote → Enabled = false`  
+или экспортированный билд без редактора. Самая частая причина «лагает только на втором ПК».
+
+### Шаг 6. Profile Frame (F11)
+
+На графике Frame Time кликайте **отдельные пики**, не усреднённый CPU Usage.

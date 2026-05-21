@@ -47,7 +47,7 @@ func _ready() -> void:
 	add_to_group("bots")
 	add_to_group("ai_players")
 	
-	print("🤖 BOT: Инициализация бота ", bot_name, " (ID: ", bot_id, ", команда: ", bot_team, ")")
+	Handlers.dprint("🤖 BOT: Инициализация бота ", bot_name, " (ID: ", bot_id, ", команда: ", bot_team, ")")
 	
 	# Настройка таймеров
 	_setup_timers()
@@ -65,15 +65,15 @@ func initialize_bot(id: int, team: GameTypes.Teams, name: String) -> void:
 	bot_id = id
 	bot_team = team
 	bot_name = name
-	
-	print("🎯 BOT: Серверный бот ", bot_name, " настроен:")
-	print("  - bot_id: ", bot_id)
-	print("  - bot_team: ", team, " (", int(team), ")")
-	print("  - is_multiplayer_authority(): ", is_multiplayer_authority())
+	 
+	Handlers.dprint("🎯 BOT: Серверный бот ", bot_name, " настроен:")
+	Handlers.dprint("  - bot_id: ", bot_id)
+	Handlers.dprint("  - bot_team: ", team, " (", int(team), ")")
+	Handlers.dprint("  - is_multiplayer_authority(): ", is_multiplayer_authority())
 	
 	# Серверный бот должен работать только на сервере
 	if not is_multiplayer_authority():
-		print("❌ BOT ERROR: Попытка создать бота не на сервере!")
+		Handlers.dprint("❌ BOT ERROR: Попытка создать бота не на сервере!")
 		queue_free()
 		return
 
@@ -108,26 +108,26 @@ func _initialize_strategy() -> void:
 	"""
 	Инициализирует стратегию бота после полной загрузки игры
 	"""
-	print("🎯 BOT DEBUG: Инициализация стратегии для бота ", bot_name, " (ID: ", bot_id, ")")
+	Handlers.dprint("🎯 BOT DEBUG: Инициализация стратегии для бота ", bot_name, " (ID: ", bot_id, ")")
 	
 	await get_tree().process_frame  # Ждем один кадр для инициализации всех систем
 	
-	print("🔍 BOT DEBUG: Поиск FOB после ожидания...")
+	Handlers.dprint("🔍 BOT DEBUG: Поиск FOB после ожидания...")
 	
 	# Ищем стартовый FOB бота
 	var bot_fob = _find_bot_fob()
 	if bot_fob:
-		print("✅ BOT: Найден FOB бота в позиции ", bot_fob.global_position)
+		Handlers.dprint("✅ BOT: Найден FOB бота в позиции ", bot_fob.global_position)
 		
 		# Спавним первый командный юнит как только есть очки
-		print("🚀 BOT DEBUG: Запускаем _attempt_initial_spawn")
+		Handlers.dprint("🚀 BOT DEBUG: Запускаем _attempt_initial_spawn")
 		call_deferred("_attempt_initial_spawn")
 	else:
-		print("❌ BOT: FOB бота не найден!")
-		print("  - Доступные FOB:")
+		Handlers.dprint("❌ BOT: FOB бота не найден!")
+		Handlers.dprint("  - Доступные FOB:")
 		var all_fobs = get_tree().get_nodes_in_group("fobs")
 		for fob in all_fobs:
-			print("    - FOB owner_id: ", fob.owner_id, " team: ", fob.team, " position: ", fob.global_position)
+			Handlers.dprint("    - FOB owner_id: ", fob.owner_id, " team: ", fob.team, " position: ", fob.global_position)
 
 ### СТРАТЕГИЧЕСКОЕ ПЛАНИРОВАНИЕ ###
 
@@ -138,7 +138,7 @@ func _make_strategic_decisions() -> void:
 	if not is_multiplayer_authority():
 		return
 	
-	print("🧠 BOT: Принятие стратегических решений для бота ", bot_name)
+	Handlers.dprint("🧠 BOT: Принятие стратегических решений для бота ", bot_name)
 	
 	# Обновляем информацию о состоянии
 	_update_bot_state()
@@ -146,25 +146,25 @@ func _make_strategic_decisions() -> void:
 	# Определяем текущую стратегию
 	_evaluate_strategy()
 	
-	print("  - Текущая стратегия: ", strategy_mode)
-	print("  - Юнитов всего: ", bot_units.size())
-	print("  - Командных юнитов: ", command_units.size())
+	Handlers.dprint("  - Текущая стратегия: ", strategy_mode)
+	Handlers.dprint("  - Юнитов всего: ", bot_units.size())
+	Handlers.dprint("  - Командных юнитов: ", command_units.size())
 	
 	# ОТЛАДКА: Показываем состояние юнитов бота
 	for unit in bot_units:
 		if is_instance_valid(unit):
-			print("    * Юнит ", unit.name, " состояние: ", BaseUnit.UNIT_STATES.keys()[unit.unit_state], " приказов: ", unit.orders.size())
+			Handlers.dprint("    * Юнит ", unit.name, " состояние: ", BaseUnit.UNIT_STATES.keys()[unit.unit_state], " приказов: ", unit.orders.size())
 	
 	# Выполняем действия в зависимости от стратегии
 	match strategy_mode:
 		"expand":
-			print("  - Выполняем стратегию расширения")
+			Handlers.dprint("  - Выполняем стратегию расширения")
 			_execute_expansion_strategy()
 		"defend":
-			print("  - Выполняем стратегию обороны")
+			Handlers.dprint("  - Выполняем стратегию обороны")
 			_execute_defense_strategy()
 		"attack":
-			print("  - Выполняем стратегию атаки")
+			Handlers.dprint("  - Выполняем стратегию атаки")
 			_execute_attack_strategy()
 	
 	# Проверяем аварийные ситуации
@@ -218,7 +218,7 @@ func _evaluate_strategy() -> void:
 	
 	# Отладочная информация (только при смене стратегии)
 	if strategy_mode != "expand":  # Чтобы не спамить в логи
-		print("🧠 BOT: Стратегия изменена на ", strategy_mode, " (угроза: ", enemy_threat_level, ", контроль: ", hex_control_ratio, ")")
+		Handlers.dprint("🧠 BOT: Стратегия изменена на ", strategy_mode, " (угроза: ", enemy_threat_level, ", контроль: ", hex_control_ratio, ")")
 
 ### ВЫПОЛНЕНИЕ СТРАТЕГИЙ ###
 
@@ -232,7 +232,7 @@ func _execute_expansion_strategy() -> void:
 		if _is_unit_idle(command_unit):
 			idle_command_units.append(command_unit)
 	
-	print("📋 BOT: Свободных командных юнитов: ", idle_command_units.size())
+	Handlers.dprint("📋 BOT: Свободных командных юнитов: ", idle_command_units.size())
 	
 	# Назначаем уникальные гексы каждому юниту
 	var assigned_hexes: Array[Vector2i] = []
@@ -243,13 +243,13 @@ func _execute_expansion_strategy() -> void:
 		var nearest_hex = _find_nearest_available_hex_for_unit(command_unit, assigned_hexes)
 		if nearest_hex != Vector2i.MAX:
 			assigned_hexes.append(nearest_hex)  # Резервируем гекс
-			print("🎯 BOT: ", command_unit.name, " → уникальный гекс ", nearest_hex)
+			Handlers.dprint("🎯 BOT: ", command_unit.name, " → уникальный гекс ", nearest_hex)
 			_order_hex_capture(command_unit, nearest_hex)
 			assigned_command_units += 1
 		else:
-			print("🚫 BOT: Для ", command_unit.name, " не найдены свободные гексы")
+			Handlers.dprint("🚫 BOT: Для ", command_unit.name, " не найдены свободные гексы")
 	
-	print("📊 BOT КОМАНДНЫЕ: ", assigned_command_units, "/", idle_command_units.size(), " получили задания")
+	Handlers.dprint("📊 BOT КОМАНДНЫЕ: ", assigned_command_units, "/", idle_command_units.size(), " получили задания")
 	
 	# Отправляем обычные юниты защищать командные или базу
 	_assign_defense_tasks_to_base_units()
@@ -293,16 +293,16 @@ func _check_spawn_opportunity() -> void:
 			stuck_units += 1
 	
 	if stuck_units > 0:
-		print("⏸️ BOT: Отменяем спавн - есть ", stuck_units, " застрявших юнитов")
+		Handlers.dprint("⏸️ BOT: Отменяем спавн - есть ", stuck_units, " застрявших юнитов")
 		return
 	
 	# Умная отладка только каждые 10 секунд
 	var current_time = Time.get_unix_time_from_system()
 	if not has_meta("last_spawn_check_log") or (current_time - get_meta("last_spawn_check_log")) > 10:
 		set_meta("last_spawn_check_log", current_time)
-		print("⏰ BOT: Проверка возможности спавна для бота ", bot_name)
-		print("  - Текущих юнитов: ", bot_units.size())
-		print("  - Командных юнитов: ", command_units.size())
+		Handlers.dprint("⏰ BOT: Проверка возможности спавна для бота ", bot_name)
+		Handlers.dprint("  - Текущих юнитов: ", bot_units.size())
+		Handlers.dprint("  - Командных юнитов: ", command_units.size())
 	
 	# Получаем текущие очки найма бота
 	var current_points = _get_bot_recruitment_points()
@@ -314,31 +314,31 @@ func _check_spawn_opportunity() -> void:
 	var unit_type = _decide_unit_to_spawn()
 	
 	if unit_type:
-		print("🎯 BOT: ", bot_name, " решил заспавнить ", unit_type, " (очки: ", current_points, ")")
+		Handlers.dprint("🎯 BOT: ", bot_name, " решил заспавнить ", unit_type, " (очки: ", current_points, ")")
 		_attempt_spawn_unit(unit_type)
 
 func _attempt_initial_spawn() -> void:
 	"""
 	Пытается заспавнить первый командный юнит
 	"""
-	print("🚀 BOT DEBUG: Начинаем попытки начального спавна для бота ", bot_name)
+	Handlers.dprint("🚀 BOT DEBUG: Начинаем попытки начального спавна для бота ", bot_name)
 	
 	var attempts = 0
 	while attempts < 10:  # Максимум 10 попыток с интервалом
 		await get_tree().create_timer(1.0).timeout
 		attempts += 1
 		
-		print("🔄 BOT DEBUG: Попытка спавна #", attempts, " для бота ", bot_name)
+		Handlers.dprint("🔄 BOT DEBUG: Попытка спавна #", attempts, " для бота ", bot_name)
 		var current_points = _get_bot_recruitment_points()
 		if current_points >= 10:
-			print("💰 BOT: Достаточно очков (", current_points, ") для первого спавна")
+			Handlers.dprint("💰 BOT: Достаточно очков (", current_points, ") для первого спавна")
 			_attempt_spawn_unit("command_unit")
 			break
 		else:
-			print("⏰ BOT: Ожидание очков для спавна... (", current_points, "/10), попытка ", attempts)
+			Handlers.dprint("⏰ BOT: Ожидание очков для спавна... (", current_points, "/10), попытка ", attempts)
 	
 	if attempts >= 10:
-		print("❌ BOT DEBUG: Не удалось заспавнить первый юнит за 10 попыток")
+		Handlers.dprint("❌ BOT DEBUG: Не удалось заспавнить первый юнит за 10 попыток")
 
 func _decide_unit_to_spawn() -> String:
 	"""
@@ -360,32 +360,32 @@ func _attempt_spawn_unit(unit_type: String) -> void:
 	"""
 	Пытается заспавнить юнит через FOB
 	"""
-	print("🏭 BOT DEBUG: Попытка спавна ", unit_type, " для бота ", bot_name, " (ID: ", bot_id, ")")
+	Handlers.dprint("🏭 BOT DEBUG: Попытка спавна ", unit_type, " для бота ", bot_name, " (ID: ", bot_id, ")")
 	
 	var bot_fob = _find_bot_fob()
 	if not bot_fob:
-		print("❌ BOT: FOB не найден для спавна")
-		print("  - Доступные FOB: ")
+		Handlers.dprint("❌ BOT: FOB не найден для спавна")
+		Handlers.dprint("  - Доступные FOB: ")
 		var all_fobs = get_tree().get_nodes_in_group("fobs")
 		for fob in all_fobs:
-			print("    - FOB owner_id: ", fob.owner_id, " position: ", fob.global_position)
+			Handlers.dprint("    - FOB owner_id: ", fob.owner_id, " position: ", fob.global_position)
 		return
 	
-	print("✅ BOT DEBUG: FOB найден, owner_id: ", bot_fob.owner_id)
+	Handlers.dprint("✅ BOT DEBUG: FOB найден, owner_id: ", bot_fob.owner_id)
 	
 	# Проверяем валидность спавна через GameManager
 	if not Handlers.GameHandler:
-		print("❌ BOT DEBUG: GameHandler не найден для валидации спавна")
+		Handlers.dprint("❌ BOT DEBUG: GameHandler не найден для валидации спавна")
 		return
 		
-	print("🔍 BOT DEBUG: Вызываем validate_unit_spawn для bot_id: ", bot_id)
+	Handlers.dprint("🔍 BOT DEBUG: Вызываем validate_unit_spawn для bot_id: ", bot_id)
 	if Handlers.GameHandler.validate_unit_spawn(bot_id, 10):
 		# Добавляем заказ в очередь FOB
-		print("✅ BOT DEBUG: Валидация прошла, добавляем заказ в FOB")
+		Handlers.dprint("✅ BOT DEBUG: Валидация прошла, добавляем заказ в FOB")
 		bot_fob.add_spawn_order(unit_type, 10, bot_id)
-		print("✅ BOT: Заказан спавн ", unit_type, " для бота ", bot_name)
+		Handlers.dprint("✅ BOT: Заказан спавн ", unit_type, " для бота ", bot_name)
 	else:
-		print("❌ BOT: Спавн не прошел валидацию для bot_id: ", bot_id)
+		Handlers.dprint("❌ BOT: Спавн не прошел валидацию для bot_id: ", bot_id)
 
 ### ТАКТИЧЕСКОЕ УПРАВЛЕНИЕ ###
 
@@ -412,9 +412,9 @@ func _on_attack_started(attacker: BaseUnit, target: BaseUnit) -> void:
 	if attacker and target:
 		# Проверяем участвует ли бот в этой атаке
 		if attacker.owner_id == bot_id:
-			print("⚔️ BOT: Наш юнит ", attacker.name, " атакует ", target.name)
+			Handlers.dprint("⚔️ BOT: Наш юнит ", attacker.name, " атакует ", target.name)
 		elif target.owner_id == bot_id:
-			print("🛡️ BOT: Наш юнит ", target.name, " подвергается атаке от ", attacker.name)
+			Handlers.dprint("🛡️ BOT: Наш юнит ", target.name, " подвергается атаке от ", attacker.name)
 
 func _on_unit_died(dead_unit: BaseUnit) -> void:
 	"""
@@ -429,15 +429,15 @@ func _on_unit_died(dead_unit: BaseUnit) -> void:
 			bot_units.erase(dead_unit)
 		if dead_unit in command_units:
 			command_units.erase(dead_unit)
-		print("💀 BOT: Потерян юнит ", dead_unit.name, " (осталось юнитов: ", bot_units.size(), ")")
+		Handlers.dprint("💀 BOT: Потерян юнит ", dead_unit.name, " (осталось юнитов: ", bot_units.size(), ")")
 		
 		# Если потеряли командный юнит - меняем стратегию на оборонительную
 		if dead_unit.is_command_unit() and command_units.size() == 0:
 			strategy_mode = "defend"
-			print("🚨 BOT: Потерян последний командный юнит! Переход к обороне.")
+			Handlers.dprint("🚨 BOT: Потерян последний командный юнит! Переход к обороне.")
 	else:
 		# Вражеский юнит уничтожен - хорошие новости
-		print("✅ BOT: Уничтожен вражеский юнит ", dead_unit.name)
+		Handlers.dprint("✅ BOT: Уничтожен вражеский юнит ", dead_unit.name)
 
 func _plan_command_unit_retreat(command_unit: BaseUnit, attacker: BaseUnit) -> void:
 	"""
@@ -447,9 +447,9 @@ func _plan_command_unit_retreat(command_unit: BaseUnit, attacker: BaseUnit) -> v
 	if safe_position != Vector2.ZERO:
 		# Отдаем приказ на отступление
 		command_unit.rpc_id(1, "add_order", safe_position, true)
-		print("🏃 BOT: Командный юнит отступает в безопасную зону")
+		Handlers.dprint("🏃 BOT: Командный юнит отступает в безопасную зону")
 	else:
-		print("⚠️ BOT: Безопасная зона для отступления не найдена")
+		Handlers.dprint("⚠️ BOT: Безопасная зона для отступления не найдена")
 
 func _call_emergency_reinforcements(victim: BaseUnit, attacker: BaseUnit) -> void:
 	"""
@@ -485,7 +485,7 @@ func _call_emergency_reinforcements(victim: BaseUnit, attacker: BaseUnit) -> voi
 	# Логируем только если отправлены подкрепления
 	if reinforcements_sent > 0:
 		var unit_type = "CommandUnit" if victim.is_command_unit() else "юнит"
-		print("🆘 BOT: ", unit_type, " под атакой! Отправлено ", reinforcements_sent, " свободных подкреплений")
+		Handlers.dprint("🆘 BOT: ", unit_type, " под атакой! Отправлено ", reinforcements_sent, " свободных подкреплений")
 
 ### ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ###
 
@@ -506,14 +506,14 @@ func _get_bot_recruitment_points() -> float:
 	if not Handlers.GameHandler:
 		if not has_meta("no_gamehandler_logged"):
 			set_meta("no_gamehandler_logged", true)
-			print("❌ BOT DEBUG: GameHandler не найден")
+			Handlers.dprint("❌ BOT DEBUG: GameHandler не найден")
 		return 0.0
 	
 	if not Handlers.GameHandler.player_points.has(bot_id):
 		if not has_meta("no_points_logged"):
 			set_meta("no_points_logged", true)
-			print("❌ BOT DEBUG: bot_id ", bot_id, " не найден в player_points")
-			print("  - Доступные player_points keys: ", Handlers.GameHandler.player_points.keys())
+			Handlers.dprint("❌ BOT DEBUG: bot_id ", bot_id, " не найден в player_points")
+			Handlers.dprint("  - Доступные player_points keys: ", Handlers.GameHandler.player_points.keys())
 		return 0.0
 	
 	var points = Handlers.GameHandler.player_points[bot_id]["recruitment_points"]
@@ -638,9 +638,9 @@ func _find_nearest_available_hex_for_unit(unit: BaseUnit, assigned_hexes: Array[
 				nearest_hex = hex_pos
 	
 	if nearest_hex != Vector2i.MAX:
-		print("📍 BOT: Для ", unit.name, " ближайший СВОБОДНЫЙ гекс ", nearest_hex, " (расстояние: ", int(min_distance), ")")
+		Handlers.dprint("📍 BOT: Для ", unit.name, " ближайший СВОБОДНЫЙ гекс ", nearest_hex, " (расстояние: ", int(min_distance), ")")
 	else:
-		print("🚫 BOT: Для ", unit.name, " не найдено свободных гексов (назначено: ", assigned_hexes.size(), ")")
+		Handlers.dprint("🚫 BOT: Для ", unit.name, " не найдено свободных гексов (назначено: ", assigned_hexes.size(), ")")
 	
 	return nearest_hex
 
@@ -733,7 +733,7 @@ func _manage_free_units() -> void:
 	
 	# Логируем результат
 	if assigned_count > 0:
-		print("🗺️ BOT: ", assigned_count, " свободных юнитов отправлены на патруль территории")
+		Handlers.dprint("🗺️ BOT: ", assigned_count, " свободных юнитов отправлены на патруль территории")
 
 func _order_unit_move(unit: BaseUnit, world_position: Vector2) -> void:
 	"""
@@ -791,7 +791,7 @@ func _order_hex_capture(unit: BaseUnit, hex_position: Vector2i) -> void:
 	Принимает любой BaseUnit (CommandUnit или обычный юнит)
 	"""
 	if not Handlers.GameHandler or not Handlers.GameHandler.overlay_map:
-		print("❌ BOT: GameHandler или overlay_map не найден")
+		Handlers.dprint("❌ BOT: GameHandler или overlay_map не найден")
 		return
 	
 	# Конвертируем координаты гекса в мировые координаты
@@ -801,16 +801,16 @@ func _order_hex_capture(unit: BaseUnit, hex_position: Vector2i) -> void:
 	# УМНАЯ ПРОВЕРКА: Не отправляем приказ если юнит уже очень близко к гексу
 	var distance_to_hex = unit.global_position.distance_to(world_position)
 	if distance_to_hex < 40.0:  # Если юнит уже на гексе
-		print("🚫 BOT: ", unit.name, " уже на гексе ", hex_position, " (расстояние: ", int(distance_to_hex), ")")
+		Handlers.dprint("🚫 BOT: ", unit.name, " уже на гексе ", hex_position, " (расстояние: ", int(distance_to_hex), ")")
 		return
 	
 	# Отладка: текущее состояние юнита
-	print("🔍 BOT DEBUG: ", unit.name, " ПЕРЕД приказом:")
-	print("  - Позиция: ", unit.global_position)
-	print("  - Состояние: ", unit.unit_state)
-	print("  - Приказов в очереди: ", unit.orders.size())
-	print("  - Гекс: ", hex_position, " → мировые: ", world_position)
-	print("  - Расстояние: ", int(distance_to_hex))
+	Handlers.dprint("🔍 BOT DEBUG: ", unit.name, " ПЕРЕД приказом:")
+	Handlers.dprint("  - Позиция: ", unit.global_position)
+	Handlers.dprint("  - Состояние: ", unit.unit_state)
+	Handlers.dprint("  - Приказов в очереди: ", unit.orders.size())
+	Handlers.dprint("  - Гекс: ", hex_position, " → мировые: ", world_position)
+	Handlers.dprint("  - Расстояние: ", int(distance_to_hex))
 	
 	# ИСПРАВЛЕНИЕ: Бот на сервере - вызываем функцию напрямую
 	if is_multiplayer_authority():
@@ -819,7 +819,7 @@ func _order_hex_capture(unit: BaseUnit, hex_position: Vector2i) -> void:
 		# Если бот на клиенте (не используется сейчас)
 		unit.rpc_id(1, "add_order", world_position, true)
 	
-	print("🎯 BOT: ", unit.name, " → гекс ", hex_position, " (расстояние: ", int(distance_to_hex), ")")
+	Handlers.dprint("🎯 BOT: ", unit.name, " → гекс ", hex_position, " (расстояние: ", int(distance_to_hex), ")")
 	
 	# Отладка: состояние юнита ПОСЛЕ приказа
 	call_deferred("_debug_unit_state_after_order", unit)
@@ -830,11 +830,11 @@ func _debug_unit_state_after_order(unit: BaseUnit) -> void:
 	"""
 	# Проверяем что юнит не застрял - это главное
 	if unit.unit_state == BaseUnit.UNIT_STATES.IDLE and unit.orders.size() > 0:
-		print("⚠️ BOT WARNING: Юнит ", unit.name, " застрял в IDLE с приказами!")
-		print("  - Состояние: ", unit.unit_state)
-		print("  - Приказов в очереди: ", unit.orders.size())
+		Handlers.dprint("⚠️ BOT WARNING: Юнит ", unit.name, " застрял в IDLE с приказами!")
+		Handlers.dprint("  - Состояние: ", unit.unit_state)
+		Handlers.dprint("  - Приказов в очереди: ", unit.orders.size())
 		if unit.orders.size() > 0:
-			print("  - Первый приказ: ", unit.orders[0])
+			Handlers.dprint("  - Первый приказ: ", unit.orders[0])
 
 ### ФУНКЦИИ ОЦЕНКИ СИТУАЦИИ ###
 
@@ -935,7 +935,7 @@ func _call_reinforcements_to_hex(hex_position: Vector2i) -> void:
 	if available_units.size() > 0:
 		var reinforcement = available_units[0]
 		_order_hex_capture(reinforcement, hex_position)
-		print("🚁 BOT: Отправлено подкрепление к гексу ", hex_position)
+		Handlers.dprint("🚁 BOT: Отправлено подкрепление к гексу ", hex_position)
 
 func _coordinate_group_attack(units: Array[BaseUnit], target_hex: Vector2i) -> void:
 	"""
@@ -943,7 +943,7 @@ func _coordinate_group_attack(units: Array[BaseUnit], target_hex: Vector2i) -> v
 	"""
 	for unit in units:
 		_order_hex_capture(unit, target_hex)
-	print("⚔️ BOT: Координирована групповая атака на гекс ", target_hex, " силами ", units.size(), " юнитов")
+	Handlers.dprint("⚔️ BOT: Координирована групповая атака на гекс ", target_hex, " силами ", units.size(), " юнитов")
 
 func _handle_emergency_situations() -> void:
 	"""
@@ -953,7 +953,7 @@ func _handle_emergency_situations() -> void:
 	for command_unit in command_units:
 		var nearby_defenders = _find_nearby_friendly_units(command_unit.global_position, 150.0)
 		if nearby_defenders.size() < 2:  # Менее 2 защитников включая сам командный юнит
-			print("🚨 BOT: Командный юнит нуждается в защите!")
+			Handlers.dprint("🚨 BOT: Командный юнит нуждается в защите!")
 			_call_reinforcements_to_position(command_unit.global_position)
 
 func _call_reinforcements_to_position(position: Vector2) -> void:
@@ -969,10 +969,10 @@ func _call_reinforcements_to_position(position: Vector2) -> void:
 			reinforcement.add_order(position, true)
 		else:
 			reinforcement.rpc_id(1, "add_order", position, true)
-		print("🚁 BOT: Отправлено подкрепление к позиции ", position)
+		Handlers.dprint("🚁 BOT: Отправлено подкрепление к позиции ", position)
 
 func _exit_tree() -> void:
 	"""
 	Очистка при удалении бота
 	"""
-	print("👋 BOT: Бот ", bot_name, " завершает работу") 
+	Handlers.dprint("👋 BOT: Бот ", bot_name, " завершает работу") 

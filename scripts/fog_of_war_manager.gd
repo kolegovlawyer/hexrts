@@ -219,9 +219,10 @@ func _update_shader_data() -> void:
 	# ОТЛАДКА: Печатаем координаты камеры (только когда они изменились)
 	if not has_meta("last_camera_pos") or get_meta("last_camera_pos") != camera.global_position:
 		set_meta("last_camera_pos", camera.global_position)
-		print("🔍 FOG DEBUG: Camera pos=", camera.global_position, " zoom=", camera.zoom.x, " viewport=", _current_viewport_size)
+		#print("🔍 FOG DEBUG: Camera pos=", camera.global_position, " zoom=", camera.zoom.x, " viewport=", _current_viewport_size)
 		if _active_unit_count > 0:
-			print("🔍 FOG DEBUG: First unit VIEWPORT pos=", Vector2(_unit_positions[0], _unit_positions[1]), " scaled radius=", _unit_radii[0])
+			pass
+			#print("🔍 FOG DEBUG: First unit VIEWPORT pos=", Vector2(_unit_positions[0], _unit_positions[1]), " scaled radius=", _unit_radii[0])
 
 func _update_shader_settings() -> void:
 	"""Обновляет настройки внешнего вида шейдера"""

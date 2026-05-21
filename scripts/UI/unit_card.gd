@@ -31,7 +31,7 @@ func activate_card():
 	var spawn_cost = 10  # Базовая стоимость спавна
 	
 	if current_points < spawn_cost:
-		print("❌ UI: Недостаточно очков для спавна! (", current_points, "/", spawn_cost, ")")
+		#print("❌ UI: Недостаточно очков для спавна! (", current_points, "/", spawn_cost, ")")
 		Handlers.UIHandler.show_insufficient_points_message()
 		return
 	

@@ -1,0 +1,13 @@
+Недавно был проведен рефакторинг кода, изучи @README.md для понимания раннее внесенных изменений. В ходе этих работ была разделена логика серверной части и клиентской.
+В текущий момент, @command_unit.gd не захватывает сектора вопреки своему назначению, а все юниты не атакуют друга друга, полностью игнорируя. Логика обработки событий атаки юнитов находится в @base_unit_server.gd , при его открытии отображается в дебагере редактора:
+[Ignore]Line 199 (SHADOWED_VARIABLE_BASE_CLASS):The local variable "current_order" is shadowing an already-declared variable at line 23 in the base class "BaseUnit".
+[Ignore]Line 219 (SHADOWED_VARIABLE_BASE_CLASS):The local function parameter "current_order" is shadowing an already-declared variable at line 23 in the base class "BaseUnit".
+[Ignore]Line 255 (SHADOWED_VARIABLE_BASE_CLASS):The local function parameter "current_order" is shadowing an already-declared variable at line 23 in the base class "BaseUnit".
+[Ignore]Line 310 (SHADOWED_VARIABLE_BASE_CLASS):The local variable "current_order" is shadowing an already-declared variable at line 23 in the base class "BaseUnit".
+[Ignore]Line 328 (SHADOWED_VARIABLE_BASE_CLASS):The local variable "is_visible" is shadowing an already-declared method in the base class "CanvasItem".
+[Ignore]Line 332 (SHADOWED_VARIABLE_BASE_CLASS):The local function parameter "current_order" is shadowing an already-declared variable at line 23 in the base class "BaseUnit".
+[Ignore]Line 367 (SHADOWED_VARIABLE_BASE_CLASS):The local function parameter "current_order" is shadowing an already-declared variable at line 23 in the base class "BaseUnit".
+[Ignore]Line 677 (SHADOWED_VARIABLE_BASE_CLASS):The local function parameter "visible" is shadowing an already-declared property in the base class "CanvasItem".
+[Ignore]Line 693 (SHADOWED_VARIABLE_BASE_CLASS):The local function parameter "is_visible" is shadowing an already-declared method in the base class "CanvasItem".
+[Ignore]Line 802 (UNUSED_VARIABLE):The local variable "is_bot" is declared but never used in the block. If this is intended, prefix it with an underscore: "_is_bot".
+

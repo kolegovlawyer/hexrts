@@ -1,9 +1,7 @@
-extends BaseUnit
-class_name CommandUnit
+class_name CommandUnitServer extends BaseUnitServer
 
-# TODO: Phase 2 - Заменить временное увеличение спрайта (1.25x) на специальный визуальный индикатор
-# Временное решение: спрайт командного юнита увеличен в 1.25 раза в command_unit.tscn
-# для визуального отличия от обычных юнитов
+### СЕРВЕРНАЯ ЛОГИКА КОМАНДНОГО ЮНИТА
+# Наследуется от BaseUnitServer и добавляет логику захвата гексов
 
 # Параметры захвата гексов
 const CAPTURE_TIME: float = 5.0  # Время захвата гекса в секундах
@@ -32,9 +30,15 @@ var enemy_check_timer: float = 0.0
 const ENEMY_CHECK_INTERVAL: float = 1.0  # Проверка врагов каждую секунду
 
 func _ready() -> void:
-	# Вызываем базовый _ready() если он существует
-	if get_script().get_base_script():
-		super._ready()
+	# Устанавливаем флаг командного юнита
+	is_command_unit_flag = true
+	
+	# Вызываем базовый _ready()
+	super._ready()
+	
+	# Страховка: доинициализируем команду, если по каким-то причинам еще не установлена
+	if is_multiplayer_authority() and owner_team == null:
+		_initialize_team_and_visibility()
 	
 	# КЛИЕНТСКАЯ ЛОГИКА: Управление прогресс-баром только у владельца
 	if not is_multiplayer_authority():
@@ -126,7 +130,7 @@ func start_capture() -> void:
 	# Уведомляем клиентов о начале захвата
 	rpc("client_start_capture_visual", current_hex.position)
 
-func stop_capture(reason: String = "") -> void:
+func stop_capture(_reason: String = "") -> void:
 	"""Останавливает процесс захвата гекса (серверная логика)"""
 	if not is_capturing:
 		return
@@ -141,7 +145,7 @@ func stop_capture(reason: String = "") -> void:
 		current_hex.reset_capture()
 
 @rpc("any_peer", "reliable")
-func client_start_capture_visual(hex_position: Vector2i) -> void:
+func client_start_capture_visual(_hex_position: Vector2i) -> void:
 	"""Показывает прогресс-бар захвата у клиента-владельца"""
 	# БЕЗОПАСНАЯ ПРОВЕРКА: multiplayer может быть null при уничтожении юнита
 	if is_instance_valid(multiplayer) and owner_id == multiplayer.get_unique_id() and capture_progress_bar:
@@ -167,18 +171,16 @@ func client_update_capture_progress(progress_percent: float) -> void:
 # Переопределяем обработчики изменения состояния для управления захватом
 func _unit_state_exit(state: int) -> void:
 	"""Обработка выхода из состояния"""
-	# Вызываем базовый метод если он существует
-	if get_script().get_base_script():
-		super._unit_state_exit(state)
+	# Вызываем базовый метод
+	super._unit_state_exit(state)
 	
 	# При выходе из любого состояния где был разрешен захват, ничего не делаем
 	# Захват будет проверен в новом состоянии
 
 func _unit_state_enter(state: int) -> void:
 	"""Обработка входа в состояние"""
-	# Вызываем базовый метод если он существует
-	if get_script().get_base_script():
-		super._unit_state_enter(state)
+	# Вызываем базовый метод
+	super._unit_state_enter(state)
 	
 	# При входе в состояние движения останавливаем захват
 	if state == UNIT_STATES.MOVING and is_capturing:
@@ -186,7 +188,8 @@ func _unit_state_enter(state: int) -> void:
 
 # Переопределяем _physics_process для системы захвата гексов
 func _physics_process(delta: float) -> void:
-	# super._physics_process(delta)  # Временно отключено из-за проблем с загрузкой
+	# Вызываем базовый _physics_process
+	super._physics_process(delta)
 	
 	# СЕРВЕРНАЯ ЛОГИКА
 	if is_multiplayer_authority():
@@ -284,7 +287,7 @@ func _clear_nearby_defenders() -> void:
 	var cleared_count = 0
 	
 	for unit in nearby_units:
-		if unit is BaseUnit and unit != self:
+		if unit is BaseUnitServer and unit != self:
 			var distance = global_position.distance_to(unit.global_position)
 			if distance <= 80.0 and unit.owner_id == owner_id:  # Союзные юниты в радиусе 80px
 				# Отправляем защитника на случайную позицию в стороне
@@ -323,7 +326,7 @@ func _emergency_teleport_to_ally() -> void:
 	var min_distance = 9999.0
 	
 	for unit in allied_units:
-		if unit is BaseUnit and unit != self and unit.owner_id == owner_id:
+		if unit is BaseUnitServer and unit != self and unit.owner_id == owner_id:
 			var distance = global_position.distance_to(unit.global_position)
 			if distance < min_distance and distance > 100.0:  # Не слишком близко
 				min_distance = distance
@@ -355,7 +358,7 @@ func _emergency_teleport_random() -> void:
 		set_meta("random_teleport_logged", true)
 		print("🎲 COMMAND ESCAPE: Случайная телепортация CommandUnit на ", int(teleport_distance), "px")
 
-func _on_command_unit_under_attack(attacker: BaseUnit, victim: BaseUnit) -> void:
+func _on_command_unit_under_attack(_attacker: BaseUnit, victim: BaseUnit) -> void:
 	"""
 	Обработчик атаки на CommandUnit - инициирует отступление
 	"""
@@ -413,9 +416,9 @@ func _find_own_fob() -> Node:
 	Находит собственную базу (FOB) по owner_id
 	"""
 	var all_fobs = get_tree().get_nodes_in_group("fobs")
-	for fob in all_fobs:
-		if fob.has_method("get") and fob.owner_id == owner_id:
-			return fob
+	for fob_node in all_fobs:
+		if fob_node.has_method("get") and fob_node.owner_id == owner_id:
+			return fob_node
 	return null
 
 func _calculate_enemy_center_position() -> Vector2:
@@ -439,7 +442,7 @@ func _calculate_enemy_center_position() -> Vector2:
 	
 	return center
 
-func _is_enemy_for_command_unit(unit: BaseUnit) -> bool:
+func _is_enemy_for_command_unit(unit: BaseUnitServer) -> bool:
 	"""
 	Проверяет, является ли юнит вражеским для данного CommandUnit
 	"""

@@ -45,7 +45,7 @@ script = ExtResource("3_kp86q")
 visible = true
 
 [node name="SpawnerA" parent="MainMap" groups=["team_0_fobs"] instance=ExtResource("2_ptgwm")]
-position = Vector2(-503, -2545)
+position = Vector2(-1636, -442)
 collision_layer = 3
 
 [node name="SpawnerB" parent="MainMap" groups=["team_1_fobs"] instance=ExtResource("2_ptgwm")]

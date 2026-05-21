@@ -6,7 +6,7 @@ class_name Hex extends RefCounted
 @export var team_owner: int = -1
 
 # Список командных юнитов, находящихся на гексе
-var command_units: Array[CommandUnit] = []
+var command_units: Array[BaseUnit] = []
 
 # Позиция гекса на карте (координаты тайла)
 var position: Vector2i
@@ -22,21 +22,21 @@ func _init(hex_position: Vector2i, initial_team: int = -1):
 	position = hex_position
 	team_owner = initial_team
 
-func add_command_unit(unit: CommandUnit) -> void:
+func add_command_unit(unit: BaseUnit) -> void:
 	"""Добавляет командный юнит на гекс"""
 	if unit not in command_units:
 		command_units.append(unit)
 		print("🎖️ ГЕКС: Командный юнит ", unit.name, " добавлен на гекс ", position)
 
-func remove_command_unit(unit: CommandUnit) -> void:
+func remove_command_unit(unit: BaseUnit) -> void:
 	"""Удаляет командный юнит с гекса"""
 	if unit in command_units:
 		command_units.erase(unit)
 		print("🎖️ ГЕКС: Командный юнит ", unit.name, " покинул гекс ", position)
 
-func get_command_units_by_team(team: int) -> Array[CommandUnit]:
+func get_command_units_by_team(team: int) -> Array[BaseUnit]:
 	"""Возвращает список командных юнитов определенной команды на гексе"""
-	var team_units: Array[CommandUnit] = []
+	var team_units: Array[BaseUnit] = []
 	for unit in command_units:
 		if is_instance_valid(unit) and unit.owner_team == team:
 			team_units.append(unit)

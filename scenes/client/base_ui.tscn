@@ -1,4 +1,4 @@
-[gd_scene load_steps=27 format=3 uid="uid://ba0l1pr5dv2bx"]
+[gd_scene format=3 uid="uid://ba0l1pr5dv2bx"]
 
 [ext_resource type="Script" uid="uid://4d6x1qmqxrcy" path="res://scripts/UI/base_ui.gd" id="1_euhh7"]
 [ext_resource type="Texture2D" uid="uid://bwtna2m5tej4e" path="res://assets/icons/icon-close.png" id="2_swtpc"]
@@ -78,7 +78,7 @@ border_color = Color(0.133333, 0.133333, 0.180392, 1)
 corner_radius_top_left = 15
 anti_aliasing = false
 
-[node name="BaseUI" type="Control"]
+[node name="BaseUI" type="Control" unique_id=403676261]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -88,7 +88,7 @@ grow_vertical = 2
 mouse_filter = 1
 script = ExtResource("1_euhh7")
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=947141843]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -97,71 +97,71 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/margin_top = 10
 
-[node name="MainRack" type="VBoxContainer" parent="MarginContainer"]
+[node name="MainRack" type="VBoxContainer" parent="MarginContainer" unique_id=1242998101]
 layout_mode = 2
 theme_override_constants/separation = 15
 
-[node name="WinBar" type="ProgressBar" parent="MarginContainer/MainRack"]
+[node name="WinBar" type="ProgressBar" parent="MarginContainer/MainRack" unique_id=264985199]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 10)
 layout_mode = 2
 show_percentage = false
 
-[node name="UnitPoints" type="Label" parent="MarginContainer/MainRack"]
+[node name="UnitPoints" type="Label" parent="MarginContainer/MainRack" unique_id=1211895036]
 unique_name_in_owner = true
 layout_mode = 2
 text = "20"
 horizontal_alignment = 1
 
-[node name="DebugBoard" type="HBoxContainer" parent="MarginContainer/MainRack"]
+[node name="DebugBoard" type="HBoxContainer" parent="MarginContainer/MainRack" unique_id=1801813924]
 visible = false
 layout_mode = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/MainRack/DebugBoard"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/MainRack/DebugBoard" unique_id=1374651554]
 layout_mode = 2
 
-[node name="WindowSize" type="Label" parent="MarginContainer/MainRack/DebugBoard/VBoxContainer"]
+[node name="WindowSize" type="Label" parent="MarginContainer/MainRack/DebugBoard/VBoxContainer" unique_id=395631195]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Window size:"
 
-[node name="CurrentMousePos" type="Label" parent="MarginContainer/MainRack/DebugBoard/VBoxContainer"]
+[node name="CurrentMousePos" type="Label" parent="MarginContainer/MainRack/DebugBoard/VBoxContainer" unique_id=1136858444]
 unique_name_in_owner = true
 layout_mode = 2
 text = "TEXT"
 
-[node name="Control" type="Control" parent="MarginContainer/MainRack"]
+[node name="Control" type="Control" parent="MarginContainer/MainRack" unique_id=1379903196]
 layout_mode = 2
 size_flags_vertical = 3
 mouse_filter = 1
 
-[node name="HUDBoard" type="HBoxContainer" parent="MarginContainer/MainRack"]
+[node name="HUDBoard" type="HBoxContainer" parent="MarginContainer/MainRack" unique_id=713593688]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="LeftButtonsContainer" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard"]
+[node name="LeftButtonsContainer" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard" unique_id=567096121]
 layout_mode = 2
 size_flags_horizontal = 0
 size_flags_vertical = 8
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_27yfh")
 
-[node name="StylizedPanel_1" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer"]
+[node name="StylizedPanel_1" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer" unique_id=273169777]
 z_index = 4
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_swdpp")
 
-[node name="StylizedPanel_2" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer"]
+[node name="StylizedPanel_2" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer" unique_id=1241418906]
 z_index = 4
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ycjsq")
 
-[node name="StylizedPanel_3" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer"]
+[node name="StylizedPanel_3" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer" unique_id=2114436577]
 z_index = 4
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_k0xlx")
 
-[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer"]
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer" unique_id=1666642040]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -170,14 +170,14 @@ theme_override_constants/margin_top = 32
 theme_override_constants/margin_right = 32
 theme_override_constants/margin_bottom = 16
 
-[node name="GridContainer" type="GridContainer" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer"]
+[node name="GridContainer" type="GridContainer" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer" unique_id=1742540094]
 z_index = 1
 layout_mode = 2
 theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 16
 columns = 3
 
-[node name="HomeButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer"]
+[node name="HomeButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=999765790]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -186,7 +186,7 @@ texture_normal = ExtResource("2_swtpc")
 texture_pressed = ExtResource("2_swtpc")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton"]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton" unique_id=82408664]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -197,7 +197,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton2" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer"]
+[node name="HomeButton2" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=1522776606]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -206,7 +206,7 @@ texture_normal = ExtResource("3_swdpp")
 texture_pressed = ExtResource("3_swdpp")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton2"]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton2" unique_id=1959199087]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -217,7 +217,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton3" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer"]
+[node name="HomeButton3" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=743558357]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -226,7 +226,7 @@ texture_normal = ExtResource("4_ycjsq")
 texture_pressed = ExtResource("4_ycjsq")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton3"]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton3" unique_id=1154945328]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -237,7 +237,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton4" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer"]
+[node name="HomeButton4" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=2097098467]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -246,7 +246,7 @@ texture_normal = ExtResource("5_k0xlx")
 texture_pressed = ExtResource("5_k0xlx")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton4"]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton4" unique_id=1751304040]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -257,7 +257,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton5" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer"]
+[node name="HomeButton5" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=1845159962]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -266,7 +266,7 @@ texture_normal = ExtResource("6_djfhl")
 texture_pressed = ExtResource("6_djfhl")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton5"]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton5" unique_id=1190437928]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -277,7 +277,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton6" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer"]
+[node name="HomeButton6" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=278296984]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -286,7 +286,7 @@ texture_normal = ExtResource("7_7lyqf")
 texture_pressed = ExtResource("7_7lyqf")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton6"]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton6" unique_id=1466345680]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -297,7 +297,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/MainRack/HUDBoard"]
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/MainRack/HUDBoard" unique_id=1578365429]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
@@ -306,18 +306,18 @@ theme_override_constants/margin_top = 5
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 5
 
-[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer"]
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer" unique_id=411463076]
 custom_minimum_size = Vector2(0, 120)
 layout_mode = 2
 
-[node name="UnitContainer" type="GridContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer"]
+[node name="UnitContainer" type="GridContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer" unique_id=221634220]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 columns = 7
 
-[node name="UnitPreview" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer"]
+[node name="UnitPreview" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer" unique_id=1703991031]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 4
@@ -327,61 +327,61 @@ theme_override_styles/panel = SubResource("StyleBoxEmpty_ho80l")
 script = ExtResource("8_k0xlx")
 metadata/_edit_use_anchors_ = true
 
-[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview"]
+[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview" unique_id=1729768997]
 layout_mode = 2
 
-[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack"]
+[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack" unique_id=383514501]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 3
 
-[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack/StatusBoard"]
+[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack/StatusBoard" unique_id=627070330]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("9_djfhl")
 
-[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack/StatusBoard"]
+[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack/StatusBoard" unique_id=1322412478]
 custom_minimum_size = Vector2(50, 20)
 layout_mode = 2
 
-[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack/StatusBoard/Control"]
+[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack/StatusBoard/Control" unique_id=1467379790]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 1
 alignment = 1
 
-[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack/StatusBoard/Control/BarsDeck" unique_id=1665379994]
 layout_mode = 2
 size_flags_vertical = 3
 show_percentage = false
 
-[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack/StatusBoard/Control/BarsDeck" unique_id=1287568789]
 layout_mode = 2
 size_flags_vertical = 3
 value = 20.0
 show_percentage = false
 
-[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack/StatusBoard"]
+[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack/StatusBoard" unique_id=514848777]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("10_7lyqf")
 
-[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack"]
+[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack" unique_id=771829474]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("11_qqbvp")
 stretch_mode = 2
 
-[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack"]
+[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview/MainRack" unique_id=128073100]
 layout_mode = 2
 size_flags_horizontal = 4
 text = "ШТ-21"
 horizontal_alignment = 1
 
-[node name="UnitPreview2" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer"]
+[node name="UnitPreview2" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer" unique_id=388828993]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 4
@@ -391,61 +391,61 @@ theme_override_styles/panel = SubResource("StyleBoxEmpty_ho80l")
 script = ExtResource("8_k0xlx")
 metadata/_edit_use_anchors_ = true
 
-[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2"]
+[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2" unique_id=227814849]
 layout_mode = 2
 
-[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack"]
+[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack" unique_id=853433584]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 3
 
-[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack/StatusBoard"]
+[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack/StatusBoard" unique_id=1502012029]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("9_djfhl")
 
-[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack/StatusBoard"]
+[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack/StatusBoard" unique_id=1534521342]
 custom_minimum_size = Vector2(50, 20)
 layout_mode = 2
 
-[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack/StatusBoard/Control"]
+[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack/StatusBoard/Control" unique_id=460370643]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 1
 alignment = 1
 
-[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack/StatusBoard/Control/BarsDeck" unique_id=1824116966]
 layout_mode = 2
 size_flags_vertical = 3
 show_percentage = false
 
-[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack/StatusBoard/Control/BarsDeck" unique_id=608255604]
 layout_mode = 2
 size_flags_vertical = 3
 value = 20.0
 show_percentage = false
 
-[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack/StatusBoard"]
+[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack/StatusBoard" unique_id=1994002995]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("10_7lyqf")
 
-[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack"]
+[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack" unique_id=1897467036]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("11_qqbvp")
 stretch_mode = 2
 
-[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack"]
+[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview2/MainRack" unique_id=259538525]
 layout_mode = 2
 size_flags_horizontal = 4
 text = "ШТ-21"
 horizontal_alignment = 1
 
-[node name="UnitPreview3" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer"]
+[node name="UnitPreview3" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer" unique_id=518373735]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 4
@@ -455,61 +455,61 @@ theme_override_styles/panel = SubResource("StyleBoxEmpty_ho80l")
 script = ExtResource("8_k0xlx")
 metadata/_edit_use_anchors_ = true
 
-[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3"]
+[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3" unique_id=1297036804]
 layout_mode = 2
 
-[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack"]
+[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack" unique_id=240003103]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 3
 
-[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack/StatusBoard"]
+[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack/StatusBoard" unique_id=757989740]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("9_djfhl")
 
-[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack/StatusBoard"]
+[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack/StatusBoard" unique_id=1030417919]
 custom_minimum_size = Vector2(50, 20)
 layout_mode = 2
 
-[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack/StatusBoard/Control"]
+[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack/StatusBoard/Control" unique_id=958752273]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 1
 alignment = 1
 
-[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack/StatusBoard/Control/BarsDeck" unique_id=127382152]
 layout_mode = 2
 size_flags_vertical = 3
 show_percentage = false
 
-[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack/StatusBoard/Control/BarsDeck" unique_id=1247098328]
 layout_mode = 2
 size_flags_vertical = 3
 value = 20.0
 show_percentage = false
 
-[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack/StatusBoard"]
+[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack/StatusBoard" unique_id=1201748942]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("10_7lyqf")
 
-[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack"]
+[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack" unique_id=154596000]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("11_qqbvp")
 stretch_mode = 2
 
-[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack"]
+[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview3/MainRack" unique_id=1340127056]
 layout_mode = 2
 size_flags_horizontal = 4
 text = "ШТ-21"
 horizontal_alignment = 1
 
-[node name="UnitPreview4" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer"]
+[node name="UnitPreview4" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer" unique_id=1664994478]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 4
@@ -519,61 +519,61 @@ theme_override_styles/panel = SubResource("StyleBoxEmpty_ho80l")
 script = ExtResource("8_k0xlx")
 metadata/_edit_use_anchors_ = true
 
-[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4"]
+[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4" unique_id=683434766]
 layout_mode = 2
 
-[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack"]
+[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack" unique_id=1435400588]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 3
 
-[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack/StatusBoard"]
+[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack/StatusBoard" unique_id=169843582]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("9_djfhl")
 
-[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack/StatusBoard"]
+[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack/StatusBoard" unique_id=372137806]
 custom_minimum_size = Vector2(50, 20)
 layout_mode = 2
 
-[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack/StatusBoard/Control"]
+[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack/StatusBoard/Control" unique_id=541480769]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 1
 alignment = 1
 
-[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack/StatusBoard/Control/BarsDeck" unique_id=576385015]
 layout_mode = 2
 size_flags_vertical = 3
 show_percentage = false
 
-[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack/StatusBoard/Control/BarsDeck" unique_id=1607511976]
 layout_mode = 2
 size_flags_vertical = 3
 value = 20.0
 show_percentage = false
 
-[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack/StatusBoard"]
+[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack/StatusBoard" unique_id=1144310103]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("10_7lyqf")
 
-[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack"]
+[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack" unique_id=1211451286]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("11_qqbvp")
 stretch_mode = 2
 
-[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack"]
+[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview4/MainRack" unique_id=55404583]
 layout_mode = 2
 size_flags_horizontal = 4
 text = "ШТ-21"
 horizontal_alignment = 1
 
-[node name="UnitPreview5" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer"]
+[node name="UnitPreview5" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer" unique_id=2106719250]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 4
@@ -583,61 +583,61 @@ theme_override_styles/panel = SubResource("StyleBoxEmpty_ho80l")
 script = ExtResource("8_k0xlx")
 metadata/_edit_use_anchors_ = true
 
-[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5"]
+[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5" unique_id=1052477951]
 layout_mode = 2
 
-[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack"]
+[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack" unique_id=1978901584]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 3
 
-[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack/StatusBoard"]
+[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack/StatusBoard" unique_id=1992824854]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("9_djfhl")
 
-[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack/StatusBoard"]
+[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack/StatusBoard" unique_id=1299291785]
 custom_minimum_size = Vector2(50, 20)
 layout_mode = 2
 
-[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack/StatusBoard/Control"]
+[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack/StatusBoard/Control" unique_id=561492791]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 1
 alignment = 1
 
-[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack/StatusBoard/Control/BarsDeck" unique_id=299331495]
 layout_mode = 2
 size_flags_vertical = 3
 show_percentage = false
 
-[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack/StatusBoard/Control/BarsDeck" unique_id=1890786049]
 layout_mode = 2
 size_flags_vertical = 3
 value = 20.0
 show_percentage = false
 
-[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack/StatusBoard"]
+[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack/StatusBoard" unique_id=1393191307]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("10_7lyqf")
 
-[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack"]
+[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack" unique_id=516982042]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("11_qqbvp")
 stretch_mode = 2
 
-[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack"]
+[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview5/MainRack" unique_id=450219075]
 layout_mode = 2
 size_flags_horizontal = 4
 text = "ШТ-21"
 horizontal_alignment = 1
 
-[node name="UnitPreview6" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer"]
+[node name="UnitPreview6" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer" unique_id=1500488851]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 4
@@ -647,61 +647,61 @@ theme_override_styles/panel = SubResource("StyleBoxEmpty_ho80l")
 script = ExtResource("8_k0xlx")
 metadata/_edit_use_anchors_ = true
 
-[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6"]
+[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6" unique_id=233014623]
 layout_mode = 2
 
-[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack"]
+[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack" unique_id=1217472989]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 3
 
-[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack/StatusBoard"]
+[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack/StatusBoard" unique_id=1978269345]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("9_djfhl")
 
-[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack/StatusBoard"]
+[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack/StatusBoard" unique_id=1619284234]
 custom_minimum_size = Vector2(50, 20)
 layout_mode = 2
 
-[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack/StatusBoard/Control"]
+[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack/StatusBoard/Control" unique_id=879248149]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 1
 alignment = 1
 
-[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack/StatusBoard/Control/BarsDeck" unique_id=1894618389]
 layout_mode = 2
 size_flags_vertical = 3
 show_percentage = false
 
-[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack/StatusBoard/Control/BarsDeck" unique_id=1904557781]
 layout_mode = 2
 size_flags_vertical = 3
 value = 20.0
 show_percentage = false
 
-[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack/StatusBoard"]
+[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack/StatusBoard" unique_id=1295544683]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("10_7lyqf")
 
-[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack"]
+[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack" unique_id=508138561]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("11_qqbvp")
 stretch_mode = 2
 
-[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack"]
+[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview6/MainRack" unique_id=258447812]
 layout_mode = 2
 size_flags_horizontal = 4
 text = "ШТ-21"
 horizontal_alignment = 1
 
-[node name="UnitPreview7" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer"]
+[node name="UnitPreview7" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer" unique_id=588099648]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 4
@@ -711,61 +711,61 @@ theme_override_styles/panel = SubResource("StyleBoxEmpty_ho80l")
 script = ExtResource("8_k0xlx")
 metadata/_edit_use_anchors_ = true
 
-[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7"]
+[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7" unique_id=389233468]
 layout_mode = 2
 
-[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack"]
+[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack" unique_id=1007983876]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 3
 
-[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack/StatusBoard"]
+[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack/StatusBoard" unique_id=1833012551]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("9_djfhl")
 
-[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack/StatusBoard"]
+[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack/StatusBoard" unique_id=1855802434]
 custom_minimum_size = Vector2(50, 20)
 layout_mode = 2
 
-[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack/StatusBoard/Control"]
+[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack/StatusBoard/Control" unique_id=748000267]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 1
 alignment = 1
 
-[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack/StatusBoard/Control/BarsDeck" unique_id=805023935]
 layout_mode = 2
 size_flags_vertical = 3
 show_percentage = false
 
-[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack/StatusBoard/Control/BarsDeck" unique_id=1467453369]
 layout_mode = 2
 size_flags_vertical = 3
 value = 20.0
 show_percentage = false
 
-[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack/StatusBoard"]
+[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack/StatusBoard" unique_id=82371727]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("10_7lyqf")
 
-[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack"]
+[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack" unique_id=704423173]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("11_qqbvp")
 stretch_mode = 2
 
-[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack"]
+[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview7/MainRack" unique_id=279090351]
 layout_mode = 2
 size_flags_horizontal = 4
 text = "ШТ-21"
 horizontal_alignment = 1
 
-[node name="UnitPreview8" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer"]
+[node name="UnitPreview8" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer" unique_id=1024912802]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 4
@@ -775,103 +775,103 @@ theme_override_styles/panel = SubResource("StyleBoxEmpty_ho80l")
 script = ExtResource("8_k0xlx")
 metadata/_edit_use_anchors_ = true
 
-[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8"]
+[node name="MainRack" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8" unique_id=122142707]
 layout_mode = 2
 
-[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack"]
+[node name="StatusBoard" type="HBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack" unique_id=872624726]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 3
 
-[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack/StatusBoard"]
+[node name="FireStatusIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack/StatusBoard" unique_id=877457576]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("9_djfhl")
 
-[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack/StatusBoard"]
+[node name="Control" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack/StatusBoard" unique_id=177643506]
 custom_minimum_size = Vector2(50, 20)
 layout_mode = 2
 
-[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack/StatusBoard/Control"]
+[node name="BarsDeck" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack/StatusBoard/Control" unique_id=1579476454]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 1
 alignment = 1
 
-[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="HPBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack/StatusBoard/Control/BarsDeck" unique_id=760202368]
 layout_mode = 2
 size_flags_vertical = 3
 show_percentage = false
 
-[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack/StatusBoard/Control/BarsDeck"]
+[node name="ShieldBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack/StatusBoard/Control/BarsDeck" unique_id=1422824850]
 layout_mode = 2
 size_flags_vertical = 3
 value = 20.0
 show_percentage = false
 
-[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack/StatusBoard"]
+[node name="RankIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack/StatusBoard" unique_id=1294662744]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("10_7lyqf")
 
-[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack"]
+[node name="SpriteIcon" type="TextureRect" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack" unique_id=648439308]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("11_qqbvp")
 stretch_mode = 2
 
-[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack"]
+[node name="NameLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer/UnitContainer/UnitPreview8/MainRack" unique_id=1883941321]
 layout_mode = 2
 size_flags_horizontal = 4
 text = "ШТ-21"
 horizontal_alignment = 1
 
-[node name="Control" type="Control" parent="MarginContainer/MainRack/HUDBoard"]
+[node name="Control" type="Control" parent="MarginContainer/MainRack/HUDBoard" unique_id=474009913]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 mouse_filter = 1
 
-[node name="RightButtonsContainer" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard"]
+[node name="RightButtonsContainer" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard" unique_id=92165062]
 layout_mode = 2
 size_flags_horizontal = 8
 size_flags_vertical = 8
 theme_override_styles/panel = SubResource("StyleBoxFlat_qo58m")
 
-[node name="StylizedPanel_1" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer"]
+[node name="StylizedPanel_1" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer" unique_id=1994135392]
 z_index = 4
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_syol4")
 
-[node name="StylizedPanel_2" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer"]
+[node name="StylizedPanel_2" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer" unique_id=5534080]
 z_index = 4
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_mj4vj")
 
-[node name="StylizedPanel_3" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer"]
+[node name="StylizedPanel_3" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer" unique_id=1041631093]
 z_index = 4
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ouqy7")
 
-[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer"]
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer" unique_id=290257354]
 layout_mode = 2
 theme_override_constants/margin_left = 32
 theme_override_constants/margin_top = 32
 theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 
-[node name="GridContainer" type="GridContainer" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer"]
+[node name="GridContainer" type="GridContainer" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer" unique_id=1453925282]
 z_index = 1
 layout_mode = 2
 theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 16
 columns = 3
 
-[node name="HomeButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer"]
+[node name="HomeButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=272547014]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -880,7 +880,7 @@ texture_normal = ExtResource("8_wce3n")
 texture_pressed = ExtResource("8_wce3n")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton"]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton" unique_id=2142008541]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -891,7 +891,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton2" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer"]
+[node name="HomeButton2" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=1016580245]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -900,7 +900,7 @@ texture_normal = ExtResource("8_wce3n")
 texture_pressed = ExtResource("8_wce3n")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton2"]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton2" unique_id=2112569052]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -911,7 +911,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton3" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer"]
+[node name="HomeButton3" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=849538700]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -920,7 +920,7 @@ texture_normal = ExtResource("9_swtpc")
 texture_pressed = ExtResource("9_swtpc")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton3"]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton3" unique_id=1079316972]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -931,7 +931,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton4" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer"]
+[node name="HomeButton4" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=1043006424]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -940,7 +940,7 @@ texture_normal = ExtResource("10_swdpp")
 texture_pressed = ExtResource("10_swdpp")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton4"]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton4" unique_id=103281016]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -951,7 +951,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton5" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer"]
+[node name="HomeButton5" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=1188463962]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -960,7 +960,7 @@ texture_normal = ExtResource("11_ycjsq")
 texture_pressed = ExtResource("11_ycjsq")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton5"]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton5" unique_id=1092007014]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -971,7 +971,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton6" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer"]
+[node name="HomeButton6" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=1629935696]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -980,7 +980,7 @@ texture_normal = ExtResource("12_k0xlx")
 texture_pressed = ExtResource("12_k0xlx")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton6"]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton6" unique_id=94687147]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15

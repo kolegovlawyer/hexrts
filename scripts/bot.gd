@@ -23,7 +23,7 @@ var bot_name: String
 
 # Состояние ботов
 var bot_units: Array[BaseUnit] = []  # Все юниты бота
-var command_units: Array[CommandUnit] = []  # Командные юниты бота
+var command_units: Array[BaseUnit] = []  # Командные юниты бота
 var controlled_hexes: Array[Vector2i] = []  # Контролируемые гексы
 var target_hexes: Array[Vector2i] = []  # Цели для захвата
 
@@ -99,7 +99,6 @@ func _connect_game_signals() -> void:
 	"""
 	Подключается к игровым сигналам для реактивного поведения
 	"""
-	# Подключение к системе боя (обнаружение атак)
 	var all_units = get_tree().get_nodes_in_group("units")
 	for unit in all_units:
 		if unit.has_signal("under_attack"):
@@ -183,7 +182,7 @@ func _update_bot_state() -> void:
 	for unit in all_units:
 		if unit is BaseUnit and unit.owner_id == bot_id:
 			bot_units.append(unit)
-			if unit is CommandUnit:
+			if unit.is_command_unit():
 				command_units.append(unit)
 	
 	# Обновляем контролируемые гексы
@@ -398,7 +397,7 @@ func _on_unit_under_attack(attacker: BaseUnit, victim: BaseUnit) -> void:
 		return  # Не наш юнит
 	
 	# Если это командный юнит - планируем отступление
-	if victim is CommandUnit:
+	if victim.is_command_unit():
 		_plan_command_unit_retreat(victim, attacker)
 	
 	# Вызываем подкрепления
@@ -433,14 +432,14 @@ func _on_unit_died(dead_unit: BaseUnit) -> void:
 		print("💀 BOT: Потерян юнит ", dead_unit.name, " (осталось юнитов: ", bot_units.size(), ")")
 		
 		# Если потеряли командный юнит - меняем стратегию на оборонительную
-		if dead_unit is CommandUnit and command_units.size() == 0:
+		if dead_unit.is_command_unit() and command_units.size() == 0:
 			strategy_mode = "defend"
 			print("🚨 BOT: Потерян последний командный юнит! Переход к обороне.")
 	else:
 		# Вражеский юнит уничтожен - хорошие новости
 		print("✅ BOT: Уничтожен вражеский юнит ", dead_unit.name)
 
-func _plan_command_unit_retreat(command_unit: CommandUnit, attacker: BaseUnit) -> void:
+func _plan_command_unit_retreat(command_unit: BaseUnit, attacker: BaseUnit) -> void:
 	"""
 	Планирует отступление командного юнита в безопасную зону
 	"""
@@ -468,7 +467,7 @@ func _call_emergency_reinforcements(victim: BaseUnit, attacker: BaseUnit) -> voi
 				available_reinforcements.append(unit)
 	
 	# Ограничиваем количество подкреплений
-	var max_reinforcements = 2 if victim is CommandUnit else 3
+	var max_reinforcements = 2 if victim.is_command_unit() else 3
 	var reinforcements_sent = 0
 	
 	for unit in available_reinforcements:
@@ -485,7 +484,7 @@ func _call_emergency_reinforcements(victim: BaseUnit, attacker: BaseUnit) -> voi
 	
 	# Логируем только если отправлены подкрепления
 	if reinforcements_sent > 0:
-		var unit_type = "CommandUnit" if victim is CommandUnit else "юнит"
+		var unit_type = "CommandUnit" if victim.is_command_unit() else "юнит"
 		print("🆘 BOT: ", unit_type, " под атакой! Отправлено ", reinforcements_sent, " свободных подкреплений")
 
 ### ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ###
@@ -551,7 +550,7 @@ func _get_available_base_units() -> Array[BaseUnit]:
 	
 	# Ищем свободных юнитов
 	for unit in bot_units:
-		if unit is BaseUnit and not (unit is CommandUnit):
+		if unit is BaseUnit and not unit.is_command_unit():
 			if unit not in already_assigned:
 				available_units.append(unit)
 	
@@ -571,7 +570,7 @@ func _has_enemies_in_sight(unit: BaseUnit) -> bool:
 		return false
 	
 	# Используем встроенную систему видимости юнита
-	if unit.has_vision_on.size() > 0:
+	if unit.has_method("get") and unit.get("has_vision_on") and unit.has_vision_on.size() > 0:
 		for visible_unit in unit.has_vision_on:
 			if is_instance_valid(visible_unit) and _is_enemy_unit_for_bot(visible_unit):
 				return true
@@ -905,7 +904,7 @@ func _get_available_attack_units() -> Array[BaseUnit]:
 	var available_units: Array[BaseUnit] = []
 	
 	for unit in bot_units:
-		if _is_unit_available_for_help(unit) and not (unit is CommandUnit):
+		if _is_unit_available_for_help(unit) and not unit.is_command_unit():
 			available_units.append(unit)
 	
 	return available_units

@@ -5,11 +5,11 @@ var unit : BaseUnit:
 		unit = value
 		update_visual()
 		
-@onready var sprite = get_node("%SpriteIcon")
-@onready var rank = get_node("%RankIcon")
-@onready var hp_bar = get_node("%HPBar")
-@onready var shield_bar = get_node("%ShieldBar")
-@onready var name_label = get_node("%NameLabel")
+@onready var sprite = get_node("MainRack/SpriteIcon")
+@onready var rank = get_node("MainRack/StatusBoard/RankIcon")
+@onready var hp_bar = get_node("MainRack/StatusBoard/Control/BarsDeck/HPBar")
+@onready var shield_bar = get_node("MainRack/StatusBoard/Control/BarsDeck/ShieldBar")
+@onready var name_label = get_node("MainRack/NameLabel")
 
 func _ready() -> void:
 	connect("gui_input", handle_input)

@@ -16,7 +16,10 @@ func select_fob(fob:Node):
 func clear_selection():
 	for unit in selected_units:
 		if is_instance_valid(unit):
-			unit.selected = false
+			if unit.has_method("set_selected"):
+				unit.set_selected(false)
+			else:
+				unit.selected = false
 			# Очищаем приказы у юнита при снятии выделения
 			# Это позволит юниту автоматически атаковать врагов в зоне видимости
 			if unit.has_method("rpc_id"):
@@ -33,13 +36,20 @@ func edit_unit_state(unit:Node):
 func add_selected(unit:Node):
 	if is_instance_valid(unit):
 		selected_units.append(unit)
+		if unit.has_method("set_selected"):
+			unit.set_selected(true)
+		else:
+			unit.selected = true
 		Handlers.UIHandler.input_state = 1
 
 func remove_selected(unit:Node):
 	if is_instance_valid(unit):
 		if selected_units.find(unit) != -1:
 			selected_units.remove_at(selected_units.find(unit))
-		unit.selected = false
+		if unit.has_method("set_selected"):
+			unit.set_selected(false)
+		else:
+			unit.selected = false
 
 func set_selected(unit:Node):
 	clear_selection()

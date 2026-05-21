@@ -1,6 +1,6 @@
 class_name UnitProfile extends Node
 
-@onready var name : String
+@onready var profile_name : String
 @onready var cost : float
 @onready var time : float
 

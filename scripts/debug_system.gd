@@ -12,7 +12,7 @@ func _ready() -> void:
 		
 	# Таймер диагностики каждые 10 секунд
 	debug_timer = Timer.new()
-	debug_timer.wait_time = 10.0
+	debug_timer.wait_time = 20.0
 	debug_timer.timeout.connect(_print_debug_summary)
 	debug_timer.autostart = true
 	add_child(debug_timer)

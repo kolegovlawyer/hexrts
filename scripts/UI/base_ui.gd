@@ -107,7 +107,7 @@ func _gui_input(event: InputEvent) -> void:
 					if Handlers.UnitSelectionHandler.selected_units != null:
 						for n in Handlers.UnitSelectionHandler.selected_units:
 							if is_instance_valid(n):
-								var target_position = n.get_target_position()
+								var target_position = camera.get_global_mouse_position()
 								#n.navagent.target_position = target_position
 								#print('GLOBAL MOUSE POSITION: ', get_global_mouse_position())
 								print('Через UI отправлен приказ на движение серверному юниту')
@@ -186,7 +186,7 @@ func update_points_display(recruitment_points: float, victory_points: float) -> 
 	var victory_percentage = (victory_points / 500.0) * 100.0  # 500 - цель для победы
 	win_bar.value = victory_percentage
 	
-	print("🎯 UI: Обновлены очки - найм: ", int(recruitment_points), " победа: ", int(victory_points), "/500 (", int(victory_percentage), "%)")
+	#print("🎯 UI: Обновлены очки - найм: ", int(recruitment_points), " победа: ", int(victory_points), "/500 (", int(victory_percentage), "%)")
 
 func get_current_recruitment_points() -> int:
 	"""

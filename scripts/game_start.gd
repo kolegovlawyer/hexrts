@@ -208,7 +208,7 @@ func _get_player_team(player_id: int) -> int:
 	
 	# Конвертируем GameTypes.Teams в int
 	var team_int = int(player.Team)
-	print("🏷️ POINTS: Игрок ", player_id, " команда ", team_int)
+	#print("🏷️ POINTS: Игрок ", player_id, " команда ", team_int)
 	return team_int
 
 func _calculate_recruitment_bonus(hexes_count: int) -> float:
@@ -248,7 +248,7 @@ func _handle_player_victory(player_id: int) -> void:
 	# TODO: Реализовать логику завершения игры
 	announce_victory.rpc(player_id)
 
-@rpc("authority", "call_remote", "reliable")
+@rpc("any_peer", "call_local", "reliable")
 func sync_player_points(recruitment_points: float, victory_points: float) -> void:
 	"""
 	RPC для синхронизации очков с клиентом

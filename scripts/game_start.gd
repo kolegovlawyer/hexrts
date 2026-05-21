@@ -323,7 +323,10 @@ func set_map(map_name:String):
 		map_node.queue_free()
 	get_node("Map").add_child(map_obj)
 	#$MultiplayerSpawner.spawn_path = map_obj
-	
+
+	if Handlers.UIHandler:
+		Handlers.UIHandler.bind_map_world()
+
 	# Инициализируем систему гексов после загрузки карты
 	call_deferred("initialize_hexes")
 

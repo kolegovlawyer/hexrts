@@ -45,7 +45,8 @@ func _on_join_button_pressed(host=null, port=null, team=null):
 
 func _on_host_button_pressed():
 	var port = int($"Host-Tab/PortEdit".text)
-	var map = $"Host-Tab/OptionButton".get_item_text($"Host-Tab/OptionButton".get_selected_id())
+	var map_option: OptionButton = $"Host-Tab/OptionButton"
+	var map = map_option.get_item_text(map_option.selected)
 	
 	get_tree().get_root().add_child(load("res://scenes/game.tscn").instantiate()) 
 	

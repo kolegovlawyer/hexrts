@@ -9,7 +9,9 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 @onready var unit_points = get_node("%UnitPoints")
 
 @onready var hud_board = get_node("%HUDBoard")
-@onready var home_button = get_node("%HomeButton")
+@onready var home_button = get_node(
+	"MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton"
+)
 
 @onready var unit_container = get_node("%UnitContainer")
 
@@ -140,16 +142,20 @@ func _gui_input(event: InputEvent) -> void:
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	Handlers.UIHandler = self
-	#connect("gui_input", handle_input)
 	get_viewport().connect("size_changed", _on_viewport_size_changed)
-	world = get_parent().get_parent().get_node("%Map").get_node("TestMapWorld")
-	#update_visible_units()
+	bind_map_world()
 	hud_board.connect('mouse_entered', stop_camera_move)
 	hud_board.connect('mouse_exited', continue_camera_move)
 	#home_button.connect('pressed', move_camera_to_fob)
-	
-	# Инициализация UI очков с начальными значениями
 	_initialize_points_display()
+
+func bind_map_world() -> void:
+	var map_root: Node = get_parent().get_parent().get_node("%Map")
+	world = map_root.get_node_or_null("TestMapWorld")
+	if world == null:
+		return
+	if not is_multiplayer_authority() and Handlers.UIHandler and Handlers.UIHandler.camera:
+		Handlers.UIHandler.camera.set_bounds()
 
 func move_camera_to_fob():
 	print('КНОПКА НАЖАЛАСЬ')
@@ -216,9 +222,12 @@ func _initialize_points_display() -> void:
 	print("🎯 UI: Инициализированы начальные значения очков")
 	
 func start_draw_selection_box(init_position):
-	
+	if world == null:
+		bind_map_world()
+	if world == null:
+		return
 	var new_selection_box = preload("res://prefabs/ui/selectoin_box.tscn").instantiate()
-	get_parent().get_parent().get_node("%Map").get_node("TestMapWorld").add_child(new_selection_box)
+	world.add_child(new_selection_box)
 	selection_box = new_selection_box
 	selection_box.init_draw_position = init_position
 	print('start draw selection box')

@@ -133,7 +133,7 @@ offset_bottom = 104.0
 selected = 0
 item_count = 1
 popup/item_0/text = "test_map"
-popup/item_0/id = 1
+popup/item_0/id = 0
 
 [node name="Server-List" type="Control" parent="."]
 layout_mode = 1

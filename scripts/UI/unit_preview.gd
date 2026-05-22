@@ -15,6 +15,9 @@ func _ready() -> void:
 	connect("gui_input", handle_input)
 	
 func handle_input(event):
+	if not is_instance_valid(unit):
+		queue_free()
+		return
 	if event is InputEventMouseButton and event.button_index == 1 and event.pressed == false:
 		if Input.is_key_pressed(KEY_SHIFT):
 			Handlers.UnitSelectionHandler.add_selected(unit)

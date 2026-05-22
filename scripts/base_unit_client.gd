@@ -59,6 +59,13 @@ func _ready() -> void:
 	
 	update_visual()
 
+func _exit_tree() -> void:
+	if preview and is_instance_valid(preview):
+		preview.queue_free()
+	preview = null
+	if Handlers.UnitSelectionHandler:
+		Handlers.UnitSelectionHandler.remove_unit_from_selection(self)
+
 func preseclect():
 	set_preselected(true)
 	

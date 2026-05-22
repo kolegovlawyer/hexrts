@@ -13,7 +13,15 @@ func _exit_tree():
 func select_fob(fob:Node):
 	selected_fob = fob
 
+func _prune_selected_units() -> void:
+	var valid: Array[BaseUnit] = []
+	for unit in selected_units:
+		if is_instance_valid(unit):
+			valid.append(unit)
+	selected_units = valid
+
 func clear_selection():
+	_prune_selected_units()
 	for unit in selected_units:
 		if is_instance_valid(unit):
 			if unit.has_method("set_selected"):
@@ -28,12 +36,15 @@ func clear_selection():
 	selected_units.clear()
 	
 func edit_unit_state(unit:Node):
+	if not is_instance_valid(unit):
+		return
 	if unit in selected_units:
 		remove_selected(unit)
 	else:
 		add_selected(unit)
 
 func add_selected(unit:Node):
+	_prune_selected_units()
 	if is_instance_valid(unit):
 		selected_units.append(unit)
 		if unit.has_method("set_selected"):

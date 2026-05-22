@@ -163,6 +163,8 @@ func _ready() -> void:
 		if Handlers.GameHandler and Handlers.GameHandler.has_method("get"):
 			if not Handlers.GameHandler.units_dict.has(UID):
 				Handlers.GameHandler.units_dict[UID] = self
+		if Handlers.GameHandler and Handlers.GameHandler.has_method("register_new_unit"):
+			Handlers.GameHandler.register_new_unit(self)
 		navagent.connect("velocity_computed", on_velocity_computed)
 		_set_navigation_avoidance(false)
 		visibility_area.connect("body_entered", visibility_check_in)

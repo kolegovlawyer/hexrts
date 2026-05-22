@@ -138,6 +138,8 @@ func _make_strategic_decisions() -> void:
 	if not is_multiplayer_authority():
 		return
 	
+	_prune_invalid_bot_units()
+	
 	Handlers.dprint("🧠 BOT: Принятие стратегических решений для бота ", bot_name)
 	
 	# Обновляем информацию о состоянии
@@ -279,6 +281,19 @@ func _execute_attack_strategy() -> void:
 
 ### УПРАВЛЕНИЕ СПАВНОМ ###
 
+func _prune_invalid_bot_units() -> void:
+	"""Удаляет из кэша ссылки на уже освобождённые юниты."""
+	var valid_units: Array[BaseUnit] = []
+	for unit in bot_units:
+		if is_instance_valid(unit):
+			valid_units.append(unit)
+	bot_units = valid_units
+	var valid_command_units: Array[BaseUnit] = []
+	for unit in command_units:
+		if is_instance_valid(unit):
+			valid_command_units.append(unit)
+	command_units = valid_command_units
+
 func _check_spawn_opportunity() -> void:
 	"""
 	Проверяет возможность спавна новых юнитов
@@ -286,9 +301,13 @@ func _check_spawn_opportunity() -> void:
 	if not is_multiplayer_authority():
 		return
 	
+	_prune_invalid_bot_units()
+	
 	# НОВАЯ ПРОВЕРКА: Не спавним если есть застрявшие юниты
 	var stuck_units = 0
 	for unit in bot_units:
+		if not is_instance_valid(unit):
+			continue
 		if unit.unit_state == BaseUnit.UNIT_STATES.IDLE and unit.orders.size() > 0:
 			stuck_units += 1
 	
@@ -429,6 +448,7 @@ func _on_unit_died(dead_unit: BaseUnit) -> void:
 			bot_units.erase(dead_unit)
 		if dead_unit in command_units:
 			command_units.erase(dead_unit)
+		_prune_invalid_bot_units()
 		Handlers.dprint("💀 BOT: Потерян юнит ", dead_unit.name, " (осталось юнитов: ", bot_units.size(), ")")
 		
 		# Если потеряли командный юнит - меняем стратегию на оборонительную
@@ -550,6 +570,8 @@ func _get_available_base_units() -> Array[BaseUnit]:
 	
 	# Ищем свободных юнитов
 	for unit in bot_units:
+		if not is_instance_valid(unit):
+			continue
 		if unit is BaseUnit and not unit.is_command_unit():
 			if unit not in already_assigned:
 				available_units.append(unit)
@@ -751,6 +773,8 @@ func _find_nearby_friendly_units(position: Vector2, radius: float) -> Array[Base
 	var nearby_units: Array[BaseUnit] = []
 	
 	for unit in bot_units:
+		if not is_instance_valid(unit):
+			continue
 		if unit.global_position.distance_to(position) <= radius:
 			nearby_units.append(unit)
 	
@@ -776,12 +800,16 @@ func _is_unit_idle(unit: BaseUnit) -> bool:
 	"""
 	Проверяет свободен ли юнит для выполнения новых заданий
 	"""
+	if not is_instance_valid(unit):
+		return false
 	return unit.orders.is_empty() and unit.unit_state == BaseUnit.UNIT_STATES.IDLE
 
 func _is_unit_available_for_help(unit: BaseUnit) -> bool:
 	"""
 	Проверяет может ли юнит прийти на помощь
 	"""
+	if not is_instance_valid(unit):
+		return false
 	# Юнит свободен или выполняет некритичные задачи
 	return _is_unit_idle(unit) or unit.unit_state != BaseUnit.UNIT_STATES.ATTACKING
 
@@ -828,6 +856,8 @@ func _debug_unit_state_after_order(unit: BaseUnit) -> void:
 	"""
 	Отладочная функция для проверки состояния юнита после получения приказа
 	"""
+	if not is_instance_valid(unit):
+		return
 	# Проверяем что юнит не застрял - это главное
 	if unit.unit_state == BaseUnit.UNIT_STATES.IDLE and unit.orders.size() > 0:
 		Handlers.dprint("⚠️ BOT WARNING: Юнит ", unit.name, " застрял в IDLE с приказами!")
@@ -875,6 +905,8 @@ func _count_enemy_units_nearby() -> int:
 		if unit is BaseUnit and unit.owner_team != bot_team:
 			# Проверяем есть ли наши юниты поблизости
 			for bot_unit in bot_units:
+				if not is_instance_valid(bot_unit):
+					continue
 				if bot_unit.global_position.distance_to(unit.global_position) < 200.0:
 					enemy_count += 1
 					break
@@ -922,6 +954,8 @@ func _get_units_near_hex(hex_position: Vector2i, radius: float) -> Array[BaseUni
 	world_position = Handlers.GameHandler.overlay_map.to_global(world_position)
 	
 	for unit in bot_units:
+		if not is_instance_valid(unit):
+			continue
 		if unit.global_position.distance_to(world_position) <= radius:
 			nearby_units.append(unit)
 	

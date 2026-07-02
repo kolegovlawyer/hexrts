@@ -1,10 +1,10 @@
-[gd_scene load_steps=3 format=3 uid="uid://d0hrhio2t55dq"]
+[gd_scene format=3 uid="uid://d0hrhio2t55dq"]
 
 [ext_resource type="Script" uid="uid://p1bk5hfu8a63" path="res://scripts/Lobby.gd" id="1_aocll"]
 
 [sub_resource type="Theme" id="Theme_pfk6x"]
 
-[node name="Lobby" type="Control"]
+[node name="Lobby" type="Control" unique_id=1451817012]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -14,7 +14,7 @@ grow_vertical = 2
 theme = SubResource("Theme_pfk6x")
 script = ExtResource("1_aocll")
 
-[node name="Join-Tab" type="Control" parent="."]
+[node name="Join-Tab" type="Control" parent="." unique_id=2037509048]
 layout_mode = 1
 anchor_left = 0.022
 anchor_top = 0.091
@@ -25,7 +25,7 @@ offset_top = 0.0319977
 offset_right = 594.656
 offset_bottom = 271.032
 
-[node name="Label" type="Label" parent="Join-Tab"]
+[node name="Label" type="Label" parent="Join-Tab" unique_id=1209406301]
 layout_mode = 0
 offset_left = 33.0
 offset_top = 16.0
@@ -33,7 +33,7 @@ offset_right = 109.0
 offset_bottom = 40.0
 text = "Join tab"
 
-[node name="Button" type="Button" parent="Join-Tab"]
+[node name="Button" type="Button" parent="Join-Tab" unique_id=147028777]
 layout_mode = 0
 offset_left = 32.0
 offset_top = 207.0
@@ -41,7 +41,7 @@ offset_right = 122.0
 offset_bottom = 240.0
 text = "Join"
 
-[node name="HostEdit" type="LineEdit" parent="Join-Tab"]
+[node name="HostEdit" type="LineEdit" parent="Join-Tab" unique_id=1858297748]
 layout_mode = 0
 offset_left = 32.0
 offset_top = 143.0
@@ -50,7 +50,7 @@ offset_bottom = 184.0
 text = "127.0.0.1"
 placeholder_text = "HOST"
 
-[node name="PortEdit" type="LineEdit" parent="Join-Tab"]
+[node name="PortEdit" type="LineEdit" parent="Join-Tab" unique_id=1133362096]
 layout_mode = 0
 offset_left = 408.0
 offset_top = 143.0
@@ -59,7 +59,7 @@ offset_bottom = 184.0
 text = "7777"
 placeholder_text = "PORT"
 
-[node name="NickEdit" type="LineEdit" parent="Join-Tab"]
+[node name="NickEdit" type="LineEdit" parent="Join-Tab" unique_id=1805819194]
 layout_mode = 0
 offset_left = 32.0
 offset_top = 79.0
@@ -68,7 +68,7 @@ offset_bottom = 120.0
 text = "Player"
 placeholder_text = "NAME"
 
-[node name="TeamButton" type="OptionButton" parent="Join-Tab"]
+[node name="TeamButton" type="OptionButton" parent="Join-Tab" unique_id=356625953]
 layout_mode = 0
 offset_left = 408.0
 offset_top = 79.0
@@ -81,14 +81,14 @@ popup/item_0/id = 0
 popup/item_1/text = "TeamB"
 popup/item_1/id = 1
 
-[node name="BotCheckBox" type="CheckBox" parent="Join-Tab"]
+[node name="BotCheckBox" type="CheckBox" parent="Join-Tab" unique_id=1553674064]
 layout_mode = 0
 offset_left = 566.0
 offset_top = 86.0
 offset_right = 590.0
 offset_bottom = 110.0
 
-[node name="Host-Tab" type="Control" parent="."]
+[node name="Host-Tab" type="Control" parent="." unique_id=1481008860]
 layout_mode = 1
 anchor_left = 0.022
 anchor_top = 0.745
@@ -99,7 +99,7 @@ offset_top = -94.76
 offset_right = 329.656
 offset_bottom = 94.24
 
-[node name="Label" type="Label" parent="Host-Tab"]
+[node name="Label" type="Label" parent="Host-Tab" unique_id=802138934]
 layout_mode = 0
 offset_left = 33.0
 offset_top = 16.0
@@ -107,7 +107,7 @@ offset_right = 109.0
 offset_bottom = 40.0
 text = "Host tab"
 
-[node name="Button" type="Button" parent="Host-Tab"]
+[node name="Button" type="Button" parent="Host-Tab" unique_id=684531594]
 layout_mode = 0
 offset_left = 32.0
 offset_top = 127.0
@@ -115,7 +115,7 @@ offset_right = 122.0
 offset_bottom = 160.0
 text = "Host"
 
-[node name="PortEdit" type="LineEdit" parent="Host-Tab"]
+[node name="PortEdit" type="LineEdit" parent="Host-Tab" unique_id=1189005679]
 layout_mode = 0
 offset_left = 192.0
 offset_top = 63.0
@@ -124,7 +124,7 @@ offset_bottom = 104.0
 text = "7777"
 placeholder_text = "PORT"
 
-[node name="OptionButton" type="OptionButton" parent="Host-Tab"]
+[node name="OptionButton" type="OptionButton" parent="Host-Tab" unique_id=132750635]
 layout_mode = 0
 offset_left = 32.0
 offset_top = 63.0
@@ -135,7 +135,7 @@ item_count = 1
 popup/item_0/text = "test_map"
 popup/item_0/id = 0
 
-[node name="Server-List" type="Control" parent="."]
+[node name="Server-List" type="Control" parent="." unique_id=1543717449]
 layout_mode = 1
 anchor_left = 0.61
 anchor_top = 0.094
@@ -146,7 +146,7 @@ offset_top = 0.0879974
 offset_right = 423.28
 offset_bottom = 531.088
 
-[node name="Label2" type="Label" parent="Server-List"]
+[node name="Label2" type="Label" parent="Server-List" unique_id=164027099]
 layout_mode = 0
 offset_left = 18.0
 offset_top = 14.0
@@ -154,7 +154,7 @@ offset_right = 94.0
 offset_bottom = 38.0
 text = "Server list"
 
-[node name="ServerListBox" type="VBoxContainer" parent="Server-List"]
+[node name="ServerListBox" type="VBoxContainer" parent="Server-List" unique_id=2060680750]
 unique_name_in_owner = true
 layout_mode = 0
 offset_top = 45.0
@@ -162,7 +162,7 @@ offset_right = 411.0
 offset_bottom = 433.0
 theme_override_constants/separation = 40
 
-[node name="Button" type="Button" parent="Server-List"]
+[node name="Button" type="Button" parent="Server-List" unique_id=1214407495]
 layout_mode = 1
 anchors_preset = -1
 anchor_left = 0.407

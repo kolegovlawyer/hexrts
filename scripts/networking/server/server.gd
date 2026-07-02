@@ -34,7 +34,11 @@ func _peer_disconnected(player_id):
 	print_rich("[color=red][b][SERVER] Player %s disconnected[/b][/color]" % player_id)
 
 func start_server(port):
-	network.create_server(port)
+	network.set_bind_ip("0.0.0.0")
+	var error := network.create_server(int(port))
+	if error != OK:
+		push_error("[SERVER] create_server failed with error %s (port=%s)" % [error, port])
+		return
 	multiplayer.multiplayer_peer = network
 	
 	# TODO: START DB COONECTION

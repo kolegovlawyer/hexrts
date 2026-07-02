@@ -29,8 +29,10 @@ func _on_join_button_pressed(host=null, port=null, team=null):
 	
 	if not host:
 		host = $"Join-Tab/HostEdit".text
-	if not port:
+	if port == null:
 		port = int($"Join-Tab/PortEdit".text)
+	else:
+		port = int(port)
 	if not team:
 		team = $"Join-Tab/TeamButton".get_selected_id()
 	

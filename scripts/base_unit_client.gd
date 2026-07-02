@@ -42,7 +42,7 @@ func set_shield(value: int) -> void:
 		update_shield_bar()
 
 var frame_group : int
-var preview
+var preview: UnitPreview = null
 
 func _ready() -> void:
 	# Добавляем в группу units для поиска
@@ -60,6 +60,8 @@ func _ready() -> void:
 	update_visual()
 
 func _exit_tree() -> void:
+	if Handlers.UIHandler and UID != "":
+		Handlers.UIHandler.unregister_unit_preview(UID)
 	if preview and is_instance_valid(preview):
 		preview.queue_free()
 	preview = null
@@ -144,11 +146,20 @@ func update_visual():
 	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
 		set_own_unit_group()
 		if not preview:
-			var self_preview = preload("res://prefabs/ui/unit_preview.tscn").instantiate()
+			if not Handlers.UIHandler:
+				return
+			var self_preview: UnitPreview = preload("res://prefabs/ui/unit_preview.tscn").instantiate()
 			preview = self_preview
 			Handlers.UIHandler.unit_container.add_child(preview)
 			preview.unit = self
-			return
+			if UID != "":
+				Handlers.UIHandler.register_unit_preview(UID, preview)
+		else:
+			preview.unit = self
+		update_health_bar()
+		update_shield_bar()
+		_sync_preview_vitals()
+		return
 	elif Handlers.TeamHandler.find_player_by_id(owner_id).Team == Handlers.TeamHandler.my_profile.Team:
 		update_sprite_color()
 	else:
@@ -157,6 +168,22 @@ func update_visual():
 	update_shield_bar()
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РЕФАКТОРИНГА ===
+
+func get_display_name() -> String:
+	var base_name := "Командир" if is_command_unit() else "Боец"
+	if UID.length() >= 4:
+		return "%s %s" % [base_name, UID.right(4)]
+	return base_name
+
+func get_current_health() -> int:
+	return _health
+
+func get_current_shield() -> int:
+	return _shield
+
+func _sync_preview_vitals() -> void:
+	if preview and is_instance_valid(preview):
+		preview.update_vitals()
 
 func set_own_unit_group():
 	if not is_in_group("own_units"):
@@ -217,6 +244,7 @@ func sync_health(new_health_value: int) -> void:
 	"""
 	_health = clamp(new_health_value, 0, max_health)
 	update_health_bar()
+	_sync_preview_vitals()
 
 @rpc("any_peer", "call_local", "reliable")
 func sync_shield(new_shield_value: int) -> void:
@@ -225,6 +253,7 @@ func sync_shield(new_shield_value: int) -> void:
 	"""
 	_shield = clamp(new_shield_value, 0, max_shield)
 	update_shield_bar()
+	_sync_preview_vitals()
 
 @rpc("any_peer", "reliable")
 func set_unit_info(profile_path: String) -> void:

@@ -1057,8 +1057,10 @@ func _on_shield_regeneration_timeout() -> void:
 	
 	# Восстанавливаем щит
 	var regen_amount = int(shield_regen_rate)  # Количество щита за тик
-	shield += regen_amount
-	
+	_shield = min(_shield + regen_amount, max_shield)
+	rpc("sync_health", _health)
+	rpc("sync_shield", _shield)
+
 	# Если щит не полный - продолжаем восстановление каждую секунду
 	if _shield < max_shield:
 		shield_regeneration_timer.wait_time = 1.0  # Интервал восстановления

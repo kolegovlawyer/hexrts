@@ -15,7 +15,7 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 
 @onready var unit_container = get_node("%UnitContainer")
 
-
+var _unit_previews: Dictionary = {}
 
 var camera
 var world
@@ -141,6 +141,7 @@ func _gui_input(event: InputEvent) -> void:
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
+	_clear_unit_container_placeholders()
 	Handlers.UIHandler = self
 	get_viewport().connect("size_changed", _on_viewport_size_changed)
 	bind_map_world()
@@ -148,6 +149,21 @@ func _ready() -> void:
 	hud_board.connect('mouse_exited', continue_camera_move)
 	#home_button.connect('pressed', move_camera_to_fob)
 	_initialize_points_display()
+
+func register_unit_preview(uid: String, preview: UnitPreview) -> void:
+	if uid == "" or preview == null:
+		return
+	_unit_previews[uid] = preview
+
+func unregister_unit_preview(uid: String) -> void:
+	_unit_previews.erase(uid)
+
+func get_unit_preview(uid: String) -> UnitPreview:
+	return _unit_previews.get(uid, null)
+
+func _clear_unit_container_placeholders() -> void:
+	for child in unit_container.get_children():
+		child.queue_free()
 
 func bind_map_world() -> void:
 	var map_root: Node = get_parent().get_parent().get_node("%Map")

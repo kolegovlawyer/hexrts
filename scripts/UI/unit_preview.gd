@@ -4,7 +4,7 @@ var unit : BaseUnit:
 	set(value):
 		unit = value
 		update_visual()
-		
+
 @onready var sprite = get_node("MainRack/SpriteIcon")
 @onready var rank = get_node("MainRack/StatusBoard/RankIcon")
 @onready var hp_bar = get_node("MainRack/StatusBoard/Control/BarsDeck/HPBar")
@@ -13,7 +13,7 @@ var unit : BaseUnit:
 
 func _ready() -> void:
 	connect("gui_input", handle_input)
-	
+
 func handle_input(event):
 	if not is_instance_valid(unit):
 		queue_free()
@@ -32,5 +32,71 @@ func handle_input(event):
 	elif event is InputEventMouseButton and event.button_index == 1 and event.pressed == true:
 		get_viewport().set_input_as_handled()
 
-func update_visual():
-	print('обновление визуала превьюшки')
+func update_visual() -> void:
+	if not is_instance_valid(unit):
+		return
+	if not is_node_ready():
+		return
+
+	var client_unit := unit as BaseUnitClient
+	if client_unit == null:
+		return
+
+	var unit_sprite: Sprite2D = unit.get_node_or_null("%UnitSelfSprite")
+	if unit_sprite and unit_sprite.texture:
+		sprite.texture = unit_sprite.texture
+
+	if client_unit.has_method("get_display_name"):
+		name_label.text = client_unit.get_display_name()
+	elif unit.is_command_unit():
+		name_label.text = "Командир"
+	else:
+		name_label.text = "Боец"
+
+	hp_bar.max_value = unit.max_health
+	shield_bar.max_value = unit.max_shield
+	shield_bar.visible = unit.max_shield > 0
+
+	update_vitals()
+	visible = true
+
+func update_vitals() -> void:
+	if not is_instance_valid(unit) or not is_node_ready():
+		return
+
+	var client_unit := unit as BaseUnitClient
+	if client_unit == null:
+		return
+
+	var current_health: int = client_unit.get_current_health()
+	var current_shield: int = client_unit.get_current_shield()
+	var max_hp: int = unit.max_health
+	var max_sh: int = unit.max_shield
+
+	hp_bar.max_value = max_hp
+	hp_bar.value = current_health
+
+	var health_percent := float(current_health) / float(max_hp) if max_hp > 0 else 0.0
+	if health_percent > 0.7:
+		hp_bar.modulate = Color.GREEN
+	elif health_percent > 0.3:
+		hp_bar.modulate = Color.YELLOW
+	else:
+		hp_bar.modulate = Color.RED
+
+	shield_bar.visible = max_sh > 0
+	if max_sh <= 0:
+		return
+
+	shield_bar.max_value = max_sh
+	shield_bar.value = current_shield
+
+	var shield_percent := float(current_shield) / float(max_sh) if max_sh > 0 else 0.0
+	if shield_percent > 0.7:
+		shield_bar.modulate = Color.CYAN
+	elif shield_percent > 0.3:
+		shield_bar.modulate = Color.MAGENTA
+	elif shield_percent > 0:
+		shield_bar.modulate = Color.ORANGE
+	else:
+		shield_bar.modulate = Color.TRANSPARENT

@@ -185,16 +185,13 @@ func _ensure_own_preview() -> void:
 		return
 	if not Handlers.UIHandler:
 		return
+
 	if preview and is_instance_valid(preview):
-		preview.unit = self
-		preview.update_visual()
+		preview = Handlers.UIHandler.get_or_create_unit_preview(self)
+		if preview:
+			preview.update_visual()
 		return
-	var self_preview: UnitPreview = preload("res://prefabs/ui/unit_preview.tscn").instantiate()
-	preview = self_preview
-	Handlers.UIHandler.unit_container.add_child(preview)
-	preview.unit = self
-	if UID != "":
-		Handlers.UIHandler.register_unit_preview(UID, preview)
+	preview = Handlers.UIHandler.get_or_create_unit_preview(self)
 
 func get_current_health() -> int:
 	return _health

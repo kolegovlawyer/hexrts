@@ -7,7 +7,12 @@ var _presets_by_player: Dictionary = {}
 
 func ensure_player_presets(player_id: int) -> Array:
 	if not _presets_by_player.has(player_id):
-		_presets_by_player[player_id] = [UnitPreset.create_default()]
+		_presets_by_player[player_id] = [
+			UnitPreset.create_default(),
+			_create_command_default(),
+		]
+	else:
+		_ensure_standard_presets(_presets_by_player[player_id])
 	return _presets_by_player[player_id]
 
 
@@ -42,6 +47,34 @@ func save_preset(player_id: int, preset: UnitPreset) -> UnitPreset:
 
 func _generate_preset_id() -> String:
 	return "preset_%d_%d" % [Time.get_ticks_msec(), randi() % 10000]
+
+
+func _ensure_standard_presets(presets: Array) -> void:
+	var has_fighter := false
+	var has_command := false
+	for i in presets.size():
+		var preset: UnitPreset = presets[i]
+		if preset.preset_id == "default":
+			preset.preset_id = "standard_fighter"
+			preset.preset_name = UnitPresetBalance.default_preset_name()
+		if preset.preset_id == "standard_fighter":
+			has_fighter = true
+		elif preset.preset_id == "standard_command":
+			has_command = true
+	if not has_fighter:
+		presets.insert(0, UnitPreset.create_default())
+	if not has_command:
+		var command_index := mini(1, presets.size())
+		presets.insert(command_index, _create_command_default())
+
+
+func _create_command_default() -> UnitPreset:
+	var preset := UnitPreset.new()
+	preset.preset_id = "standard_command"
+	preset.preset_name = "КШМ"
+	preset.is_command = true
+	preset.apply_stats_dict(UnitPresetBalance.default_stats())
+	return preset
 
 
 var _instance_counters: Dictionary = {}

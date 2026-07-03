@@ -33,7 +33,7 @@ static func default_stats() -> Dictionary:
 
 
 static func default_preset_name() -> String:
-	return "МК-1"
+	return "Боец"
 
 
 static func get_cost_per_point(is_command: bool) -> int:

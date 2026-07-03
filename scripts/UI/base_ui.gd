@@ -157,8 +157,9 @@ func _ready() -> void:
 	_initialize_points_display()
 
 func register_unit_preview(uid: String, preview: UnitPreview) -> void:
-	if uid == "" or preview == null:
+	if uid == "" or preview == null or preview.is_queued_for_deletion():
 		return
+	_purge_invalid_unit_previews()
 	_unit_previews[uid] = preview
 
 func unregister_unit_preview(uid: String) -> void:
@@ -167,7 +168,71 @@ func unregister_unit_preview(uid: String) -> void:
 func get_unit_preview(uid: String) -> UnitPreview:
 	return _unit_previews.get(uid, null)
 
+func get_or_create_unit_preview(unit: BaseUnit) -> UnitPreview:
+	if not is_instance_valid(unit):
+		return null
+
+	_purge_invalid_unit_previews()
+
+	var uid := unit.UID
+	if uid != "" and _unit_previews.has(uid):
+		var registered_preview: UnitPreview = _unit_previews[uid]
+		if is_instance_valid(registered_preview):
+			registered_preview.unit = unit
+			registered_preview.update_visual()
+			return registered_preview
+		_unit_previews.erase(uid)
+
+	for child in unit_container.get_children():
+		var candidate := child as UnitPreview
+		if candidate == null:
+			continue
+		if candidate.is_queued_for_deletion():
+			continue
+		if not is_instance_valid(candidate.unit):
+			candidate.queue_free()
+			continue
+		if candidate.unit == unit or (uid != "" and candidate.unit.UID == uid):
+			candidate.unit = unit
+			candidate.update_visual()
+			if uid != "":
+				_unit_previews[uid] = candidate
+			return candidate
+
+	var new_preview: UnitPreview = preload("res://prefabs/ui/unit_preview.tscn").instantiate()
+	new_preview.unit = unit
+	unit_container.add_child(new_preview)
+	new_preview.update_visual()
+	if uid != "":
+		_unit_previews[uid] = new_preview
+	return new_preview
+
+func _purge_invalid_unit_previews() -> void:
+	var valid_previews: Dictionary = {}
+	var seen_keys: Dictionary = {}
+	for child in unit_container.get_children():
+		var candidate := child as UnitPreview
+		if candidate == null:
+			continue
+		if candidate.is_queued_for_deletion():
+			continue
+		if not is_instance_valid(candidate.unit):
+			candidate.queue_free()
+			continue
+
+		var uid := candidate.unit.UID
+		var preview_key := uid if uid != "" else str(candidate.unit.get_instance_id())
+		if seen_keys.has(preview_key):
+			candidate.queue_free()
+			continue
+
+		seen_keys[preview_key] = true
+		if uid != "":
+			valid_previews[uid] = candidate
+	_unit_previews = valid_previews
+
 func _clear_unit_container_placeholders() -> void:
+	_unit_previews.clear()
 	for child in unit_container.get_children():
 		child.queue_free()
 
@@ -272,7 +337,7 @@ func end_draw_selection_box():
 	
 	
 	
-func handle_input(event):
+func handle_input(_event):
 	pass
 
 func create_fob_panel(_fob_node) -> void:
@@ -299,7 +364,7 @@ func open_unit_editor() -> void:
 ### DEBUG SECTION
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	window_size = get_viewport().size
 	window_size_label.text = str(window_size, window_size.x, window_size.y)
 	mouse_position_label.text = str(

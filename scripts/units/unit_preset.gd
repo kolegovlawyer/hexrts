@@ -2,7 +2,7 @@ class_name UnitPreset
 extends Resource
 
 @export var preset_id: String = ""
-@export var preset_name: String = "МК-1"
+@export var preset_name: String = "Боец"
 @export var is_command: bool = false
 @export var health: int = UnitPresetBalance.DEFAULT_STAT
 @export var speed: int = UnitPresetBalance.DEFAULT_STAT
@@ -13,9 +13,22 @@ extends Resource
 
 static func create_default() -> UnitPreset:
 	var preset := UnitPreset.new()
-	preset.preset_id = "default"
+	preset.preset_id = "standard_fighter"
 	preset.preset_name = UnitPresetBalance.default_preset_name()
 	preset.is_command = false
+	preset.apply_stats_dict(UnitPresetBalance.default_stats())
+	return preset
+
+
+static func create_fighter_default() -> UnitPreset:
+	return create_default()
+
+
+static func create_command_default() -> UnitPreset:
+	var preset := UnitPreset.new()
+	preset.preset_id = "standard_command"
+	preset.preset_name = "КШМ"
+	preset.is_command = true
 	preset.apply_stats_dict(UnitPresetBalance.default_stats())
 	return preset
 

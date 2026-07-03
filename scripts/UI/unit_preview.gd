@@ -13,6 +13,13 @@ var unit : BaseUnit:
 
 func _ready() -> void:
 	connect("gui_input", handle_input)
+	call_deferred("update_visual")
+	call_deferred("_delete_if_unbound")
+
+
+func _delete_if_unbound() -> void:
+	if not is_instance_valid(unit):
+		queue_free()
 
 func handle_input(event):
 	if not is_instance_valid(unit):

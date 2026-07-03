@@ -29,6 +29,14 @@ static func get_dominant_stat(stats: Dictionary) -> String:
 	return best_key
 
 
+static func are_all_stats_equal(stats: Dictionary) -> bool:
+	var expected := int(stats.get(UnitPresetBalance.STAT_KEYS[0], UnitPresetBalance.DEFAULT_STAT))
+	for key in UnitPresetBalance.STAT_KEYS:
+		if int(stats.get(key, UnitPresetBalance.DEFAULT_STAT)) != expected:
+			return false
+	return true
+
+
 static func get_size_suffix(cost: int) -> String:
 	if cost > SIZE_MEDIUM_MAX_COST:
 		return "l"
@@ -42,7 +50,7 @@ static func get_icon_path(shape: String, size_suffix: String) -> String:
 
 
 static func get_icon_path_from_stats(stats: Dictionary, is_command: bool) -> String:
-	var shape: String = STAT_TO_SHAPE.get(get_dominant_stat(stats), "cross")
+	var shape := "circle" if are_all_stats_equal(stats) else str(STAT_TO_SHAPE.get(get_dominant_stat(stats), "cross"))
 	var cost := UnitPresetBalance.calculate_cost(stats, is_command)
 	return get_icon_path(shape, get_size_suffix(cost))
 

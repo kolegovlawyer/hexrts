@@ -120,6 +120,7 @@ func _on_preset_selected(index: int) -> void:
 func _on_reset_pressed() -> void:
 	if _working_preset == null:
 		return
+	_sync_name_from_field()
 	_working_preset.apply_stats_dict(UnitPresetBalance.default_stats())
 	_working_preset.is_command = false
 	_refresh_ui()
@@ -128,6 +129,7 @@ func _on_reset_pressed() -> void:
 func _on_command_pressed() -> void:
 	if _working_preset == null:
 		return
+	_sync_name_from_field()
 	_working_preset.is_command = not _working_preset.is_command
 	_refresh_ui()
 
@@ -159,6 +161,7 @@ func _on_close_pressed() -> void:
 func _change_stat(stat_key: String, delta: int) -> void:
 	if _working_preset == null:
 		return
+	_sync_name_from_field()
 	var stats := _working_preset.get_stats_dict()
 	var current := int(stats.get(stat_key, UnitPresetBalance.DEFAULT_STAT))
 	stats[stat_key] = UnitPresetBalance.clamp_stat(current + delta)
@@ -166,11 +169,18 @@ func _change_stat(stat_key: String, delta: int) -> void:
 	_refresh_ui()
 
 
+func _sync_name_from_field() -> void:
+	var current_name := name_field.text.strip_edges()
+	if current_name != "":
+		_working_preset.preset_name = current_name
+
+
 func _refresh_ui() -> void:
 	if _working_preset == null:
 		return
 
-	name_field.text = _working_preset.preset_name
+	if name_field.text != _working_preset.preset_name:
+		name_field.text = _working_preset.preset_name
 	command_button.modulate = Color(1.0, 0.85, 0.35) if _working_preset.is_command else Color.WHITE
 
 	var stats := _working_preset.get_stats_dict()

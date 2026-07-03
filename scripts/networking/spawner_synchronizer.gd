@@ -56,6 +56,9 @@ func custom_spawner(data:Dictionary):
 
 	_apply_spawn_appearance(unit, data)
 
+	if data.has("vision_radius") and unit is BaseUnit:
+		(unit as BaseUnit).vision_radius = data["vision_radius"]
+
 	return unit
 
 

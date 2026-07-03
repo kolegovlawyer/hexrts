@@ -1,11 +1,14 @@
 class_name fob extends Node2D
 
+const FOG_VISION_RADIUS := 120.0
+
 #@onready var FobPanel = get_node("%FobPanel")
 
 @onready var sprite = get_node("%Sprite")
-@onready var light = get_node("%Light")
 @onready var spawn_bar = get_node("%SpawnProgress")
 @onready var spawn_queue_label = get_node("%SpawnQueueLabel")
+
+var vision_radius: float = FOG_VISION_RADIUS
 
 # Система отложенного спавна
 const UNIT_SPAWN_DELAY: float = 3.0  # Задержка спавна обычных юнитов в секундах
@@ -69,23 +72,17 @@ func update_visual():
 	if owner_id == 0:
 		print('enemy FOB at start')
 		sprite.modulate = GameTypes.enemy_color
-		light.hide()
-		sprite.light_mask = 2
 		sprite.visibility_layer = 2
 		return
 	if Handlers.TeamHandler.my_profile:
 		if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
 			sprite.modulate = GameTypes.own_color
-			light.show()
-			sprite.light_mask = 1
 			sprite.visibility_layer = 1
 		elif owner_id in Handlers.TeamHandler.get_team_players(Handlers.TeamHandler.my_profile.PlayerId):
 			print('ally')
 		else:
 			print('enemy FOB')
 			sprite.modulate = GameTypes.enemy_color
-			light.hide()
-			sprite.light_mask = 2
 			sprite.visibility_layer = 2
 	
 	# Обновляем UI спавна при изменении владельца

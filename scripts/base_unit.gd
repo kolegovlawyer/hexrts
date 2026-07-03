@@ -15,6 +15,8 @@ class_name BaseUnit extends CharacterBody2D
 var owner_team = null
 
 # Система видимости
+const DEFAULT_VISION_RADIUS := 400.0
+var vision_radius: float = DEFAULT_VISION_RADIUS
 var visible_by: Array[BaseUnit] = []
 var has_vision_on: Array[BaseUnit] = []
 
@@ -52,10 +54,43 @@ var is_command_unit_flag: bool = false
 # Базовые методы, которые должны быть реализованы в наследниках
 func _ready() -> void:
 	add_to_group("units")
+	# _ensure_unique_vision_shape вызывается явно из spawner_synchronizer/unit_spawner
+	# сразу после spawn, до первого чтения шейдером.
+	# Для юнитов вне MultiplayerSpawner (например, в редакторе) делаем deferred-вызов.
+	call_deferred("_ensure_unique_vision_shape")
 	
 func is_valid_unit(unit) -> bool:
 	"""Проверяет, что объект существует и является BaseUnit"""
 	return unit != null and is_instance_valid(unit) and unit is BaseUnit
+
+func set_vision_radius(new_radius: float) -> void:
+	"""Задаёт радиус обзора: дублирует shape, чтобы инстансы не делили один CircleShape2D."""
+	vision_radius = new_radius
+	_apply_vision_shape_radius(new_radius)
+	if is_multiplayer_authority():
+		call_deferred("_refresh_visibility_area")
+
+func _ensure_unique_vision_shape() -> void:
+	_apply_vision_shape_radius(vision_radius)
+
+func _apply_vision_shape_radius(radius: float) -> void:
+	var visibility_area_node: Area2D = get_node_or_null("%VisibilityArea")
+	if visibility_area_node == null:
+		return
+	var vis_shape: CollisionShape2D = visibility_area_node.get_node_or_null("VisibilityShape")
+	if vis_shape == null or not vis_shape.shape is CircleShape2D:
+		return
+	var unique_circle := (vis_shape.shape as CircleShape2D).duplicate() as CircleShape2D
+	unique_circle.radius = radius
+	vis_shape.shape = unique_circle
+
+func _refresh_visibility_area() -> void:
+	var area := get_node_or_null("%VisibilityArea") as Area2D
+	if area == null:
+		return
+	var was_monitoring := area.monitoring
+	area.monitoring = false
+	area.monitoring = was_monitoring
 
 func _on_unit_died(dead_unit: BaseUnit) -> void:
 	"""Удаляет умершего юнита из наших списков"""
@@ -133,10 +168,11 @@ func sync_preset_stats(
 		new_max_shield: int,
 		_new_speed: int,
 		_new_damage: int,
-		_vision_radius: float
+		new_vision_radius: float
 	) -> void:
 	max_health = new_max_health
 	max_shield = new_max_shield
+	set_vision_radius(new_vision_radius)
 
 func apply_preset_snapshot(_snapshot: Dictionary) -> void:
 	pass

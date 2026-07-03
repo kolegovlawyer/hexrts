@@ -5,7 +5,7 @@ class_name FogOfWarManager extends Node
 ## Оптимизированный менеджер для сбора данных юнитов и управления шейдером
 ## ========================================================================
 
-signal fog_settings_changed() # Сигнал при изменении настроек тумана
+signal fog_settings_changed()
 
 # Ссылки на узлы
 var fog_material: ShaderMaterial
@@ -31,7 +31,6 @@ var camera: Camera2D
 
 # Внутренние переменные
 var _last_update_time: float = 0.0
-var _cached_unit_data: Dictionary = {} # Кэш данных юнитов
 var _current_viewport_size: Vector2
 
 # Данные для передачи в шейдер
@@ -143,59 +142,47 @@ func _collect_unit_data() -> void:
 	_debug_units_culled = 0
 	_active_unit_count = 0
 	
-	# Получаем все юниты игрока
-	var my_units = get_tree().get_nodes_in_group("own_units")
-	if my_units.is_empty():
+	# Определяем команду игрока напрямую из профиля (не через own_units)
+	# Это позволяет FOB давать обзор даже когда юнитов ещё нет
+	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
 		return
-	
-	# ОПТИМИЗАЦИЯ: Находим юниты игрока для определения команды
-	var player_team = _get_player_team(my_units[0])
+	var player_team = Handlers.TeamHandler.my_profile.team
 	if player_team == null:
 		return
 	
-	# Собираем все дружественные юниты
-	var all_units = get_tree().get_nodes_in_group("units")
-	var visible_units: Array[BaseUnit] = []
+	var visible_sources: Array = []
 	
-	for unit in all_units:
+	# FOB обрабатываем ПЕРВЫМИ — дают обзор с самого старта игры
+	for fob_node in get_tree().get_nodes_in_group("fobs"):
+		if visible_sources.size() >= max_units_processed:
+			break
+		if not is_instance_valid(fob_node) or not fob_node is fob:
+			continue
+		if not _is_ally_fob(fob_node, player_team):
+			continue
+		visible_sources.append(fob_node)
+		_debug_units_processed += 1
+	
+	# Затем дружественные юниты
+	for unit in get_tree().get_nodes_in_group("units"):
+		if visible_sources.size() >= max_units_processed:
+			break
 		if not is_instance_valid(unit) or not unit is BaseUnit:
 			continue
-			
-		# Проверяем принадлежность к команде
 		if not _is_ally_unit(unit, player_team):
 			continue
-		
-		# Убираем проверку расстояния до камеры - она больше не нужна
-		visible_units.append(unit)
+		visible_sources.append(unit)
 		_debug_units_processed += 1
-		
-		# Ограничиваем количество обрабатываемых юнитов
-		if visible_units.size() >= max_units_processed:
-			break
 	
-	# ИСПРАВЛЕНИЕ: Заполняем массивы МИРОВЫМИ координатами (без преобразования)
-	_active_unit_count = min(visible_units.size(), max_units_processed)
+	_active_unit_count = min(visible_sources.size(), max_units_processed)
 	
 	for i in range(_active_unit_count):
-		var unit = visible_units[i]
-		
-		# Преобразуем мировые координаты в координаты вьюпорта
-		var viewport_pos = camera.get_viewport().get_canvas_transform() * unit.global_position
-		
+		var source = visible_sources[i]
+		var viewport_pos = camera.get_viewport().get_canvas_transform() * source.global_position
 		_unit_positions[i * 2] = viewport_pos.x
 		_unit_positions[i * 2 + 1] = viewport_pos.y
-		
-		# Получаем радиус видимости
-		var visibility_radius = 400.0
-		if unit.has_node("%VisibilityArea"):
-			var visibility_area = unit.get_node("%VisibilityArea")
-			if visibility_area.has_node("VisibilityShape"):
-				var shape = visibility_area.get_node("VisibilityShape").shape
-				if shape is CircleShape2D:
-					visibility_radius = shape.radius
-		
-		# Применяем масштабирование к радиусу для вьюпорта
-		_unit_radii[i] = visibility_radius * camera.zoom.x
+		var src_radius := _get_source_vision_radius(source)
+		_unit_radii[i] = src_radius * camera.zoom.x
 
 func _update_shader_data() -> void:
 	"""Передает данные юнитов в шейдер"""
@@ -270,6 +257,24 @@ func _is_ally_unit(unit: BaseUnit, player_team) -> bool:
 				unit_team = bot_team
 	
 	return unit_team == player_team
+
+func _is_ally_fob(fob_node: fob, player_team) -> bool:
+	if not is_instance_valid(fob_node) or player_team == null:
+		return false
+	if Handlers.TeamHandler == null:
+		return false
+	var owner_player = Handlers.TeamHandler.find_player_by_id(fob_node.owner_id)
+	if owner_player:
+		return owner_player.team == player_team
+	var bot_team = Handlers.GameHandler.get_bot_team_by_id(fob_node.owner_id) if Handlers.GameHandler else -1
+	return bot_team == player_team
+
+func _get_source_vision_radius(source: Node) -> float:
+	if source is fob:
+		return (source as fob).vision_radius
+	if source is BaseUnit:
+		return (source as BaseUnit).vision_radius
+	return 400.0
 
 func _on_viewport_size_changed() -> void:
 	"""Обработчик изменения размера viewport"""

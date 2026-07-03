@@ -708,19 +708,13 @@ func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 	if _health <= 0:
 		die()
 
+@rpc("any_peer", "call_local", "reliable")
 func sync_health(new_health_value: int) -> void:
-	"""
-	Синхронизирует значение здоровья между сервером и клиентами
-	Вызывается только с сервера при изменении здоровья
-	"""
 	if not is_multiplayer_authority():
 		_health = new_health_value
 
+@rpc("any_peer", "call_local", "reliable")
 func sync_shield(new_shield_value: int) -> void:
-	"""
-	Синхронизирует значение щита между сервером и клиентами
-	Вызывается только с сервера при изменении щита
-	"""
 	if not is_multiplayer_authority():
 		_shield = new_shield_value
 
@@ -1156,11 +1150,8 @@ func apply_preset_snapshot(snapshot: Dictionary) -> void:
 	speed = UnitPresetBalance.to_game_speed(speed_stat)
 	damage = UnitPresetBalance.to_game_damage(damage_stat)
 
-	var vision_radius := UnitPresetBalance.to_game_vision_radius(range_stat)
-	if visibility_area:
-		var vis_shape: CollisionShape2D = visibility_area.get_node_or_null("VisibilityShape")
-		if vis_shape and vis_shape.shape is CircleShape2D:
-			vis_shape.shape.radius = vision_radius
+	var new_vision_radius := UnitPresetBalance.to_game_vision_radius(range_stat)
+	set_vision_radius(new_vision_radius)
 
 	if preset_icon_path == "":
 		var preset_id := str(snapshot.get("preset_id", "default"))
@@ -1168,7 +1159,7 @@ func apply_preset_snapshot(snapshot: Dictionary) -> void:
 		preset_instance_number = UnitPresetManager.next_instance_number(owner_id, preset_id)
 		preset_icon_path = UnitIconUtil.get_icon_path_from_stats(snapshot, bool(snapshot.get("is_command", false)))
 
-	rpc("sync_preset_stats", max_health, max_shield, speed, damage, vision_radius)
+	rpc("sync_preset_stats", max_health, max_shield, speed, damage, new_vision_radius)
 	call_deferred(
 		"_deferred_sync_unit_appearance",
 		preset_display_name,
@@ -1183,18 +1174,15 @@ func _deferred_sync_unit_appearance(display_name: String, instance_number: int, 
 	rpc("sync_unit_appearance", display_name, instance_number, icon_path)
 
 
+@rpc("authority", "call_local", "reliable")
 func sync_preset_stats(
 		new_max_health: int,
 		new_max_shield: int,
 		new_speed: int,
 		new_damage: int,
-		vision_radius: float
+		new_vision_radius: float
 	) -> void:
-	super.sync_preset_stats(new_max_health, new_max_shield, new_speed, new_damage, vision_radius)
+	super.sync_preset_stats(new_max_health, new_max_shield, new_speed, new_damage, new_vision_radius)
 	if is_multiplayer_authority():
 		speed = new_speed
 		damage = new_damage
-		if visibility_area:
-			var vis_shape: CollisionShape2D = visibility_area.get_node_or_null("VisibilityShape")
-			if vis_shape and vis_shape.shape is CircleShape2D:
-				vis_shape.shape.radius = vision_radius

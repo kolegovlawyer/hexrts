@@ -45,8 +45,7 @@ var frame_group : int
 var preview: UnitPreview = null
 
 func _ready() -> void:
-	# Добавляем в группу units для поиска
-	add_to_group("units")
+	super._ready()
 	
 	# Инициализируем health bar и shield bar
 	init_health_bar()
@@ -283,18 +282,13 @@ func sync_preset_stats(
 		new_max_shield: int,
 		_new_speed: int,
 		_new_damage: int,
-		vision_radius: float
+		new_vision_radius: float
 	) -> void:
 	max_health = new_max_health
 	max_shield = new_max_shield
 	_health = max_health
 	_shield = max_shield
-
-	var visibility_area_node: Area2D = get_node_or_null("%VisibilityArea")
-	if visibility_area_node:
-		var vis_shape: CollisionShape2D = visibility_area_node.get_node_or_null("VisibilityShape")
-		if vis_shape and vis_shape.shape is CircleShape2D:
-			vis_shape.shape.radius = vision_radius
+	set_vision_radius(new_vision_radius)
 
 	init_health_bar()
 	init_shield_bar()

@@ -122,9 +122,15 @@ func _internal_spawn_unit(
 		spawn_data["preset_display_name"] = display_name
 		spawn_data["preset_instance_number"] = instance_number
 		spawn_data["preset_icon_path"] = icon_path
+		var range_stat := int(preset_snapshot.get("range", UnitPresetBalance.DEFAULT_STAT))
+		spawn_data["vision_radius"] = UnitPresetBalance.to_game_vision_radius(range_stat)
 
 	var unit = Handlers.NetworkSpawner.spawn(spawn_data)
 	unit.owner_id = player_id
 	if not preset_snapshot.is_empty() and unit.has_method("apply_preset_snapshot"):
 		unit.apply_preset_snapshot(preset_snapshot)
+	elif unit.has_method("_ensure_unique_vision_shape"):
+		# Дефолтные юниты без пресета: дублируем shape немедленно,
+		# чтобы не делить CircleShape2D с другими инстансами
+		unit._ensure_unique_vision_shape()
 	print("🏭 СПАВН: Юнит типа '", unit_type, "' создан для игрока ", player_id, " в позиции ", spawn_point)

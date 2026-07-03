@@ -275,7 +275,7 @@ func end_draw_selection_box():
 func handle_input(event):
 	pass
 
-func create_fob_panel(fob):
+func create_fob_panel(_fob_node) -> void:
 	var new_fob_panel = preload("res://prefabs/ui/fob_panel.tscn").instantiate()
 	add_child(new_fob_panel)
 	new_fob_panel.position = get_viewport().get_mouse_position()

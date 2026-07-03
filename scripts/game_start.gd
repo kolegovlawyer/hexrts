@@ -191,12 +191,11 @@ func _get_player_team(player_id: int) -> int:
 	# Сначала проверяем является ли это ботом
 	var is_bot = _is_player_bot(player_id)
 	if is_bot:
-		# Для ботов получаем команду напрямую из системы ботов
 		for bot in active_bots:
 			if bot.bot_id == player_id:
-				var team_int = int(bot.bot_team)
-				Handlers.dprint("🤖 POINTS: Бот ", player_id, " команда ", team_int)
-				return team_int
+				var bot_team_int := int(bot.bot_team)
+				Handlers.dprint("🤖 POINTS: Бот ", player_id, " команда ", bot_team_int)
+				return bot_team_int
 		Handlers.dprint("❌ POINTS: Бот ", player_id, " не найден в active_bots!")
 		return -1
 	
@@ -207,7 +206,7 @@ func _get_player_team(player_id: int) -> int:
 		return -1
 	
 	# Конвертируем GameTypes.Teams в int
-	var team_int = int(player.Team)
+	var team_int = int(player.team)
 	#Handlers.dprint("🏷️ POINTS: Игрок ", player_id, " команда ", team_int)
 	return team_int
 
@@ -330,12 +329,12 @@ func set_map(map_name:String):
 	# Инициализируем систему гексов после загрузки карты
 	call_deferred("initialize_hexes")
 
-func create_camera(game_type):
-	if game_type == 'Client':
+func create_camera(role: String) -> void:
+	if role == 'Client':
 		var camera = load("res://scenes/client/camera_2d.tscn").instantiate()
 		add_child(camera)
 		Handlers.UIHandler.camera = camera
-	elif game_type == 'Server':
+	elif role == 'Server':
 		var camera = load("res://scenes/client/camera_2d.tscn").instantiate()
 		add_child(camera)
 
@@ -381,6 +380,14 @@ func _is_player_bot(player_id: int) -> bool:
 		if bot.bot_id == player_id:
 			return true
 	return false
+
+func get_bot_team_by_id(player_id: int) -> int:
+	if active_bots.is_empty():
+		return -1
+	for bot in active_bots:
+		if bot.bot_id == player_id:
+			return int(bot.bot_team)
+	return -1
 
 func register_bot(bot: Bot) -> void:
 	"""
@@ -437,17 +444,16 @@ func _connect_unit_signals_to_bots(unit: BaseUnit) -> void:
 	for bot in active_bots:
 		Handlers.dprint("  - Подключение к боту ", bot.bot_name)
 		
-		# Подключаем сигнал атаки
-		if not unit.under_attack.is_connected(bot._on_unit_under_attack):
-			unit.under_attack.connect(bot._on_unit_under_attack)
-			Handlers.dprint("    ✅ Подключен сигнал under_attack")
+		if unit is BaseUnitServer:
+			var server_unit := unit as BaseUnitServer
+			if not server_unit.under_attack.is_connected(bot._on_unit_under_attack):
+				server_unit.under_attack.connect(bot._on_unit_under_attack)
+				Handlers.dprint("    ✅ Подключен сигнал under_attack")
+			
+			if not server_unit.attack_started.is_connected(bot._on_attack_started):
+				server_unit.attack_started.connect(bot._on_attack_started)
+				Handlers.dprint("    ✅ Подключен сигнал attack_started")
 		
-		# Подключаем сигнал начала атаки
-		if not unit.attack_started.is_connected(bot._on_attack_started):
-			unit.attack_started.connect(bot._on_attack_started)
-			Handlers.dprint("    ✅ Подключен сигнал attack_started")
-		
-		# Подключаем сигнал смерти
 		if not unit.unit_died.is_connected(bot._on_unit_died):
 			unit.unit_died.connect(bot._on_unit_died)
 			Handlers.dprint("    ✅ Подключен сигнал unit_died")
@@ -603,7 +609,7 @@ func sync_hex_capture(hex_position: Vector2i, new_owner_team: int) -> void:
 	# Определяем как отображать гекс с точки зрения этого клиента
 	var my_team = -1
 	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
-		my_team = Handlers.TeamHandler.my_profile.Team
+		my_team = Handlers.TeamHandler.my_profile.team
 		Handlers.dprint("👤 КЛИЕНТ: Моя команда = ", my_team)
 	else:
 		Handlers.dprint("❌ КЛИЕНТ: TeamHandler или my_profile не найден!")
@@ -752,7 +758,7 @@ func sync_full_map_state(captured_hexes_data: Array):
 			# Получаем команду локального игрока для правильного отображения
 			var local_player_team = 0  # По умолчанию команда A
 			if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
-				local_player_team = Handlers.TeamHandler.my_profile.Team
+				local_player_team = Handlers.TeamHandler.my_profile.team
 			_update_overlay_visual(hex_pos, hex.team_owner, local_player_team)
 		else:
 			Handlers.dprint("❌ SYNC: Гекс не найден по позиции ", hex_pos)

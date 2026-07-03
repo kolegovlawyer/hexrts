@@ -4,11 +4,6 @@ class_name Bot extends Node
 # Управляет поведением ботов в игре, не изменяя существующий код
 # Использует signals и groups для интеграции с игровыми системами
 
-# Сигналы для взаимодействия с игровыми системами
-signal unit_under_attack(attacker: BaseUnit, victim: BaseUnit)
-signal hex_capture_started(hex_position: Vector2i, team: int)
-signal emergency_retreat_needed(unit: BaseUnit)
-
 # Константы поведения
 const BOT_TEAM_OFFSET: int = 100  # Смещение ID для ботов (100+)
 const DECISION_INTERVAL: float = 2.0  # Интервал принятия решений в секундах
@@ -58,13 +53,13 @@ func _ready() -> void:
 	# Инициализация стратегии
 	call_deferred("_initialize_strategy")
 
-func initialize_bot(id: int, team: GameTypes.Teams, name: String) -> void:
+func initialize_bot(id: int, team: GameTypes.Teams, display_name: String) -> void:
 	"""
 	Инициализирует серверного бота с заданными параметрами
 	"""
 	bot_id = id
 	bot_team = team
-	bot_name = name
+	bot_name = display_name
 	 
 	Handlers.dprint("🎯 BOT: Серверный бот ", bot_name, " настроен:")
 	Handlers.dprint("  - bot_id: ", bot_id)
@@ -126,8 +121,8 @@ func _initialize_strategy() -> void:
 		Handlers.dprint("❌ BOT: FOB бота не найден!")
 		Handlers.dprint("  - Доступные FOB:")
 		var all_fobs = get_tree().get_nodes_in_group("fobs")
-		for fob in all_fobs:
-			Handlers.dprint("    - FOB owner_id: ", fob.owner_id, " team: ", fob.team, " position: ", fob.global_position)
+		for fob_node in all_fobs:
+			Handlers.dprint("    - FOB owner_id: ", fob_node.owner_id, " team: ", fob_node.team, " position: ", fob_node.global_position)
 
 ### СТРАТЕГИЧЕСКОЕ ПЛАНИРОВАНИЕ ###
 
@@ -386,8 +381,8 @@ func _attempt_spawn_unit(unit_type: String) -> void:
 		Handlers.dprint("❌ BOT: FOB не найден для спавна")
 		Handlers.dprint("  - Доступные FOB: ")
 		var all_fobs = get_tree().get_nodes_in_group("fobs")
-		for fob in all_fobs:
-			Handlers.dprint("    - FOB owner_id: ", fob.owner_id, " position: ", fob.global_position)
+		for fob_node in all_fobs:
+			Handlers.dprint("    - FOB owner_id: ", fob_node.owner_id, " position: ", fob_node.global_position)
 		return
 	
 	Handlers.dprint("✅ BOT DEBUG: FOB найден, owner_id: ", bot_fob.owner_id)
@@ -514,9 +509,9 @@ func _find_bot_fob() -> Node:
 	Находит FOB принадлежащий боту
 	"""
 	var fobs = get_tree().get_nodes_in_group("fobs")
-	for fob in fobs:
-		if fob.owner_id == bot_id:
-			return fob
+	for fob_node in fobs:
+		if fob_node.owner_id == bot_id:
+			return fob_node
 	return null
 
 func _get_bot_recruitment_points() -> float:
@@ -543,19 +538,19 @@ func _get_controlled_hexes() -> Array[Vector2i]:
 	"""
 	Возвращает список координат гексов, контролируемых ботом
 	"""
-	var controlled_hexes: Array[Vector2i] = []
+	var result: Array[Vector2i] = []
 	
 	if not Handlers.GameHandler or not Handlers.GameHandler.hexes_dict:
-		return controlled_hexes
+		return result
 	
 	var bot_team_int = int(bot_team)
 	
 	for hex_pos in Handlers.GameHandler.hexes_dict.keys():
 		var hex = Handlers.GameHandler.hexes_dict[hex_pos]
 		if hex.team_owner == bot_team_int:
-			controlled_hexes.append(hex_pos)
+			result.append(hex_pos)
 	
-	return controlled_hexes
+	return result
 
 func _get_available_base_units() -> Array[BaseUnit]:
 	"""

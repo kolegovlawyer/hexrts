@@ -133,7 +133,7 @@ func update_visual():
 		return
 	
 	# Сначала проверяем является ли это ботом
-	var bot_team = _get_bot_team_by_id(owner_id)
+	var bot_team = Handlers.GameHandler.get_bot_team_by_id(owner_id) if Handlers.GameHandler else -1
 	if bot_team != -1:
 		# Это бот - используем команду из системы ботов
 		owner_team = bot_team
@@ -142,7 +142,7 @@ func update_visual():
 		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
 		if not player:
 			return
-		owner_team = player.Team
+		owner_team = player.team
 	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
 		apply_unit_icon()
 		set_own_unit_group()
@@ -151,7 +151,7 @@ func update_visual():
 		update_shield_bar()
 		_sync_preview_vitals()
 		return
-	elif Handlers.TeamHandler.find_player_by_id(owner_id).Team == Handlers.TeamHandler.my_profile.Team:
+	elif Handlers.TeamHandler.find_player_by_id(owner_id).team == Handlers.TeamHandler.my_profile.team:
 		apply_unit_icon()
 		update_sprite_color()
 	else:
@@ -218,7 +218,7 @@ func set_enemy_unit_group():
 func update_sprite_color():
 	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
 		sprite.self_modulate = Color(1, 1, 1)
-	elif owner_team == Handlers.TeamHandler.my_profile.Team:
+	elif owner_team == Handlers.TeamHandler.my_profile.team:
 		sprite.self_modulate = Color(0, 0, 1)
 	else:
 		sprite.self_modulate = Color(1, 0, 0)
@@ -316,18 +316,3 @@ func set_unit_info(profile_path: String) -> void:
 	"""
 	if profile_path and profile_path != "":
 		unit_profile = load(profile_path)
-
-func _get_bot_team_by_id(player_id: int) -> int:
-	"""
-	Получает команду бота по его ID
-	Возвращает -1 если это не бот или бот не найден
-	"""
-	if not Handlers.GameHandler:
-		return -1
-	
-	# Ищем бота в списке активных ботов
-	for bot in Handlers.GameHandler.active_bots:
-		if bot.bot_id == player_id:
-			return int(bot.bot_team)
-	
-	return -1  # Не найден среди ботов

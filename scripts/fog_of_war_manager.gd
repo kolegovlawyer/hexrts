@@ -245,7 +245,7 @@ func _get_player_team(sample_unit: BaseUnit):
 	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
 		return null
 	
-	return Handlers.TeamHandler.my_profile.Team
+	return Handlers.TeamHandler.my_profile.team
 
 func _is_ally_unit(unit: BaseUnit, player_team) -> bool:
 	"""Проверяет является ли юнит союзником"""
@@ -262,25 +262,14 @@ func _is_ally_unit(unit: BaseUnit, player_team) -> bool:
 		# Пытаемся определить команду через owner_id
 		var player = Handlers.TeamHandler.find_player_by_id(unit.owner_id)
 		if player:
-			unit_team = player.Team
+			unit_team = player.team
 		else:
 			# Проверяем ботов
-			var bot_team = _get_bot_team_by_id(unit.owner_id)
+			var bot_team = Handlers.GameHandler.get_bot_team_by_id(unit.owner_id) if Handlers.GameHandler else -1
 			if bot_team != -1:
 				unit_team = bot_team
 	
 	return unit_team == player_team
-
-func _get_bot_team_by_id(player_id: int) -> int:
-	"""Получает команду бота по его ID"""
-	if not Handlers.GameHandler:
-		return -1
-	
-	for bot in Handlers.GameHandler.active_bots:
-		if bot.bot_id == player_id:
-			return int(bot.bot_team)
-	
-	return -1
 
 func _on_viewport_size_changed() -> void:
 	"""Обработчик изменения размера viewport"""

@@ -50,7 +50,7 @@ func _ready() -> void:
 	if is_multiplayer_authority() and owner_id != 1:
 		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
 		if player:
-			var expected_team = player.Team
+			var expected_team = player.team
 			if owner_team != expected_team:
 				owner_team = expected_team
 		

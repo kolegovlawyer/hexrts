@@ -1,5 +1,9 @@
 class_name BaseUnitServer extends BaseUnit
 
+# Сигналы боевой логики (emit только на сервере)
+signal under_attack(attacker: BaseUnit, victim: BaseUnit)
+signal attack_started(attacker: BaseUnit, target: BaseUnit)
+
 ### СЕРВЕРНАЯ ЛОГИКА ЮНИТА
 # Содержит только серверные вычисления: навигация, атаки, движение, ИИ
 # Коммуницирует с клиентской частью через RPC
@@ -49,7 +53,7 @@ func _initialize_team_and_visibility() -> void:
 	synchronizer.owner_id = owner_id
 	
 	# Безопасно получаем команду для серверных ботов и обычных игроков
-	var bot_team = _get_bot_team_by_id(owner_id)
+	var bot_team = Handlers.GameHandler.get_bot_team_by_id(owner_id)
 	if bot_team != -1:
 		# Это бот
 		owner_team = bot_team
@@ -58,7 +62,7 @@ func _initialize_team_and_visibility() -> void:
 		# Это обычный игрок
 		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
 		if player:
-			owner_team = player.Team
+			owner_team = player.team
 			Handlers.dprint("👤 TEAM INIT: %s - игрок, команда = %s" % [name, owner_team])
 		else:
 			Handlers.dprint("⚠️ TEAM INIT: %s - игрок не найден! owner_id = %s" % [name, owner_id])
@@ -235,7 +239,7 @@ func _physics_process(delta: float) -> void:
 		_quick_visibility_check()
 		
 		# ⚡ КРИТИЧЕСКИ ВАЖНО: Обработка приказов ТОЛЬКО ИГРОКОВ мгновенно!
-		var _is_bot = _get_bot_team_by_id(owner_id) != -1
+		var _is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
 		if not _is_bot and orders.size() > 0:
 			var order = orders[0]
 			match order.type:
@@ -347,7 +351,7 @@ func _process_heavy_server_calculations(delta: float) -> void:
 	"""
 	_profile_function_start("_process_heavy_server_calculations")
 	
-	var is_bot = _get_bot_team_by_id(owner_id) != -1
+	var is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
 	
 	# === ТЯЖЕЛЫЕ СЕТЕВЫЕ ОПЕРАЦИИ ВИДИМОСТИ ===
 	_process_visibility_heavy()
@@ -450,7 +454,7 @@ func _process_auto_attack_heavy() -> void:
 func add_order(order_obj, clear_queue:bool=false) -> void:
 	# Проверка владельца: обычные игроки или сервер для ботов
 	var sender_id = multiplayer.get_remote_sender_id()
-	var is_bot = _get_bot_team_by_id(owner_id) != -1
+	var is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
 	
 	# Для прямых вызовов от ботов на сервере - разрешаем без проверки sender_id
 	if is_bot and is_multiplayer_authority():
@@ -584,7 +588,7 @@ func can_see_target(target: BaseUnitServer) -> bool:
 		return _can_see_result
 	
 	var can_see := false
-	if _get_bot_team_by_id(owner_id) != -1:
+	if Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1:
 		can_see = global_position.distance_squared_to(target.global_position) <= 160000.0
 	else:
 		can_see = has_vision_on.has(target)
@@ -795,14 +799,14 @@ func _get_cached_team():
 		return owner_team
 	
 	# Пытаемся определить команду если она не задана
-	var bot_team = _get_bot_team_by_id(owner_id)
+	var bot_team = Handlers.GameHandler.get_bot_team_by_id(owner_id)
 	if bot_team != -1:
 		owner_team = bot_team
 		return owner_team
 	else:
 		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
 		if player:
-			owner_team = player.Team
+			owner_team = player.team
 			return owner_team
 		else:
 			_team_resolve_error_logged = true
@@ -1006,21 +1010,6 @@ func _select_best_target(enemies: Array[BaseUnitServer]) -> BaseUnitServer:
 	
 	return best_target
 
-func _get_bot_team_by_id(player_id: int) -> int:
-	"""
-	Получает команду бота по его ID
-	Возвращает -1 если это не бот или бот не найден
-	"""
-	if not Handlers.GameHandler:
-		return -1
-	
-	# Ищем бота в списке активных ботов
-	for bot in Handlers.GameHandler.active_bots:
-		if bot.bot_id == player_id:
-			return int(bot.bot_team)
-	
-	return -1  # Не найден среди ботов
-
 ## СИСТЕМА ВОССТАНОВЛЕНИЯ ЩИТА
 func _setup_shield_regeneration_timer() -> void:
 	"""
@@ -1097,7 +1086,7 @@ func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
 	Выполняет умный маневр для выхода из застревания
 	Анализирует окружение и выбирает оптимальное направление
 	"""
-	var _is_bot = _get_bot_team_by_id(owner_id) != -1
+	var _is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
 	
 	# Стратегия 1: Попытка обойти препятствие по дуге
 	var direction_to_target = (original_target - global_position).normalized()

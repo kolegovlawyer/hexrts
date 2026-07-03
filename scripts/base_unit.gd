@@ -43,9 +43,7 @@ var preset_display_name: String = ""
 var preset_instance_number: int = 0
 var preset_icon_path: String = ""
 
-# Сигналы для системы ИИ ботов
-signal under_attack(attacker: BaseUnit, victim: BaseUnit)
-signal attack_started(attacker: BaseUnit, target: BaseUnit)
+# Сигнал смерти (общий для client/server)
 signal unit_died(dead_unit: BaseUnit)
 
 # Флаг командного юнита (для захвата гексов)
@@ -88,17 +86,17 @@ func die() -> void:
 	queue_free()
 
 # Методы состояния для переопределения в наследниках
-func _unit_state_exit(state: int) -> void:
+func _unit_state_exit(_state: int) -> void:
 	"""Выход из состояния - очистка и завершение текущих действий"""
 	pass
 
-func _unit_state_enter(state: int) -> void:
+func _unit_state_enter(_state: int) -> void:
 	"""Вход в состояние - инициализация поведения"""
 	pass
 
 # RPC методы для переопределения в наследниках
 @rpc("any_peer", "reliable")
-func add_order(order_obj, clear_queue: bool = false) -> void:
+func add_order(_order_obj, _clear_queue: bool = false) -> void:
 	"""Добавляет приказ юниту"""
 	pass
 
@@ -125,7 +123,7 @@ func sync_shield(new_shield_value: int) -> void:
 	update_shield_bar()
 
 @rpc("any_peer", "reliable")
-func set_unit_info(profile_path: String) -> void:
+func set_unit_info(_profile_path: String) -> void:
 	"""Устанавливает информацию о профиле юнита"""
 	pass
 
@@ -150,17 +148,17 @@ func sync_unit_appearance(display_name: String, instance_number: int, icon_path:
 	preset_icon_path = icon_path
 
 @rpc("authority", "reliable")
-func rpc_apply_damage_to_uid(target_uid: String, amount: int, instigator_uid: String = "") -> void:
+func rpc_apply_damage_to_uid(_target_uid: String, _amount: int, _instigator_uid: String = "") -> void:
 	"""Stub: серверный RPC нанесения урона по UID (объявлен на всех пирах для согласованности)"""
 	pass
 
 @rpc("authority", "reliable")
-func rpc_apply_aoe_damage(center: Vector2, radius: float, amount: int, instigator_uid: String = "") -> void:
+func rpc_apply_aoe_damage(_center: Vector2, _radius: float, _amount: int, _instigator_uid: String = "") -> void:
 	"""Stub: серверный RPC нанесения AoE урона (объявлен на всех пирах для согласованности)"""
 	pass
 
 # Виртуальные методы для переопределения в наследниках
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	"""Физический процесс - вызывается каждый фрейм"""
 	pass
 

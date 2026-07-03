@@ -10,8 +10,8 @@ func _exit_tree():
 	Handlers.UnitSelectionHandler = null
 	
 	
-func select_fob(fob:Node):
-	selected_fob = fob
+func select_fob(fob_node: Node) -> void:
+	selected_fob = fob_node
 
 func _prune_selected_units() -> void:
 	var valid: Array[BaseUnit] = []

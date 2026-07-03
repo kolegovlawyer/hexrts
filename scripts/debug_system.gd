@@ -34,7 +34,7 @@ func _print_debug_summary() -> void:
 	if Handlers.TeamHandler:
 		Handlers.dprint("👥 Игроков в TeamHandler: %d" % Handlers.TeamHandler.players.size())
 		for player in Handlers.TeamHandler.players:
-			Handlers.dprint("  - ID:%s команда:%s" % [player.PlayerId, int(player.Team)])
+			Handlers.dprint("  - ID:%s команда:%s" % [player.PlayerId, int(player.team)])
 	
 	var all_units = get_tree().get_nodes_in_group("units")
 	Handlers.dprint("⚔️ Всего юнитов: %d" % all_units.size())

@@ -48,7 +48,7 @@ func add_to_team(player, team: GameTypes.Teams): # player is int, PlayerProfile
 				if multiplayer.get_unique_id() == new_player.PlayerId:
 					my_profile = new_player
 		TYPE_OBJECT:
-			player.Team = team
+			player.team = team
 			players.append(player)
 			if not is_multiplayer_authority() and not my_profile:
 				if multiplayer.get_unique_id() == player.PlayerId:
@@ -96,14 +96,14 @@ func find_player_by_id(player:int):
 func get_team_players(team: GameTypes.Teams):
 	var query_players = []
 	for player in players:
-		if player.Team == team and player.PlayerId != 2 and player.PlayerId != 3: # REWORK!!!
+		if player.team == team and player.PlayerId != 2 and player.PlayerId != 3: # REWORK!!!
 			query_players.append(player)
 	return query_players
 
 func get_enemy_team_players(team: GameTypes.Teams):
 	var query_players = []
 	for player in players:
-		if player.Team != team and player.PlayerId != 2 and player.PlayerId != 3 and player.Team != null: # REWORK!!!
+		if player.team != team and player.PlayerId != 2 and player.PlayerId != 3 and player.team != null: # REWORK!!!
 			query_players.append(player)
 	return query_players
 	
@@ -135,7 +135,7 @@ func add_bot_to_team(bot_id: int, team: GameTypes.Teams) -> void:
 	# Выводим список всех игроков для отладки
 	print("  - Список игроков:")
 	for player in players:
-		print("    - ID: ", player.PlayerId, " Team: ", player.Team)
+		print("    - ID: ", player.PlayerId, " Team: ", player.team)
 
 func remove_bot_from_team(bot_id: int) -> void:
 	"""

@@ -124,6 +124,20 @@ func set_unit_info(profile_path: String) -> void:
 	"""Устанавливает информацию о профиле юнита"""
 	pass
 
+@rpc("authority", "call_local", "reliable")
+func sync_preset_stats(
+		new_max_health: int,
+		new_max_shield: int,
+		_new_speed: int,
+		_new_damage: int,
+		_vision_radius: float
+	) -> void:
+	max_health = new_max_health
+	max_shield = new_max_shield
+
+func apply_preset_snapshot(_snapshot: Dictionary) -> void:
+	pass
+
 @rpc("authority", "reliable")
 func rpc_apply_damage_to_uid(target_uid: String, amount: int, instigator_uid: String = "") -> void:
 	"""Stub: серверный RPC нанесения урона по UID (объявлен на всех пирах для согласованности)"""

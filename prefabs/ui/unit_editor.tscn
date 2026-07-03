@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://bw3enpouyp31e"]
+[gd_scene format=3 uid="uid://bw3enpouyp31e"]
 
 [ext_resource type="StyleBox" uid="uid://dkdtwbvicdmyv" path="res://prefabs/ui/themes/main_style.tres" id="1_kgsmo"]
 [ext_resource type="Script" uid="uid://bssnie2mgc4es" path="res://scripts/UI/unit_editor.gd" id="2_i5vhy"]
@@ -43,10 +43,7 @@ expand_margin_top = 10.0
 expand_margin_right = 10.0
 expand_margin_bottom = 10.0
 
-[sub_resource type="LabelSettings" id="LabelSettings_u4uy5"]
-font_size = 18
-
-[node name="UnitEditor" type="PanelContainer"]
+[node name="UnitEditor" type="PanelContainer" unique_id=433499585]
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
@@ -62,157 +59,164 @@ theme = SubResource("Theme_t2ad6")
 theme_override_styles/panel = ExtResource("1_kgsmo")
 script = ExtResource("2_i5vhy")
 
-[node name="Panel" type="Panel" parent="."]
+[node name="ColorPanel" type="Panel" parent="." unique_id=1677711983]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_63f6l")
 
-[node name="Panel2" type="Panel" parent="."]
+[node name="ColorPanel2" type="Panel" parent="." unique_id=135081827]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_re5vh")
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1736325035]
 layout_mode = 2
 theme_override_constants/margin_left = 5
 theme_override_constants/margin_top = 5
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 5
 
-[node name="MainContainer" type="VBoxContainer" parent="MarginContainer"]
+[node name="MainContainer" type="VBoxContainer" parent="MarginContainer" unique_id=2018049980]
 layout_mode = 2
 theme_override_constants/separation = 15
 
-[node name="HeaderRack" type="HBoxContainer" parent="MarginContainer/MainContainer"]
+[node name="UnitTypeList" type="OptionButton" parent="MarginContainer/MainContainer" unique_id=1032904035]
+layout_mode = 2
+size_flags_vertical = 3
+item_count = 2
+popup/item_0/id = 0
+popup/item_1/id = 1
+
+[node name="HeaderRack" type="HBoxContainer" parent="MarginContainer/MainContainer" unique_id=128649943]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="Button" type="Button" parent="MarginContainer/MainContainer/HeaderRack"]
+[node name="ResetButton" type="Button" parent="MarginContainer/MainContainer/HeaderRack" unique_id=1410762972]
 layout_mode = 2
 text = "СБРОС"
 
-[node name="Button2" type="Button" parent="MarginContainer/MainContainer/HeaderRack"]
+[node name="HelpButton" type="Button" parent="MarginContainer/MainContainer/HeaderRack" unique_id=286420659]
 layout_mode = 2
 text = "?"
 
-[node name="Button3" type="Button" parent="MarginContainer/MainContainer/HeaderRack"]
+[node name="SaveButton" type="Button" parent="MarginContainer/MainContainer/HeaderRack" unique_id=249019042]
 layout_mode = 2
 text = "S"
 
-[node name="Button4" type="Button" parent="MarginContainer/MainContainer/HeaderRack"]
+[node name="ComandButton" type="Button" parent="MarginContainer/MainContainer/HeaderRack" unique_id=1494386578]
 layout_mode = 2
-text = "E"
+text = "C"
 
-[node name="Label" type="Label" parent="MarginContainer/MainContainer/HeaderRack"]
+[node name="NameLabel" type="TextEdit" parent="MarginContainer/MainContainer/HeaderRack" unique_id=1176937960]
 layout_mode = 2
-text = "ХРЮКОСТЯГ МК-1"
-label_settings = SubResource("LabelSettings_u4uy5")
+size_flags_horizontal = 3
+text = "МК-1 "
 
-[node name="VariableRack" type="HBoxContainer" parent="MarginContainer/MainContainer"]
+[node name="VariableRack" type="HBoxContainer" parent="MarginContainer/MainContainer" unique_id=341490299]
 layout_mode = 2
 theme_override_constants/separation = 30
 
-[node name="EditorRack" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack"]
+[node name="EditorRack" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack" unique_id=1537510408]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="VariableBoard" type="VBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack"]
+[node name="VariableBoard" type="VBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack" unique_id=1724364842]
 layout_mode = 2
 alignment = 1
 
-[node name="HealthVariable" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard"]
+[node name="HealthVariable" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard" unique_id=1674125257]
 layout_mode = 2
 
-[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HealthVariable"]
+[node name="HealthButtonIncrease" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HealthVariable" unique_id=1956859001]
 layout_mode = 2
 text = "-"
 
-[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HealthVariable"]
+[node name="HealthLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HealthVariable" unique_id=1495599351]
 layout_mode = 2
 text = "Прочность"
 vertical_alignment = 1
 
-[node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HealthVariable"]
+[node name="HealthButtonDecrease" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HealthVariable" unique_id=1163887740]
 layout_mode = 2
 text = "+"
 
-[node name="HBoxContainer2" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard"]
+[node name="SpeedVariable" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard" unique_id=1884575577]
 layout_mode = 2
 
-[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer2"]
+[node name="SpeedButtonIncrease" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/SpeedVariable" unique_id=1678257067]
 layout_mode = 2
 text = "-"
 
-[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer2"]
+[node name="SpeedLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/SpeedVariable" unique_id=1209305705]
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Скорость"
 horizontal_alignment = 1
 
-[node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer2"]
+[node name="SpeedButtonDecrease" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/SpeedVariable" unique_id=323088123]
 layout_mode = 2
 text = "+"
 
-[node name="HBoxContainer3" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard"]
+[node name="DamageVariable" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard" unique_id=1713546033]
 layout_mode = 2
 
-[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer3"]
+[node name="DamageButtonIncrease" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/DamageVariable" unique_id=1324634758]
 layout_mode = 2
 text = "-"
 
-[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer3"]
+[node name="DamageVariable" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/DamageVariable" unique_id=1742650248]
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Атака"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer3"]
+[node name="ButtonDecrease" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/DamageVariable" unique_id=1558180711]
 layout_mode = 2
 text = "+"
 
-[node name="HBoxContainer4" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard"]
+[node name="ShiledVariable" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard" unique_id=45014661]
 layout_mode = 2
 
-[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer4"]
+[node name="ShiledButtonIncrease" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/ShiledVariable" unique_id=1378319397]
 layout_mode = 2
 text = "-"
 
-[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer4"]
+[node name="ShiledLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/ShiledVariable" unique_id=222614206]
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Щиты"
 horizontal_alignment = 1
 
-[node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer4"]
+[node name="ShiledButtonDecrease" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/ShiledVariable" unique_id=232315754]
 layout_mode = 2
 text = "+"
 
-[node name="HBoxContainer5" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard"]
+[node name="RangeVariable" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard" unique_id=42499822]
 layout_mode = 2
 
-[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer5"]
+[node name="RangeButtonIncrease" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/RangeVariable" unique_id=336118365]
 layout_mode = 2
 text = "-"
 
-[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer5"]
+[node name="RangeLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/RangeVariable" unique_id=431319759]
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Обзор"
 horizontal_alignment = 1
 
-[node name="Button2" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/HBoxContainer5"]
+[node name="RangeButtonDecrease" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/VariableBoard/RangeVariable" unique_id=1480455857]
 layout_mode = 2
 text = "+"
 
-[node name="BarBoard" type="VBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack"]
+[node name="BarBoard" type="VBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack" unique_id=1644656075]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 12
 alignment = 1
 
-[node name="HealtBar" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
+[node name="HealtBar" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard" unique_id=1521524314]
 layout_mode = 2
 
-[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HealtBar"]
+[node name="HealthProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HealtBar" unique_id=718625610]
 custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
 size_flags_horizontal = 3
@@ -220,104 +224,92 @@ size_flags_vertical = 1
 value = 20.0
 show_percentage = false
 
-[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HealtBar"]
+[node name="HealthVarLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HealtBar" unique_id=1627047326]
 layout_mode = 2
 text = "20"
 
-[node name="HBoxContainer2" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
+[node name="SpeedBar" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard" unique_id=1174304165]
 layout_mode = 2
 
-[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer2"]
+[node name="SpeedProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/SpeedBar" unique_id=2087288627]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 1
 value = 25.0
 show_percentage = false
 
-[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer2"]
+[node name="SpeedVarLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/SpeedBar" unique_id=820054241]
 layout_mode = 2
 text = "25"
 
-[node name="HBoxContainer3" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
+[node name="DamageBar" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard" unique_id=1407853517]
 layout_mode = 2
 
-[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer3"]
+[node name="DamageProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/DamageBar" unique_id=1448358190]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 1
 value = 100.0
 show_percentage = false
 
-[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer3"]
+[node name="DamageLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/DamageBar" unique_id=1902017107]
 layout_mode = 2
 text = "25"
 
-[node name="HBoxContainer4" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
+[node name="ShiledBar" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard" unique_id=1700915305]
 layout_mode = 2
 
-[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer4"]
+[node name="ShiledProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/ShiledBar" unique_id=57479018]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 1
 value = 100.0
 show_percentage = false
 
-[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer4"]
+[node name="ShiledVarLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/ShiledBar" unique_id=2117355164]
 layout_mode = 2
 text = "25"
 
-[node name="HBoxContainer5" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
+[node name="RangeBar" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard" unique_id=1936036319]
 layout_mode = 2
 
-[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer5"]
+[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/RangeBar" unique_id=1329323897]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 1
 value = 100.0
 show_percentage = false
 
-[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer5"]
+[node name="RangeVarLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/RangeBar" unique_id=77787570]
 layout_mode = 2
 text = "25"
 
-[node name="HBoxContainer6" type="HBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard"]
-visible = false
+[node name="CostBoard" type="VBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack" unique_id=716025054]
 layout_mode = 2
 
-[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer6"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 1
-value = 100.0
-show_percentage = false
-
-[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/BarBoard/HBoxContainer6"]
-layout_mode = 2
-text = "25"
-
-[node name="CostBoard" type="VBoxContainer" parent="MarginContainer/MainContainer/VariableRack/EditorRack"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard"]
+[node name="ResultLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard" unique_id=2123439043]
 layout_mode = 2
 text = "Результат"
 
-[node name="Label2" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard"]
+[node name="ResultIcon" type="TextureRect" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard" unique_id=1154748437]
+layout_mode = 2
+
+[node name="CostLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard" unique_id=352626837]
 layout_mode = 2
 text = "Цена
 20"
 horizontal_alignment = 1
 
-[node name="Label3" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard"]
+[node name="TimeLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard" unique_id=1934322132]
 layout_mode = 2
 text = "Время
 10"
 horizontal_alignment = 1
 
-[node name="Control" type="Control" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard"]
+[node name="Control" type="Control" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard" unique_id=1430033348]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="Button" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard"]
+[node name="CloseButton" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard" unique_id=1827824073]
 layout_mode = 2
 text = "Закрыть"

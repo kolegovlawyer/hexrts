@@ -255,6 +255,28 @@ func sync_shield(new_shield_value: int) -> void:
 	update_shield_bar()
 	_sync_preview_vitals()
 
+@rpc("authority", "call_local", "reliable")
+func sync_preset_stats(
+		new_max_health: int,
+		new_max_shield: int,
+		_new_speed: int,
+		_new_damage: int,
+		vision_radius: float
+	) -> void:
+	max_health = new_max_health
+	max_shield = new_max_shield
+	_health = max_health
+	_shield = max_shield
+
+	var visibility_area_node: Area2D = get_node_or_null("%VisibilityArea")
+	if visibility_area_node:
+		var vis_shape: CollisionShape2D = visibility_area_node.get_node_or_null("VisibilityShape")
+		if vis_shape and vis_shape.shape is CircleShape2D:
+			vis_shape.shape.radius = vision_radius
+
+	init_health_bar()
+	init_shield_bar()
+
 @rpc("any_peer", "reliable")
 func set_unit_info(profile_path: String) -> void:
 	"""

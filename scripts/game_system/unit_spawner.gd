@@ -7,27 +7,38 @@ func _exit_tree():
 	Handlers.UnitSpawnHandler = null
 
 @rpc("any_peer", "reliable")
-func spawn_unit_with_validation(spawn_point, unit_type: String = "base_unit", unit_cost: int = 10):
+func spawn_unit_with_validation(
+		spawn_point,
+		unit_type: String = "base_unit",
+		unit_cost: int = 10,
+		preset_snapshot: Dictionary = {}
+	):
 	"""
 	Новая функция спавна с валидацией очков и отложенным спавном через FOB
 	"""
 	if is_multiplayer_authority():
 		var player_id = multiplayer.get_remote_sender_id()
 		print("🎯 SPAWN: Получен запрос спавна от игрока ", player_id, " стоимость: ", unit_cost)
-		
+
+		if not preset_snapshot.is_empty():
+			var is_command := bool(preset_snapshot.get("is_command", false))
+			if not UnitPresetBalance.validate_spawn_request(preset_snapshot, is_command, unit_cost):
+				print("❌ SPAWN: Неверная стоимость пресета для игрока ", player_id)
+				reject_spawn.rpc_id(player_id, "Неверные параметры пресета")
+				return
+			unit_type = "command_unit" if is_command else "base_unit"
+
 		# Валидация очков через GameManager
 		if Handlers.GameHandler and Handlers.GameHandler.validate_unit_spawn(player_id, unit_cost):
 			# Очки списаны, ищем FOB игрока и добавляем заказ в его очередь
 			var player_fob = _find_player_fob(player_id)
 			if player_fob:
-				player_fob.add_spawn_order(unit_type, unit_cost, player_id)
+				var spawn_delay := 3.0
+				if not preset_snapshot.is_empty():
+					spawn_delay = UnitPresetBalance.calculate_spawn_time(unit_cost)
+				player_fob.add_spawn_order(unit_type, unit_cost, player_id, spawn_delay, preset_snapshot)
 				print("✅ SPAWN: Заказ добавлен в очередь FOB игрока ", player_id)
-				
-				# Определяем время спавна для сообщения клиенту
-				var spawn_delay = 3.0  # Обычные юниты
-				if unit_type == "command_unit":
-					spawn_delay = 6.0  # Командные юниты
-				
+
 				# Отправляем подтверждение клиенту
 				confirm_spawn_started.rpc_id(player_id, unit_type, unit_cost, spawn_delay)
 			else:
@@ -70,7 +81,12 @@ func spawn_unit(spawn_point, unit_type: String = "base_unit"):
 		var player_id = multiplayer.get_remote_sender_id()
 		_internal_spawn_unit(spawn_point, unit_type, player_id)
 
-func _internal_spawn_unit(spawn_point: Vector2, unit_type: String, player_id: int):
+func _internal_spawn_unit(
+		spawn_point: Vector2,
+		unit_type: String,
+		player_id: int,
+		preset_snapshot: Dictionary = {}
+	):
 	"""
 	Внутренняя функция спавна, которая может быть вызвана напрямую с указанием player_id
 	Используется как для RPC, так и для отложенного спавна
@@ -97,4 +113,6 @@ func _internal_spawn_unit(spawn_point: Vector2, unit_type: String, player_id: in
 		"owner_id": player_id
 	})
 	unit.owner_id = player_id
+	if not preset_snapshot.is_empty() and unit.has_method("apply_preset_snapshot"):
+		unit.apply_preset_snapshot(preset_snapshot)
 	print("🏭 СПАВН: Юнит типа '", unit_type, "' создан для игрока ", player_id, " в позиции ", spawn_point)

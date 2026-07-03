@@ -12,6 +12,11 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 @onready var home_button = get_node(
 	"MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton"
 )
+@onready var unit_editor_button = get_node(
+	"MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/UnitEditorButton"
+)
+
+var unit_editor: UnitEditor = null
 
 @onready var unit_container = get_node("%UnitContainer")
 
@@ -148,6 +153,7 @@ func _ready() -> void:
 	hud_board.connect('mouse_entered', stop_camera_move)
 	hud_board.connect('mouse_exited', continue_camera_move)
 	#home_button.connect('pressed', move_camera_to_fob)
+	unit_editor_button.pressed.connect(open_unit_editor)
 	_initialize_points_display()
 
 func register_unit_preview(uid: String, preview: UnitPreview) -> void:
@@ -278,6 +284,16 @@ func create_fob_panel(fob):
 
 func delete_fob_panel():
 	fob_panel.queue_free()
+
+
+func open_unit_editor() -> void:
+	if unit_editor and is_instance_valid(unit_editor):
+		return
+	unit_editor = preload("res://prefabs/ui/unit_editor.tscn").instantiate() as UnitEditor
+	add_child(unit_editor)
+	unit_editor.tree_exited.connect(func() -> void:
+		unit_editor = null
+	)
 
 
 ### DEBUG SECTION

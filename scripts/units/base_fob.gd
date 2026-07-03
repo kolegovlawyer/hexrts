@@ -106,7 +106,13 @@ func _setup_spawn_timer() -> void:
 	add_child(spawn_timer)
 	print("🏭 FOB: Единый таймер спавна создан")
 
-func add_spawn_order(unit_type: String, unit_cost: int, player_id: int) -> void:
+func add_spawn_order(
+		unit_type: String,
+		unit_cost: int,
+		player_id: int,
+		spawn_delay: float = -1.0,
+		preset_snapshot: Dictionary = {}
+	) -> void:
 	"""
 	Добавляет заказ на спавн юнита в очередь
 	Запускает спавн если очередь была пуста
@@ -116,16 +122,19 @@ func add_spawn_order(unit_type: String, unit_cost: int, player_id: int) -> void:
 		return
 	
 	# Определяем время спавна в зависимости от типа юнита
-	var spawn_delay = UNIT_SPAWN_DELAY
-	if unit_type == "command_unit":
-		spawn_delay = COMMAND_UNIT_SPAWN_DELAY
-	
+	var resolved_delay := spawn_delay
+	if resolved_delay < 0.0:
+		resolved_delay = UNIT_SPAWN_DELAY
+		if unit_type == "command_unit":
+			resolved_delay = COMMAND_UNIT_SPAWN_DELAY
+
 	# Создаем заказ (без собственного Timer'а)
 	var spawn_order = {
 		"unit_type": unit_type,
-		"unit_cost": unit_cost, 
+		"unit_cost": unit_cost,
 		"player_id": player_id,
-		"spawn_delay": spawn_delay
+		"spawn_delay": resolved_delay,
+		"preset_snapshot": preset_snapshot,
 	}
 	
 	# Добавляем в очередь
@@ -185,7 +194,8 @@ func _on_spawn_timer_timeout() -> void:
 		Handlers.UnitSpawnHandler._internal_spawn_unit(
 			global_position,  # Спавним в позиции FOB
 			current_order["unit_type"],
-			current_order["player_id"]
+			current_order["player_id"],
+			current_order.get("preset_snapshot", {})
 		)
 		print("🎯 FOB SPAWN: Юнит успешно заспавнен")
 	else:

@@ -1147,3 +1147,49 @@ func update_health_bar() -> void:
 func update_shield_bar() -> void:
 	"""Серверная версия - не обновляет UI"""
 	pass
+
+func apply_preset_snapshot(snapshot: Dictionary) -> void:
+	if not is_multiplayer_authority():
+		return
+
+	var health_stat := int(snapshot.get("health", UnitPresetBalance.DEFAULT_STAT))
+	var shield_stat := int(snapshot.get("shield", UnitPresetBalance.DEFAULT_STAT))
+	var speed_stat := int(snapshot.get("speed", UnitPresetBalance.DEFAULT_STAT))
+	var damage_stat := int(snapshot.get("damage", UnitPresetBalance.DEFAULT_STAT))
+	var range_stat := int(snapshot.get("range", UnitPresetBalance.DEFAULT_STAT))
+
+	max_health = UnitPresetBalance.to_game_health(health_stat)
+	max_shield = UnitPresetBalance.to_game_shield(shield_stat)
+	_health = max_health
+	health = max_health
+	_shield = max_shield
+	shield = max_shield
+	speed = UnitPresetBalance.to_game_speed(speed_stat)
+	damage = UnitPresetBalance.to_game_damage(damage_stat)
+
+	var vision_radius := UnitPresetBalance.to_game_vision_radius(range_stat)
+	if visibility_area:
+		var vis_shape: CollisionShape2D = visibility_area.get_node_or_null("VisibilityShape")
+		if vis_shape and vis_shape.shape is CircleShape2D:
+			vis_shape.shape.radius = vision_radius
+
+	rpc("sync_preset_stats", max_health, max_shield, speed, damage, vision_radius)
+	rpc("sync_health", _health)
+	rpc("sync_shield", _shield)
+
+
+func sync_preset_stats(
+		new_max_health: int,
+		new_max_shield: int,
+		new_speed: int,
+		new_damage: int,
+		vision_radius: float
+	) -> void:
+	super.sync_preset_stats(new_max_health, new_max_shield, new_speed, new_damage, vision_radius)
+	if is_multiplayer_authority():
+		speed = new_speed
+		damage = new_damage
+		if visibility_area:
+			var vis_shape: CollisionShape2D = visibility_area.get_node_or_null("VisibilityShape")
+			if vis_shape and vis_shape.shape is CircleShape2D:
+				vis_shape.shape.radius = vision_radius

@@ -1,0 +1,37 @@
+[gd_scene format=3 uid="uid://jsnyh1bnqrga"]
+
+[ext_resource type="Script" path="res://scripts/UI/preset_unit_card.gd" id="1_preset"]
+
+[node name="PresetUnitCard" type="PanelContainer"]
+layout_mode = 2
+script = ExtResource("1_preset")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+
+[node name="MainRack" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="MarginContainer/MainRack"]
+layout_mode = 2
+text = "МК-1"
+
+[node name="AttackLabel" type="Label" parent="MarginContainer/MainRack"]
+layout_mode = 2
+text = "Атака: 5"
+
+[node name="RangeLabel" type="Label" parent="MarginContainer/MainRack"]
+layout_mode = 2
+text = "Обзор: 5"
+
+[node name="SpeedLabel" type="Label" parent="MarginContainer/MainRack"]
+layout_mode = 2
+text = "Скорость: 5"
+
+[node name="HealthLabel" type="Label" parent="MarginContainer/MainRack"]
+layout_mode = 2
+text = "Прочность: 5"
+
+[node name="CostLabel" type="Label" parent="MarginContainer/MainRack"]
+layout_mode = 2
+text = "Цена: 25"

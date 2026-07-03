@@ -191,7 +191,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton2" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=1522776606]
+[node name="UnitEditorButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=1522776606]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -200,7 +200,7 @@ texture_normal = ExtResource("3_swdpp")
 texture_pressed = ExtResource("3_swdpp")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton2" unique_id=1959199087]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/UnitEditorButton" unique_id=1959199087]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15

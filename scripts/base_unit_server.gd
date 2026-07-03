@@ -1173,9 +1173,25 @@ func apply_preset_snapshot(snapshot: Dictionary) -> void:
 		if vis_shape and vis_shape.shape is CircleShape2D:
 			vis_shape.shape.radius = vision_radius
 
+	if preset_icon_path == "":
+		var preset_id := str(snapshot.get("preset_id", "default"))
+		preset_display_name = str(snapshot.get("preset_name", UnitPresetBalance.default_preset_name()))
+		preset_instance_number = UnitPresetManager.next_instance_number(owner_id, preset_id)
+		preset_icon_path = UnitIconUtil.get_icon_path_from_stats(snapshot, bool(snapshot.get("is_command", false)))
+
 	rpc("sync_preset_stats", max_health, max_shield, speed, damage, vision_radius)
+	call_deferred(
+		"_deferred_sync_unit_appearance",
+		preset_display_name,
+		preset_instance_number,
+		preset_icon_path
+	)
 	rpc("sync_health", _health)
 	rpc("sync_shield", _shield)
+
+
+func _deferred_sync_unit_appearance(display_name: String, instance_number: int, icon_path: String) -> void:
+	rpc("sync_unit_appearance", display_name, instance_number, icon_path)
 
 
 func sync_preset_stats(

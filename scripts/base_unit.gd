@@ -38,6 +38,11 @@ var selected: bool = false
 # Профиль юнита
 var unit_profile = null
 
+# Данные пресета для отображения (имя, номер, иконка)
+var preset_display_name: String = ""
+var preset_instance_number: int = 0
+var preset_icon_path: String = ""
+
 # Сигналы для системы ИИ ботов
 signal under_attack(attacker: BaseUnit, victim: BaseUnit)
 signal attack_started(attacker: BaseUnit, target: BaseUnit)
@@ -137,6 +142,12 @@ func sync_preset_stats(
 
 func apply_preset_snapshot(_snapshot: Dictionary) -> void:
 	pass
+
+@rpc("authority", "call_local", "reliable")
+func sync_unit_appearance(display_name: String, instance_number: int, icon_path: String) -> void:
+	preset_display_name = display_name
+	preset_instance_number = instance_number
+	preset_icon_path = icon_path
 
 @rpc("authority", "reliable")
 func rpc_apply_damage_to_uid(target_uid: String, amount: int, instigator_uid: String = "") -> void:

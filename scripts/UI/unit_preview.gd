@@ -42,14 +42,17 @@ func update_visual() -> void:
 	if client_unit == null:
 		return
 
-	var unit_sprite: Sprite2D = unit.get_node_or_null("%UnitSelfSprite")
-	if unit_sprite and unit_sprite.texture:
-		sprite.texture = unit_sprite.texture
+	if unit.preset_icon_path != "":
+		var preset_texture: Texture2D = load(unit.preset_icon_path) as Texture2D
+		if preset_texture:
+			sprite.texture = preset_texture
+	else:
+		var unit_sprite: Sprite2D = unit.get_node_or_null("%UnitSelfSprite")
+		if unit_sprite and unit_sprite.texture:
+			sprite.texture = unit_sprite.texture
 
 	if client_unit.has_method("get_display_name"):
 		name_label.text = client_unit.get_display_name()
-	elif unit.is_command_unit():
-		name_label.text = "Командир"
 	else:
 		name_label.text = "Боец"
 

@@ -56,8 +56,8 @@ func _ready() -> void:
 		connect("input_event", handle_input)
 		connect("mouse_entered", preseclect)
 		connect("mouse_exited", depreselect)
-	
-	update_visual()
+
+	call_deferred("update_visual")
 
 func _exit_tree() -> void:
 	if Handlers.UIHandler and UID != "":
@@ -127,7 +127,7 @@ func update_health_bar() -> void:
 			health_bar.modulate = Color.RED
 
 func update_visual():
-	if not Handlers.TeamHandler.my_profile:
+	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
 		return
 	if owner_id == 1:
 		return
@@ -144,25 +144,18 @@ func update_visual():
 			return
 		owner_team = player.Team
 	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
+		apply_unit_icon()
 		set_own_unit_group()
-		if not preview:
-			if not Handlers.UIHandler:
-				return
-			var self_preview: UnitPreview = preload("res://prefabs/ui/unit_preview.tscn").instantiate()
-			preview = self_preview
-			Handlers.UIHandler.unit_container.add_child(preview)
-			preview.unit = self
-			if UID != "":
-				Handlers.UIHandler.register_unit_preview(UID, preview)
-		else:
-			preview.unit = self
+		_ensure_own_preview()
 		update_health_bar()
 		update_shield_bar()
 		_sync_preview_vitals()
 		return
 	elif Handlers.TeamHandler.find_player_by_id(owner_id).Team == Handlers.TeamHandler.my_profile.Team:
+		apply_unit_icon()
 		update_sprite_color()
 	else:
+		apply_unit_icon()
 		update_sprite_color()
 	update_health_bar()
 	update_shield_bar()
@@ -170,10 +163,39 @@ func update_visual():
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РЕФАКТОРИНГА ===
 
 func get_display_name() -> String:
+	if preset_display_name != "" and preset_instance_number > 0:
+		return "%s #%d" % [preset_display_name, preset_instance_number]
 	var base_name := "Командир" if is_command_unit() else "Боец"
 	if UID.length() >= 4:
 		return "%s %s" % [base_name, UID.right(4)]
 	return base_name
+
+
+func apply_unit_icon() -> void:
+	if preset_icon_path == "":
+		return
+	var icon_texture: Texture2D = load(preset_icon_path) as Texture2D
+	if icon_texture and sprite:
+		sprite.texture = icon_texture
+
+
+func _ensure_own_preview() -> void:
+	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
+		return
+	if owner_id != Handlers.TeamHandler.my_profile.PlayerId:
+		return
+	if not Handlers.UIHandler:
+		return
+	if preview and is_instance_valid(preview):
+		preview.unit = self
+		preview.update_visual()
+		return
+	var self_preview: UnitPreview = preload("res://prefabs/ui/unit_preview.tscn").instantiate()
+	preview = self_preview
+	Handlers.UIHandler.unit_container.add_child(preview)
+	preview.unit = self
+	if UID != "":
+		Handlers.UIHandler.register_unit_preview(UID, preview)
 
 func get_current_health() -> int:
 	return _health
@@ -276,6 +298,16 @@ func sync_preset_stats(
 
 	init_health_bar()
 	init_shield_bar()
+
+@rpc("authority", "call_local", "reliable")
+func sync_unit_appearance(display_name: String, instance_number: int, icon_path: String) -> void:
+	super.sync_unit_appearance(display_name, instance_number, icon_path)
+	apply_unit_icon()
+	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
+		if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
+			_ensure_own_preview()
+			if preview and is_instance_valid(preview):
+				preview.update_visual()
 
 @rpc("any_peer", "reliable")
 func set_unit_info(profile_path: String) -> void:

@@ -46,6 +46,7 @@ const STAT_UI: Array[Dictionary] = [
 @onready var name_field: TextEdit = $MarginContainer/MainContainer/HeaderRack/NameLabel
 @onready var cost_label: Label = $MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard/CostLabel
 @onready var time_label: Label = $MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard/TimeLabel
+@onready var result_icon: TextureRect = $MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard/ResultIcon
 @onready var close_button: Button = $MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard/CloseButton
 
 var _working_preset: UnitPreset = null
@@ -184,3 +185,4 @@ func _refresh_ui() -> void:
 	var spawn_time := _working_preset.get_spawn_time()
 	cost_label.text = "Цена\n%d" % cost
 	time_label.text = "Время\n%d" % int(ceil(spawn_time))
+	result_icon.texture = UnitIconUtil.get_texture_for_preset(_working_preset)

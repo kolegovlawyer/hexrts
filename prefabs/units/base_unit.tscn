@@ -4,7 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://bp2kx504nnk4c" path="res://assets/units/selection_ring.png" id="2_o02ba"]
 [ext_resource type="Texture2D" uid="uid://4485x57dhdcs" path="res://assets/units/arrow.png" id="3_o3c7t"]
 [ext_resource type="Texture2D" uid="uid://fb0j5huhafry" path="res://assets/all_icons/circle-s.png" id="4_3coue"]
-[ext_resource type="Script" uid="uid://bjvv05dle175p" path="res://scripts/networking/synchronizer.gd" id="5_c8msn"]
+[ext_resource type="Script" path="res://scripts/networking/synchronizer.gd" id="5_c8msn"]
 [ext_resource type="Texture2D" uid="uid://dwwvimsrx2f7h" path="res://assets/all_icons/rank-1.png" id="6_3coue"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_lxa7t"]

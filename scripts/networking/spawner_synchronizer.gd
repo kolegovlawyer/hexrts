@@ -53,5 +53,18 @@ func custom_spawner(data:Dictionary):
 		Handlers.dprint("✅ SPAWNER: owner_id %s for %s" % [unit.owner_id, unit.name])
 	else:
 		Handlers.dprint("⚠️ SPAWNER: no owner_id for %s" % unit.name)
-		
+
+	_apply_spawn_appearance(unit, data)
+
 	return unit
+
+
+func _apply_spawn_appearance(unit: Node, data: Dictionary) -> void:
+	if not data.has("preset_icon_path"):
+		return
+	if not unit is BaseUnit:
+		return
+	var base_unit := unit as BaseUnit
+	base_unit.preset_display_name = str(data.get("preset_display_name", ""))
+	base_unit.preset_instance_number = int(data.get("preset_instance_number", 0))
+	base_unit.preset_icon_path = str(data.get("preset_icon_path", ""))

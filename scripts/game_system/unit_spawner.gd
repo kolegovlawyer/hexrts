@@ -104,14 +104,26 @@ func _internal_spawn_unit(
 	var scene_path := "res://prefabs/units/base_unit.tscn"
 	if unit_type == "command_unit":
 		scene_path = "res://prefabs/units/command_unit.tscn"
-	# TODO: добавить другие типы юнитов по мере расширения
-	
-	var unit = Handlers.NetworkSpawner.spawn({
+
+	var spawn_data: Dictionary = {
 		"path": scene_path,
-		"resource_info": null,  # ИСПРАВЛЕНИЕ: null вместо строки "null"
+		"resource_info": null,
 		"position": spawn_point,
-		"owner_id": player_id
-	})
+		"owner_id": player_id,
+	}
+
+	if not preset_snapshot.is_empty():
+		var preset_id := str(preset_snapshot.get("preset_id", "default"))
+		var display_name := str(preset_snapshot.get("preset_name", UnitPresetBalance.default_preset_name()))
+		var instance_number := UnitPresetManager.next_instance_number(player_id, preset_id)
+		var icon_path := UnitIconUtil.get_icon_path_from_stats(
+			preset_snapshot, bool(preset_snapshot.get("is_command", false))
+		)
+		spawn_data["preset_display_name"] = display_name
+		spawn_data["preset_instance_number"] = instance_number
+		spawn_data["preset_icon_path"] = icon_path
+
+	var unit = Handlers.NetworkSpawner.spawn(spawn_data)
 	unit.owner_id = player_id
 	if not preset_snapshot.is_empty() and unit.has_method("apply_preset_snapshot"):
 		unit.apply_preset_snapshot(preset_snapshot)

@@ -42,3 +42,13 @@ func save_preset(player_id: int, preset: UnitPreset) -> UnitPreset:
 
 func _generate_preset_id() -> String:
 	return "preset_%d_%d" % [Time.get_ticks_msec(), randi() % 10000]
+
+
+var _instance_counters: Dictionary = {}
+
+
+func next_instance_number(player_id: int, preset_id: String) -> int:
+	var key := "%d:%s" % [player_id, preset_id if preset_id != "" else "default"]
+	var current: int = int(_instance_counters.get(key, 0)) + 1
+	_instance_counters[key] = current
+	return current

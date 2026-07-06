@@ -1,10 +1,10 @@
-[gd_scene load_steps=13 format=3 uid="uid://d0wxbx62e3lg6"]
+[gd_scene format=3 uid="uid://d0wxbx62e3lg6"]
 
 [ext_resource type="Script" uid="uid://dr31uwkt5vd75" path="res://scripts/base_unit.gd" id="1_tnhlo"]
 [ext_resource type="Texture2D" uid="uid://bp2kx504nnk4c" path="res://assets/units/selection_ring.png" id="2_o02ba"]
 [ext_resource type="Texture2D" uid="uid://4485x57dhdcs" path="res://assets/units/arrow.png" id="3_o3c7t"]
 [ext_resource type="Texture2D" uid="uid://fb0j5huhafry" path="res://assets/all_icons/circle-s.png" id="4_3coue"]
-[ext_resource type="Script" path="res://scripts/networking/synchronizer.gd" id="5_c8msn"]
+[ext_resource type="Script" uid="uid://b1fv54ksitimn" path="res://scripts/networking/synchronizer.gd" id="5_c8msn"]
 [ext_resource type="Texture2D" uid="uid://dwwvimsrx2f7h" path="res://assets/all_icons/rank-1.png" id="6_3coue"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_lxa7t"]
@@ -41,33 +41,33 @@ bg_color = Color(0.376471, 0.376471, 0.486275, 1)
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_jsquf"]
 bg_color = Color(0.898039, 0.52549, 0.988235, 1)
 
-[node name="BaseUnit" type="CharacterBody2D"]
+[node name="BaseUnit" type="CharacterBody2D" unique_id=710572606]
 show_behind_parent = true
 top_level = true
 z_index = 9
 input_pickable = true
 script = ExtResource("1_tnhlo")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1964635719]
 unique_name_in_owner = true
 shape = SubResource("CircleShape2D_lxa7t")
 
-[node name="UnitSelectionRing" type="Sprite2D" parent="."]
+[node name="UnitSelectionRing" type="Sprite2D" parent="." unique_id=1165009666]
 unique_name_in_owner = true
 visible = false
 texture = ExtResource("2_o02ba")
 
-[node name="ArrowSprite" type="Sprite2D" parent="."]
+[node name="ArrowSprite" type="Sprite2D" parent="." unique_id=257922206]
 unique_name_in_owner = true
 visible = false
 texture = ExtResource("3_o3c7t")
 
-[node name="UnitSelfSprite" type="Sprite2D" parent="."]
+[node name="UnitSelfSprite" type="Sprite2D" parent="." unique_id=1053653237]
 unique_name_in_owner = true
 material = SubResource("CanvasItemMaterial_uoolu")
 texture = ExtResource("4_3coue")
 
-[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=2105030837]
 path_desired_distance = 4.0
 target_desired_distance = 8.0
 path_max_distance = 500.0
@@ -79,7 +79,7 @@ max_neighbors = 8
 time_horizon_obstacles = 0.5
 max_speed = 300.0
 
-[node name="DebugLabel" type="Label" parent="."]
+[node name="DebugLabel" type="Label" parent="." unique_id=1288076719]
 visible = false
 anchors_preset = 8
 anchor_left = 0.5
@@ -93,7 +93,7 @@ offset_bottom = -27.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="DebugLabel2" type="Label" parent="."]
+[node name="DebugLabel2" type="Label" parent="." unique_id=1935321261]
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
@@ -106,21 +106,21 @@ offset_bottom = -77.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=130657607]
 unique_name_in_owner = true
-replication_config = SubResource("SceneReplicationConfig_gofvq")
 replication_interval = 0.05
+replication_config = SubResource("SceneReplicationConfig_gofvq")
 public_visibility = false
 script = ExtResource("5_c8msn")
 
-[node name="VisibilityArea" type="Area2D" parent="."]
+[node name="VisibilityArea" type="Area2D" parent="." unique_id=283325837]
 unique_name_in_owner = true
 visible = false
 
-[node name="VisibilityShape" type="CollisionShape2D" parent="VisibilityArea"]
+[node name="VisibilityShape" type="CollisionShape2D" parent="VisibilityArea" unique_id=347829990]
 shape = SubResource("CircleShape2D_ryk4y")
 
-[node name="HealthBar" type="ProgressBar" parent="."]
+[node name="HealthBar" type="ProgressBar" parent="." unique_id=1549743941]
 unique_name_in_owner = true
 material = SubResource("CanvasItemMaterial_uoolu")
 anchors_preset = 5
@@ -138,7 +138,7 @@ step = 1.0
 value = 90.0
 show_percentage = false
 
-[node name="ShiledBar" type="ProgressBar" parent="."]
+[node name="ShiledBar" type="ProgressBar" parent="." unique_id=285525060]
 unique_name_in_owner = true
 material = SubResource("CanvasItemMaterial_uoolu")
 anchors_preset = 5
@@ -156,14 +156,14 @@ step = 1.0
 value = 90.0
 show_percentage = false
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1255506574]
 material = SubResource("CanvasItemMaterial_uoolu")
 position = Vector2(49, -40)
 texture = ExtResource("6_3coue")
 
-[node name="ReloadTimer" type="Timer" parent="."]
+[node name="ReloadTimer" type="Timer" parent="." unique_id=1504720068]
 unique_name_in_owner = true
 one_shot = true
 
-[node name="AimTimer" type="Timer" parent="."]
+[node name="AimTimer" type="Timer" parent="." unique_id=976310818]
 unique_name_in_owner = true

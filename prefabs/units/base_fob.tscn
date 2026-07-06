@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3 uid="uid://bmm7e27ic1c5u"]
+[gd_scene format=3 uid="uid://bmm7e27ic1c5u"]
 
 [ext_resource type="Script" uid="uid://br3p3va4cia5i" path="res://scripts/units/base_fob.gd" id="1_hdomf"]
 [ext_resource type="Texture2D" uid="uid://c7x5c3ox81lok" path="res://assets/BartSpriter/home.png" id="2_ifoug"]
@@ -7,7 +7,7 @@
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mru0y"]
 size = Vector2(75, 75)
 
-[node name="Spawner" type="StaticBody2D"]
+[node name="Spawner" type="StaticBody2D" unique_id=1343847166]
 top_level = true
 z_index = 10
 collision_layer = 2
@@ -15,15 +15,15 @@ collision_mask = 2
 input_pickable = true
 script = ExtResource("1_hdomf")
 
-[node name="CollisionShape" type="CollisionShape2D" parent="."]
+[node name="CollisionShape" type="CollisionShape2D" parent="." unique_id=1705928731]
 z_index = 4
 shape = SubResource("RectangleShape2D_mru0y")
 
-[node name="Sprite" type="Sprite2D" parent="."]
+[node name="Sprite" type="Sprite2D" parent="." unique_id=1702620863]
 unique_name_in_owner = true
 texture = ExtResource("2_ifoug")
 
-[node name="SpawnProgress" type="TextureProgressBar" parent="."]
+[node name="SpawnProgress" type="TextureProgressBar" parent="." unique_id=1965889215]
 unique_name_in_owner = true
 anchors_preset = 8
 anchor_left = 0.5
@@ -47,7 +47,7 @@ tint_under = Color(0.54902, 0.478431, 0.219608, 0.141176)
 tint_over = Color(1, 1, 1, 0)
 tint_progress = Color(0.613102, 0.53899, 3.85046e-07, 1)
 
-[node name="SpawnQueueLabel" type="Label" parent="."]
+[node name="SpawnQueueLabel" type="Label" parent="." unique_id=2037763988]
 unique_name_in_owner = true
 anchors_preset = 5
 anchor_left = 0.5

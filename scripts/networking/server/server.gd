@@ -3,6 +3,12 @@ extends Node
 var network = ENetMultiplayerPeer.new()
 var http_request := HTTPRequest.new()
 var global_port : int
+# Интерфейс, на котором слушает сервер.
+# "127.0.0.1" - только эта машина (надёжно для локального теста, не зависит от VPN/адаптеров).
+# "0.0.0.0"   - все IPv4-интерфейсы (loopback + LAN) для реальной игры по сети.
+# ВНИМАНИЕ: при активном VPN/виртуальном адаптере "*" и "0.0.0.0" иногда садятся на
+# чужой адаптер (напр. 10.x.x.x) без loopback, из-за чего клиент на 127.0.0.1 не подключается.
+var bind_ip : String = "127.0.0.1"
 @onready var spawner : MultiplayerSpawner
 
 # Called when the node enters the scene tree for the first time.
@@ -13,6 +19,12 @@ func _ready():
 	spawner = Handlers.GameHandler.get_node("./MultiplayerSpawner")
 
 func _exit_tree():
+	# Явно закрываем сокет, чтобы порт освобождался сразу и не оставались
+	# "зависшие" сокеты (иначе иногда помогает только перезагрузка ПК).
+	if network:
+		network.close()
+	if multiplayer.multiplayer_peer == network:
+		multiplayer.multiplayer_peer = null
 	Handlers.NetworkHandler = null
 
 @rpc("authority", "reliable")
@@ -34,10 +46,11 @@ func _peer_disconnected(player_id):
 	print_rich("[color=red][b][SERVER] Player %s disconnected[/b][/color]" % player_id)
 
 func start_server(port):
-	network.set_bind_ip("0.0.0.0")
+	# Привязываемся к конкретному интерфейсу ДО create_server.
+	network.set_bind_ip(bind_ip)
 	var error := network.create_server(int(port))
 	if error != OK:
-		push_error("[SERVER] create_server failed with error %s (port=%s)" % [error, port])
+		push_error("[SERVER] create_server failed with error %s (port=%s, bind_ip=%s)" % [error, port, bind_ip])
 		return
 	multiplayer.multiplayer_peer = network
 	
@@ -47,7 +60,7 @@ func start_server(port):
 	network.connect("peer_disconnected", _peer_disconnected)
 	
 	global_port = port
-	print_rich("[color=green][b][SERVER] Server started[/b][/color]")
+	print_rich("[color=green][b][SERVER] Server started (bind %s:%s)[/b][/color]" % [bind_ip, port])
 
 
 func _on_update_info_timer_timeout() -> void:

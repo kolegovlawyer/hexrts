@@ -1,23 +1,23 @@
-[gd_scene load_steps=5 format=3 uid="uid://bnnq5m4gisx8i"]
+[gd_scene format=3 uid="uid://bnnq5m4gisx8i"]
 
 [ext_resource type="Script" uid="uid://dfljsgvfuiti4" path="res://scripts/networking/server/server.gd" id="1_gcofl"]
 [ext_resource type="Script" uid="uid://dbp84xcl01wfe" path="res://scripts/game_system/team_system.gd" id="2_ig048"]
 [ext_resource type="PackedScene" uid="uid://cmovviocqa0j4" path="res://scenes/server/server_ui.tscn" id="3_server_ui"]
 [ext_resource type="Script" uid="uid://dvy5hvhu8gi6r" path="res://scripts/singletons/FrameGroup.gd" id="4_jqkn5"]
 
-[node name="Handlers" type="Node"]
+[node name="Handlers" type="Node" unique_id=1767011097]
 
-[node name="Network" type="Node" parent="."]
+[node name="Network" type="Node" parent="." unique_id=225143306]
 script = ExtResource("1_gcofl")
 
-[node name="Timer" type="Timer" parent="Network"]
+[node name="Timer" type="Timer" parent="Network" unique_id=475399601]
 
-[node name="TeamSystem" type="Node" parent="."]
+[node name="TeamSystem" type="Node" parent="." unique_id=966481341]
 script = ExtResource("2_ig048")
 
-[node name="ServerUI" parent="." instance=ExtResource("3_server_ui")]
+[node name="ServerUI" parent="." unique_id=1738202207 instance=ExtResource("3_server_ui")]
 
-[node name="FrameGroup" type="Node" parent="."]
+[node name="FrameGroup" type="Node" parent="." unique_id=1695814787]
 script = ExtResource("4_jqkn5")
 
 [connection signal="timeout" from="Network/Timer" to="Network" method="_on_update_info_timer_timeout"]

@@ -18,6 +18,12 @@ func _ready():
 	Handlers.NetworkHandler = self
 	
 func _exit_tree():
+	# Явно закрываем сокет клиента при выходе, чтобы не оставались зависшие
+	# соединения/сокеты (частая причина того, что помогает только перезагрузка).
+	if network:
+		network.close()
+	if multiplayer.multiplayer_peer == network:
+		multiplayer.multiplayer_peer = null
 	Handlers.NetworkHandler = null
 
 func start_client(host, port, username):
@@ -31,6 +37,16 @@ func start_client(host, port, username):
 func _connect_to_server() -> void:
 	if network.get_connection_status() != MultiplayerPeer.CONNECTION_DISCONNECTED:
 		network.close()
+
+	network.set_bind_ip("*")
+	# Если подключаемся к самим себе (loopback) - жёстко привязываем исходящий
+	# сокет к 127.0.0.1. Иначе при активном VPN/виртуальном адаптере ОС может
+	# выбрать его как источник, и отправка на loopback падает
+	# ("enet_socket_send: Sending failed!").
+	#if _is_loopback_host(global_host):
+		#network.set_bind_ip("127.0.0.1")
+	#else:
+		#network.set_bind_ip("*")
 
 	var error := network.create_client(global_host, global_port)
 	if error != OK:
@@ -48,16 +64,8 @@ func _connect_to_server() -> void:
 	print_rich("[color=green][b][CLIENT] Client started (%s:%s)[/b][/color]" % [global_host, global_port])
 
 func reconnect():
-	if network.get_connection_status() != MultiplayerPeer.CONNECTION_DISCONNECTED:
-		network.close()
-	var error := network.create_client(global_host, global_port)
-	if error != OK:
-		push_error("[CLIENT] reconnect failed with error %s" % error)
-		return
-	multiplayer.multiplayer_peer = network
-	connected = false
-	check_connection = false
 	print_rich("[color=yellow][b][CLIENT] Client reconnecting[/b][/color]")
+	_connect_to_server()
 
 func _server_disconnected():
 	var was_connected: bool = connected
@@ -72,6 +80,9 @@ func _on_connection_failed():
 	check_connection = false
 	timer.stop()
 	push_error("[CLIENT] Connection failed (%s:%s). Check that the server is running and the port is correct." % [global_host, global_port])
+
+func _is_loopback_host(host: String) -> bool:
+	return host in ["127.0.0.1", "localhost", "::1"]
 
 @rpc("authority", "reliable")
 func set_map(map_name:String):

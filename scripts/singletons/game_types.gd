@@ -3,8 +3,6 @@ extends Node
 var enemy_color = Color("#FF7D7D")
 var own_color = Color("#9BF985")
 
-
-
 @onready var UnitUiThemes = GlobalUiThemes.new()
 
 enum OrderTypes { # MUST BE NOT NULL

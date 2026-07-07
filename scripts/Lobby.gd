@@ -3,6 +3,7 @@ extends Control
 # It will be great to have SceneManager
 # :) 
 var http_request := HTTPRequest.new()
+const TRACE_PATH := "user://network_trace.log"
 
 
 # Called when the node enters the scene tree for the first time.
@@ -37,6 +38,7 @@ func _on_join_button_pressed(host=null, port=null, team=null):
 		team = $"Join-Tab/TeamButton".get_selected_id()
 	
 	var nickname = $"Join-Tab/NickEdit".text
+	_trace("JOIN_CLICK host=%s port=%s team=%s nick=%s" % [str(host), str(port), str(team), nickname])
 	
 	# Обычный клиент (убираем поддержку ботов через клиент)
 	Handlers.GameHandler.set_type_client(host, port, nickname)
@@ -49,6 +51,7 @@ func _on_host_button_pressed():
 	var port = int($"Host-Tab/PortEdit".text)
 	var map_option: OptionButton = $"Host-Tab/OptionButton"
 	var map = map_option.get_item_text(map_option.selected)
+	_trace("HOST_CLICK port=%s map=%s" % [str(port), map])
 	
 	get_tree().get_root().add_child(load("res://scenes/game.tscn").instantiate()) 
 	
@@ -68,3 +71,10 @@ func _on_refresh_button_pressed() -> void:
 
 func _on_serverlist_join_button_pressed(call_node=null,host=null, port=null):
 	_on_join_button_pressed(host, port, call_node.get_node("../TeamButton").get_selected_id())
+
+func _trace(message: String) -> void:
+	var file := FileAccess.open(TRACE_PATH, FileAccess.READ_WRITE)
+	if file:
+		file.seek_end()
+		file.store_line("[%s][LOBBY] %s" % [Time.get_datetime_string_from_system(), message])
+		file.close()

@@ -75,3 +75,39 @@ func to_spawn_snapshot() -> Dictionary:
 	stats["preset_id"] = preset_id
 	stats["preset_name"] = preset_name
 	return stats
+
+
+func to_dict() -> Dictionary:
+	return {
+		"preset_id": preset_id,
+		"preset_name": preset_name,
+		"is_command": is_command,
+		"health": health,
+		"speed": speed,
+		"damage": damage,
+		"shield": shield,
+		"range": range_stat,
+	}
+
+
+static func from_dict(data: Dictionary) -> UnitPreset:
+	if data.is_empty():
+		return null
+
+	var stats := {
+		"health": data.get("health", UnitPresetBalance.DEFAULT_STAT),
+		"speed": data.get("speed", UnitPresetBalance.DEFAULT_STAT),
+		"damage": data.get("damage", UnitPresetBalance.DEFAULT_STAT),
+		"shield": data.get("shield", UnitPresetBalance.DEFAULT_STAT),
+		"range": data.get("range", UnitPresetBalance.DEFAULT_STAT),
+	}
+	var is_command_flag := bool(data.get("is_command", false))
+	if not UnitPresetBalance.is_valid_preset_stats(stats, is_command_flag):
+		return null
+
+	var preset := UnitPreset.new()
+	preset.preset_id = str(data.get("preset_id", ""))
+	preset.preset_name = str(data.get("preset_name", UnitPresetBalance.default_preset_name()))
+	preset.is_command = is_command_flag
+	preset.apply_stats_dict(stats)
+	return preset

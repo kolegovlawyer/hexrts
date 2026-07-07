@@ -313,3 +313,15 @@ size_flags_vertical = 3
 [node name="CloseButton" type="Button" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard" unique_id=1827824073]
 layout_mode = 2
 text = "Закрыть"
+
+[node name="PresetExportRack" type="HBoxContainer" parent="MarginContainer/MainContainer" unique_id=1496467370]
+layout_mode = 2
+alignment = 1
+
+[node name="SavePresetButton" type="Button" parent="MarginContainer/MainContainer/PresetExportRack" unique_id=31082647]
+layout_mode = 2
+text = "SAVE PRESETS"
+
+[node name="LoadPresetButton" type="Button" parent="MarginContainer/MainContainer/PresetExportRack" unique_id=1714224235]
+layout_mode = 2
+text = "LOAD PRESETS"

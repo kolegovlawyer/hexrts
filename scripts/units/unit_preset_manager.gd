@@ -85,3 +85,19 @@ func next_instance_number(player_id: int, preset_id: String) -> int:
 	var current: int = int(_instance_counters.get(key, 0)) + 1
 	_instance_counters[key] = current
 	return current
+
+
+func export_presets_to_disk(player_id: int) -> bool:
+	var presets: Array = get_presets(player_id)
+	return UnitPresetStorage.save_presets(presets)
+
+
+func import_presets_from_disk(player_id: int) -> bool:
+	var loaded_result = UnitPresetStorage.load_presets()
+	if loaded_result == null:
+		return false
+
+	var loaded_presets: Array = loaded_result
+	_presets_by_player[player_id] = loaded_presets
+	presets_changed.emit(player_id)
+	return true

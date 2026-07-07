@@ -48,6 +48,8 @@ const STAT_UI: Array[Dictionary] = [
 @onready var time_label: Label = $MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard/TimeLabel
 @onready var result_icon: TextureRect = $MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard/ResultIcon
 @onready var close_button: Button = $MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard/CloseButton
+@onready var save_presets_button: Button = $MarginContainer/MainContainer/PresetExportRack/SavePresetButton
+@onready var load_presets_button: Button = $MarginContainer/MainContainer/PresetExportRack/LoadPresetButton
 
 var _working_preset: UnitPreset = null
 var _suppress_list_signal := false
@@ -72,6 +74,8 @@ func _connect_ui() -> void:
 	save_button.pressed.connect(_on_save_pressed)
 	command_button.pressed.connect(_on_command_pressed)
 	close_button.pressed.connect(_on_close_pressed)
+	save_presets_button.pressed.connect(_on_save_presets_pressed)
+	load_presets_button.pressed.connect(_on_load_presets_pressed)
 	unit_type_list.item_selected.connect(_on_preset_selected)
 
 	for entry in STAT_UI:
@@ -156,6 +160,33 @@ func _on_save_pressed() -> void:
 
 func _on_close_pressed() -> void:
 	queue_free()
+
+
+func _on_save_presets_pressed() -> void:
+	if _working_preset != null:
+		_sync_name_from_field()
+		var trimmed_name := name_field.text.strip_edges()
+		if trimmed_name == "":
+			trimmed_name = UnitPresetBalance.default_preset_name()
+		_working_preset.preset_name = trimmed_name
+		var saved := UnitPresetManager.save_preset(_get_player_id(), _working_preset)
+		_working_preset = saved.duplicate_preset()
+		_working_preset.preset_id = saved.preset_id
+
+	if UnitPresetManager.export_presets_to_disk(_get_player_id()):
+		print("UnitEditor: пресеты сохранены в ", UnitPresetStorage.get_save_path_absolute())
+	else:
+		print("UnitEditor: не удалось сохранить пресеты на диск")
+
+
+func _on_load_presets_pressed() -> void:
+	if not UnitPresetManager.import_presets_from_disk(_get_player_id()):
+		print("UnitEditor: не удалось загрузить пресеты (файл отсутствует или повреждён)")
+		return
+
+	_load_presets_into_list()
+	_select_preset_index(0)
+	print("UnitEditor: пресеты загружены из ", UnitPresetStorage.get_save_path_absolute())
 
 
 func _change_stat(stat_key: String, delta: int) -> void:

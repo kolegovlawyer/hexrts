@@ -83,3 +83,26 @@ static func to_game_vision_radius(stat: int) -> float:
 
 static func validate_spawn_request(stats: Dictionary, is_command: bool, claimed_cost: int) -> bool:
 	return calculate_cost(stats, is_command) == claimed_cost
+
+
+static func get_max_cost(is_command: bool) -> int:
+	var max_stat_sum := STAT_MAX * STAT_KEYS.size()
+	return max_stat_sum * get_cost_per_point(is_command)
+
+
+static func are_raw_stats_within_limits(stats: Dictionary) -> bool:
+	for key in STAT_KEYS:
+		if not stats.has(key):
+			return false
+		if typeof(stats[key]) not in [TYPE_INT, TYPE_FLOAT]:
+			return false
+		var value := int(stats[key])
+		if value < STAT_MIN or value > STAT_MAX:
+			return false
+	return true
+
+
+static func is_valid_preset_stats(stats: Dictionary, is_command: bool) -> bool:
+	if not are_raw_stats_within_limits(stats):
+		return false
+	return calculate_cost(stats, is_command) <= get_max_cost(is_command)

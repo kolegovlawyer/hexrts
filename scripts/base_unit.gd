@@ -17,8 +17,8 @@ var owner_team = null
 # Система видимости
 const DEFAULT_VISION_RADIUS := 400.0
 var vision_radius: float = DEFAULT_VISION_RADIUS
-var visible_by: Array[BaseUnit] = []
-var has_vision_on: Array[BaseUnit] = []
+var visible_by: Array[Node] = []
+var has_vision_on: Array[Node] = []
 
 # Система приказов
 var orders: Array[Dictionary] = []
@@ -131,13 +131,23 @@ func _unit_state_enter(_state: int) -> void:
 
 # RPC методы для переопределения в наследниках
 @rpc("any_peer", "reliable")
-func add_order(_order_obj, _clear_queue: bool = false) -> void:
+func add_order(_order_obj, _clear_queue: bool = false, _capture_at_destination: bool = false) -> void:
 	"""Добавляет приказ юниту"""
 	pass
 
 @rpc("any_peer", "reliable")
 func clear_orders() -> void:
 	"""Очищает все приказы юнита"""
+	pass
+
+@rpc("any_peer", "reliable")
+func request_order_queue() -> void:
+	"""Запрашивает у сервера снимок очереди приказов для отображения маркеров"""
+	pass
+
+@rpc("authority", "call_local", "reliable")
+func sync_order_queue(_snapshot: Array) -> void:
+	"""Синхронизирует очередь приказов с клиентом-владельцем"""
 	pass
 
 @rpc("any_peer", "reliable")

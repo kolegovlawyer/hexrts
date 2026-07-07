@@ -14,8 +14,7 @@
 [ext_resource type="Texture2D" uid="uid://cs1se2d3w5hsj" path="res://assets/icons/icon-follow.png" id="12_k0xlx"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_27yfh"]
-bg_color = Color(0.133333, 0.133333, 0.180392, 1)
-corner_radius_top_right = 15
+bg_color = Color(0.08627451, 0.08235294, 0.10980392, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_swdpp"]
 bg_color = Color(0.6, 0.6, 0.6, 0)
@@ -46,7 +45,6 @@ bg_color = Color(0.584314, 0.584314, 0.733333, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_qo58m"]
 bg_color = Color(0.133333, 0.133333, 0.180392, 1)
-corner_radius_top_left = 30
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_syol4"]
 bg_color = Color(0.6, 0.6, 0.6, 0)
@@ -95,12 +93,6 @@ theme_override_constants/margin_top = 10
 layout_mode = 2
 theme_override_constants/separation = 15
 
-[node name="WinBar" type="ProgressBar" parent="MarginContainer/MainRack" unique_id=264985199]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 10)
-layout_mode = 2
-show_percentage = false
-
 [node name="UnitPoints" type="Label" parent="MarginContainer/MainRack" unique_id=1211895036]
 unique_name_in_owner = true
 layout_mode = 2
@@ -141,16 +133,19 @@ mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_27yfh")
 
 [node name="StylizedPanel_1" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer" unique_id=273169777]
+visible = false
 z_index = 4
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_swdpp")
 
 [node name="StylizedPanel_2" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer" unique_id=1241418906]
+visible = false
 z_index = 4
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ycjsq")
 
 [node name="StylizedPanel_3" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer" unique_id=2114436577]
+visible = false
 z_index = 4
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_k0xlx")
@@ -160,8 +155,8 @@ layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 32
-theme_override_constants/margin_right = 32
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 
 [node name="GridContainer" type="GridContainer" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer" unique_id=1742540094]
@@ -291,7 +286,23 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/MainRack/HUDBoard" unique_id=1578365429]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/MainRack/HUDBoard" unique_id=1504075798]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="WinBar" type="ProgressBar" parent="MarginContainer/MainRack/HUDBoard/VBoxContainer" unique_id=264985199]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+show_percentage = false
+
+[node name="WinBarLabel" type="Label" parent="MarginContainer/MainRack/HUDBoard/VBoxContainer" unique_id=1982736451]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0 / 1000"
+horizontal_alignment = 1
+
+[node name="MarginContainer" type="MarginContainer" parent="MarginContainer/MainRack/HUDBoard/VBoxContainer" unique_id=1578365429]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
@@ -300,11 +311,11 @@ theme_override_constants/margin_top = 5
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 5
 
-[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer" unique_id=411463076]
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/MainRack/HUDBoard/VBoxContainer/MarginContainer" unique_id=411463076]
 custom_minimum_size = Vector2(0, 120)
 layout_mode = 2
 
-[node name="UnitContainer" type="GridContainer" parent="MarginContainer/MainRack/HUDBoard/MarginContainer/ScrollContainer" unique_id=221634220]
+[node name="UnitContainer" type="GridContainer" parent="MarginContainer/MainRack/HUDBoard/VBoxContainer/MarginContainer/ScrollContainer" unique_id=221634220]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
@@ -325,24 +336,27 @@ size_flags_vertical = 8
 theme_override_styles/panel = SubResource("StyleBoxFlat_qo58m")
 
 [node name="StylizedPanel_1" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer" unique_id=1994135392]
+visible = false
 z_index = 4
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_syol4")
 
 [node name="StylizedPanel_2" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer" unique_id=5534080]
+visible = false
 z_index = 4
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_mj4vj")
 
 [node name="StylizedPanel_3" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer" unique_id=1041631093]
+visible = false
 z_index = 4
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ouqy7")
 
 [node name="MarginContainer" type="MarginContainer" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer" unique_id=290257354]
 layout_mode = 2
-theme_override_constants/margin_left = 32
-theme_override_constants/margin_top = 32
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 
@@ -353,7 +367,8 @@ theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 16
 columns = 3
 
-[node name="HomeButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=272547014]
+[node name="AutoCapture" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=272547014]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -362,7 +377,7 @@ texture_normal = ExtResource("8_wce3n")
 texture_pressed = ExtResource("8_wce3n")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton" unique_id=2142008541]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/AutoCapture" unique_id=2142008541]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -383,6 +398,7 @@ texture_pressed = ExtResource("8_wce3n")
 stretch_mode = 0
 
 [node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton2" unique_id=2112569052]
+visible = false
 z_index = -1
 layout_mode = 1
 anchors_preset = 15

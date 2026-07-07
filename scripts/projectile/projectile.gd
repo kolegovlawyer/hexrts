@@ -198,6 +198,19 @@ func _explode() -> void:
 			# Передаем владельца снаряда, или null если он стал невалидным
 			var damage_dealer = projectile_owner if is_instance_valid(projectile_owner) else null
 			unit.apply_damage(damage, damage_dealer)
+	
+	var all_fobs = get_tree().get_nodes_in_group("fobs")
+	for fob_node in all_fobs:
+		if not is_instance_valid(fob_node) or not fob_node is fob:
+			continue
+		if not fob_node.is_alive():
+			continue
+		if is_instance_valid(projectile_owner) and not _is_enemy_fob(fob_node):
+			continue
+		var fob_distance = global_position.distance_to(fob_node.global_position)
+		if fob_distance <= explosion_radius:
+			var fob_damage_dealer = projectile_owner if is_instance_valid(projectile_owner) else null
+			fob_node.apply_damage(damage, fob_damage_dealer)
 			# print("🔥 Взрыв попал в ", unit.name, " (расстояние: ", int(distance), ")")  # DEBUG
 	
 	# print("💥 Взрыв поразил ", units_in_explosion.size(), " юнитов")  # DEBUG
@@ -259,6 +272,14 @@ func _on_body_entered(body: Node2D) -> void:
 	- Взрывается при столкновении с вражескими юнитами
 	"""
 	# Проверяем, что снаряд активен и столкнулся с юнитом
+	if is_active and body is fob:
+		var fob_target := body as fob
+		if not fob_target.is_alive():
+			return
+		if _is_enemy_fob(fob_target):
+			_explode()
+		return
+	
 	if is_active and body is BaseUnit:
 		# Снаряд не может взорваться от владельца
 		if body == projectile_owner:
@@ -319,7 +340,17 @@ func _is_enemy_unit(unit: BaseUnit) -> bool:
 		return is_enemy
 	
 	# СПОСОБ 3: По умолчанию считаем вражеским (безопасная стратегия)
-	# print("🔍 ОТЛАДКА: Не удалось определить принадлежность, считаем врагом")  # DEBUG
+	return true
+
+func _is_enemy_fob(fob_node: fob) -> bool:
+	if not projectile_owner or not is_instance_valid(projectile_owner):
+		return true
+	if not fob_node or not is_instance_valid(fob_node) or not fob_node.is_alive():
+		return false
+	if projectile_owner.owner_team != null and fob_node.get_owner_team() != null:
+		return projectile_owner.owner_team != fob_node.get_owner_team()
+	if projectile_owner.owner_id != 0 and fob_node.owner_id != 0:
+		return projectile_owner.owner_id != fob_node.owner_id
 	return true
 
 func _on_lifetime_timer_timeout() -> void:

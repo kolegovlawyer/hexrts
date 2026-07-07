@@ -7,6 +7,15 @@
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mru0y"]
 size = Vector2(75, 75)
 
+[sub_resource type="CircleShape2D" id="CircleShape2D_vision"]
+radius = 250.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.376471, 0.376471, 0.486275, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_fill"]
+bg_color = Color(0.898039, 0.52549, 0.988235, 1)
+
 [node name="Spawner" type="StaticBody2D" unique_id=1343847166]
 top_level = true
 z_index = 10
@@ -22,6 +31,46 @@ shape = SubResource("RectangleShape2D_mru0y")
 [node name="Sprite" type="Sprite2D" parent="." unique_id=1702620863]
 unique_name_in_owner = true
 texture = ExtResource("2_ifoug")
+
+[node name="VisibilityArea" type="Area2D" parent="." unique_id=283325837]
+unique_name_in_owner = true
+visible = false
+collision_layer = 0
+collision_mask = 1
+monitorable = false
+
+[node name="VisibilityShape" type="CollisionShape2D" parent="VisibilityArea" unique_id=347829990]
+shape = SubResource("CircleShape2D_vision")
+
+[node name="HealthBar" type="ProgressBar" parent="." unique_id=1549743941]
+unique_name_in_owner = true
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -40.0
+offset_top = -55.0
+offset_right = 40.0
+offset_bottom = -47.0
+grow_horizontal = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_fill")
+step = 1.0
+show_percentage = false
+
+[node name="ShieldBar" type="ProgressBar" parent="." unique_id=285525060]
+unique_name_in_owner = true
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -40.0
+offset_top = -67.0
+offset_right = 40.0
+offset_bottom = -59.0
+grow_horizontal = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_fill")
+step = 1.0
+show_percentage = false
 
 [node name="SpawnProgress" type="TextureProgressBar" parent="." unique_id=1965889215]
 unique_name_in_owner = true
@@ -53,9 +102,9 @@ anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -20.0
-offset_top = -65.0
+offset_top = -85.0
 offset_right = 20.0
-offset_bottom = -42.0
+offset_bottom = -62.0
 grow_horizontal = 2
 text = "0"
 horizontal_alignment = 1

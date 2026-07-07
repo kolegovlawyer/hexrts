@@ -28,12 +28,8 @@ func clear_selection():
 				unit.set_selected(false)
 			else:
 				unit.selected = false
-			# Очищаем приказы у юнита при снятии выделения
-			# Это позволит юниту автоматически атаковать врагов в зоне видимости
-			if unit.has_method("rpc_id"):
-				unit.rpc_id(1, "clear_orders")
-				print("🗑️ SELECTION: Отправлен clear_orders для юнита ", unit.name)
 	selected_units.clear()
+	_refresh_waypoint_markers()
 	
 func edit_unit_state(unit:Node):
 	if not is_instance_valid(unit):
@@ -52,6 +48,9 @@ func add_selected(unit:Node):
 		else:
 			unit.selected = true
 		Handlers.UIHandler.input_state = 1
+		if unit.has_method("rpc_id") and _is_own_unit(unit):
+			unit.rpc_id(1, "request_order_queue")
+	_refresh_waypoint_markers()
 
 func remove_selected(unit:Node):
 	if is_instance_valid(unit):
@@ -61,6 +60,16 @@ func remove_selected(unit:Node):
 			unit.set_selected(false)
 		else:
 			unit.selected = false
+	_refresh_waypoint_markers()
+
+func _is_own_unit(unit: Node) -> bool:
+	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
+		return false
+	return unit.get("owner_id") == Handlers.TeamHandler.my_profile.PlayerId
+
+func _refresh_waypoint_markers() -> void:
+	if Handlers.UIHandler and Handlers.UIHandler.has_method("refresh_waypoint_markers"):
+		Handlers.UIHandler.refresh_waypoint_markers()
 
 func set_selected(unit:Node):
 	clear_selection()
@@ -76,3 +85,4 @@ func remove_unit_from_selection(unit: BaseUnit):
 		if selected_units.is_empty():
 			if Handlers.UIHandler:
 				Handlers.UIHandler.input_state = 0
+	_refresh_waypoint_markers()

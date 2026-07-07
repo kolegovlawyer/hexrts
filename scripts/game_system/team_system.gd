@@ -54,9 +54,13 @@ func add_to_team(player, team: GameTypes.Teams): # player is int, PlayerProfile
 				if multiplayer.get_unique_id() == player.PlayerId:
 					my_profile = player
 	var start_fob = get_tree().get_nodes_in_group("team_%d_fobs" % team).pick_random()
-	print('FOB group = team_%d_fobs' % team)
-	start_fob.owner_id = player
-	print_rich("[color=green][b][TEAM] Player %s joined to team %s[/b][/color]" % [player, team])
+	var assigned_player_id: int
+	if player is int:
+		assigned_player_id = player
+	else:
+		assigned_player_id = player.PlayerId
+	start_fob.owner_id = assigned_player_id
+	print_rich("[color=green][b][TEAM] Player %s joined to team %s[/b][/color]" % [assigned_player_id, team])
 			
 
 

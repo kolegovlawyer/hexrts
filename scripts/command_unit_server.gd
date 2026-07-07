@@ -188,6 +188,11 @@ func _unit_state_enter(state: int) -> void:
 
 # Переопределяем _physics_process для системы захвата гексов
 func _physics_process(delta: float) -> void:
+	if is_multiplayer_authority() and orders.size() > 0 and orders[0].type == "move_capture":
+		var is_bot := Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
+		if not is_bot and not _should_defer_route_order():
+			_process_move_capture_order_immediate(orders[0], delta, is_bot)
+	
 	# Вызываем базовый _physics_process
 	super._physics_process(delta)
 	
@@ -227,6 +232,86 @@ func _physics_process(delta: float) -> void:
 				
 				# Обновляем визуал гекса в OverlayMap
 				Handlers.GameHandler.update_hex_overlay(current_hex.position, current_hex.team_owner)
+				
+				if orders.size() > 0 and orders[0].type == "move_capture":
+					if orders[0].get("phase", "moving") == "capturing":
+						_pop_current_order()
+
+func _should_defer_route_order() -> bool:
+	"""
+	Откладывает старт маршрута (move_capture), пока идёт пассивный захват гекса.
+	Обычный приказ move обрабатывается в базовом классе и прерывает захват сразу.
+	"""
+	if not is_capturing or orders.is_empty():
+		return false
+	var first_order: Dictionary = orders[0]
+	if first_order.get("type", "") != "move_capture":
+		return false
+	return first_order.get("phase", "moving") == "moving"
+
+func _process_move_capture_order_immediate(order: Dictionary, delta: float, is_bot: bool) -> void:
+	var phase: String = order.get("phase", "moving")
+	if phase == "moving":
+		if unit_state != UNIT_STATES.MOVING:
+			unit_state = UNIT_STATES.MOVING
+		
+		var pos: Vector2 = order.position
+		navagent.target_position = pos
+		
+		if not navagent.is_target_reachable():
+			var alternative_target = _find_alternative_path_target(pos)
+			navagent.target_position = alternative_target
+		
+		var distance_to_target = global_position.distance_to(pos)
+		var close_enough_threshold = 24.0 if is_bot else 12.0
+		var close_enough = distance_to_target < close_enough_threshold
+		var nav_done = navagent.is_navigation_finished()
+		var moved = global_position.distance_to(last_move_position) > 1.5
+		
+		if close_enough or nav_done:
+			order["phase"] = "capturing"
+			unit_state = UNIT_STATES.IDLE
+			stuck_timer = 0.0
+			check_current_hex()
+			_evaluate_waypoint_capture(order)
+		elif not moved:
+			stuck_timer += delta
+			if stuck_timer > 2.5:
+				_execute_smart_unstuck_maneuver(pos)
+				stuck_timer = 0.0
+		else:
+			stuck_timer = 0.0
+		last_move_position = global_position
+	elif phase == "capturing":
+		unit_state = UNIT_STATES.IDLE
+		_evaluate_waypoint_capture(order)
+
+func _evaluate_waypoint_capture(_order: Dictionary) -> void:
+	if not Handlers.GameHandler:
+		_pop_current_order()
+		return
+	
+	var hex = Handlers.GameHandler.get_hex_at_world_position(global_position)
+	if hex == null:
+		_pop_current_order()
+		return
+	
+	if hex.team_owner == owner_team:
+		_pop_current_order()
+		return
+	
+	if not hex.can_be_captured_by_team(owner_team):
+		_pop_current_order()
+		return
+	
+	if hex != current_hex:
+		if current_hex:
+			current_hex.remove_command_unit(self)
+		current_hex = hex
+		current_hex.add_command_unit(self)
+	
+	if not is_capturing:
+		start_capture()
 
 func _handle_command_unit_stuck_detection(delta: float) -> void:
 	"""
@@ -245,7 +330,13 @@ func _handle_command_unit_stuck_detection(delta: float) -> void:
 		return
 	
 	# Если CommandUnit должен двигаться, но не движется
-	if orders.size() > 0 and orders[0].type == "move":
+	var is_active_move := false
+	if orders.size() > 0:
+		var active_order = orders[0]
+		is_active_move = active_order.type == "move" or (
+			active_order.type == "move_capture" and active_order.get("phase", "moving") == "moving"
+		)
+	if is_active_move:
 		command_stuck_timer += delta
 		
 		# КРИТИЧЕСКАЯ СИТУАЦИЯ: CommandUnit застрял
@@ -388,6 +479,7 @@ func _initiate_retreat() -> void:
 	
 	# Очищаем текущие приказы и отступаем
 	orders.clear()
+	_sync_order_queue_to_owner()
 	add_order(retreat_target_position, true)
 	
 	print("🏃 RETREAT: CommandUnit ", name, " начинает отступление к безопасной позиции")

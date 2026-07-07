@@ -1,107 +1,318 @@
-class_name fob extends Node2D
+class_name fob extends StaticBody2D
 
-const FOG_VISION_RADIUS := 120.0
+signal fob_destroyed(destroyed_fob: fob, owner_player_id: int)
 
-#@onready var FobPanel = get_node("%FobPanel")
+const FOG_VISION_RADIUS := 250.0
+const DEFAULT_MAX_HEALTH := 500
+const DEFAULT_MAX_SHIELD := 150
+const SHIELD_REGEN_RATE := 2.0
+const SHIELD_REGEN_DELAY := 5.0
 
 @onready var sprite = get_node("%Sprite")
 @onready var spawn_bar = get_node("%SpawnProgress")
 @onready var spawn_queue_label = get_node("%SpawnQueueLabel")
+@onready var health_bar = get_node("%HealthBar")
+@onready var shield_bar = get_node("%ShieldBar")
+@onready var visibility_area: Area2D = get_node("%VisibilityArea")
 
 var vision_radius: float = FOG_VISION_RADIUS
 
+var UID: String = ""
+var owner_team = null
+var is_destroyed: bool = false
+
+@export var max_health: int = DEFAULT_MAX_HEALTH
+@export var max_shield: int = DEFAULT_MAX_SHIELD
+var health: int = DEFAULT_MAX_HEALTH
+var shield: int = DEFAULT_MAX_SHIELD
+
+var _health: int = DEFAULT_MAX_HEALTH
+var _shield: int = DEFAULT_MAX_SHIELD
+
+var has_vision_on: Array[BaseUnitServer] = []
+var _enemies_in_vision: Array[BaseUnitServer] = []
+
+var shield_regeneration_timer: Timer
+
 # Система отложенного спавна
-const UNIT_SPAWN_DELAY: float = 3.0  # Задержка спавна обычных юнитов в секундах
-const COMMAND_UNIT_SPAWN_DELAY: float = 6.0  # Задержка спавна командных юнитов (в 2 раза дольше)
+const UNIT_SPAWN_DELAY: float = 3.0
+const COMMAND_UNIT_SPAWN_DELAY: float = 6.0
 
-# Очередь заказов на спавн: [{unit_type, unit_cost, player_id, spawn_delay}]
 var spawn_queue: Array = []
-
-# Единый таймер для последовательного спавна
 var spawn_timer: Timer
-
-# Таймер для обновления UI спавна
 var ui_update_timer: Timer
 
-@export var team : int
+@export var team: int
 var owner_id = 0:
 	set(value):
-		owner_id = value
+		var resolved_id := _resolve_owner_id(value)
+		if owner_id == resolved_id:
+			return
+		owner_id = resolved_id
+		_resolve_owner_team()
 		update_visual()
+		if is_multiplayer_authority():
+			call_deferred("_refresh_existing_vision")
 
-var selected : bool = false:
+var selected: bool = false:
 	set(value):
 		selected = value
 		if value == true:
 			show_fob_panel()
-			print('FOB clicked')
 			Handlers.UnitSelectionHandler.selected_fob = self
 		else:
 			Handlers.UIHandler.delete_fob_panel()
 			Handlers.UnitSelectionHandler.selected_fob = null
 
 func _ready() -> void:
-	# Добавляем FOB в группу для поиска
 	add_to_group("fobs")
-	
-	if not is_multiplayer_authority():
-		connect("input_event", handle_input)
-		update_visual()
-		# Инициализируем UI спавна
-		_initialize_spawn_ui()
-	else:
-		# Серверная логика - обработка очереди спавна
+	_init_vitals_ui()
+
+	if is_multiplayer_authority():
+		_health = max_health
+		_shield = max_shield
+		UID = "fob_%d" % get_instance_id()
+		_setup_vision_area()
 		_setup_spawn_timer()
 		_setup_ui_update_timer()
-		pass
-		# здесь должно быть какое-то разделение по функциям в зависимости от принадлежности
-	
-func handle_input(viewport, event, shape_idx):
+		_setup_shield_regeneration_timer()
+		_resolve_owner_team()
+		if Handlers.GameHandler and Handlers.GameHandler.has_method("register_fob"):
+			Handlers.GameHandler.register_fob(self)
+	else:
+		connect("input_event", handle_input)
+		update_visual()
+		_initialize_spawn_ui()
+
+func _exit_tree() -> void:
+	if is_multiplayer_authority() and Handlers.GameHandler and Handlers.GameHandler.has_method("unregister_fob"):
+		Handlers.GameHandler.unregister_fob(self)
+	_clear_vision_links()
+
+func _resolve_owner_id(value) -> int:
+	if value is int:
+		return value
+	if value is PlayerProfile:
+		return value.PlayerId
+	return int(value) if str(value).is_valid_int() else 0
+
+func _resolve_owner_team() -> void:
+	owner_team = null
+	if owner_id == 0:
+		owner_team = team
+		return
+	if Handlers.GameHandler:
+		var bot_team = Handlers.GameHandler.get_bot_team_by_id(owner_id)
+		if bot_team != -1:
+			owner_team = bot_team
+			return
+	if Handlers.TeamHandler:
+		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
+		if player:
+			owner_team = player.team
+
+func get_owner_team():
+	return owner_team
+
+func is_alive() -> bool:
+	return not is_destroyed and _health > 0
+
+func handle_input(_viewport, event, _shape_idx):
 	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
 		if event is InputEventMouseButton and event.button_index == 1:
 			if event.pressed == true:
 				selected = true
 				Handlers.UIHandler.input_state = 2
 				Handlers.UIHandler.get_viewport().set_input_as_handled()
-		
-			
+
 func show_fob_panel():
 	Handlers.UIHandler.create_fob_panel(self)
-	
+
 func update_visual():
 	if owner_id == 0:
-		print('enemy FOB at start')
 		sprite.modulate = GameTypes.enemy_color
 		sprite.visibility_layer = 2
+		_update_spawn_ui_visibility()
 		return
 	if Handlers.TeamHandler.my_profile:
 		if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
 			sprite.modulate = GameTypes.own_color
 			sprite.visibility_layer = 1
 		elif owner_id in Handlers.TeamHandler.get_team_players(Handlers.TeamHandler.my_profile.PlayerId):
-			print('ally')
+			pass
 		else:
-			print('enemy FOB')
 			sprite.modulate = GameTypes.enemy_color
 			sprite.visibility_layer = 2
-	
-	# Обновляем UI спавна при изменении владельца
 	_update_spawn_ui_visibility()
+	_update_vitals_bars()
+
+### VITALS ###
+
+func _init_vitals_ui() -> void:
+	if health_bar:
+		health_bar.max_value = max_health
+		health_bar.value = health
+	if shield_bar:
+		shield_bar.max_value = max_shield
+		shield_bar.value = shield
+
+func _update_vitals_bars() -> void:
+	if health_bar:
+		health_bar.max_value = max_health
+		health_bar.value = health
+		var health_percent := float(health) / float(max_health) if max_health > 0 else 0.0
+		if health_percent > 0.7:
+			health_bar.modulate = Color.GREEN
+		elif health_percent > 0.3:
+			health_bar.modulate = Color.YELLOW
+		else:
+			health_bar.modulate = Color.RED
+	if shield_bar:
+		shield_bar.max_value = max_shield
+		shield_bar.value = shield
+		shield_bar.visible = shield > 0
+
+func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
+	if not is_multiplayer_authority() or is_destroyed:
+		return
+
+	var remaining_damage := amount
+	if _shield > 0:
+		var shield_damage: int = min(_shield, remaining_damage)
+		_shield = max(_shield - shield_damage, 0)
+		remaining_damage -= shield_damage
+		if shield_regeneration_timer:
+			shield_regeneration_timer.stop()
+			shield_regeneration_timer.wait_time = SHIELD_REGEN_DELAY
+			shield_regeneration_timer.start()
+
+	if remaining_damage > 0:
+		_health = max(_health - remaining_damage, 0)
+
+	rpc("sync_health", _health)
+	rpc("sync_shield", _shield)
+
+	if _health <= 0:
+		_destroy_fob(from)
+
+@rpc("authority", "call_local", "reliable")
+func sync_health(new_health_value: int) -> void:
+	health = clamp(new_health_value, 0, max_health)
+	_update_vitals_bars()
+
+@rpc("authority", "call_local", "reliable")
+func sync_shield(new_shield_value: int) -> void:
+	shield = clamp(new_shield_value, 0, max_shield)
+	_update_vitals_bars()
+
+func _setup_shield_regeneration_timer() -> void:
+	shield_regeneration_timer = Timer.new()
+	shield_regeneration_timer.one_shot = true
+	shield_regeneration_timer.timeout.connect(_on_shield_regen_timeout)
+	add_child(shield_regeneration_timer)
+
+func _on_shield_regen_timeout() -> void:
+	if not is_multiplayer_authority() or is_destroyed or _shield >= max_shield:
+		return
+	_shield = min(_shield + int(SHIELD_REGEN_RATE * SHIELD_REGEN_DELAY), max_shield)
+	rpc("sync_shield", _shield)
+	if _shield < max_shield:
+		shield_regeneration_timer.start()
+
+func _destroy_fob(_from: BaseUnitServer = null) -> void:
+	if is_destroyed:
+		return
+	is_destroyed = true
+	_clear_vision_links()
+	fob_destroyed.emit(self, owner_id)
+	if Handlers.GameHandler and Handlers.GameHandler.has_method("handle_fob_destroyed"):
+		Handlers.GameHandler.handle_fob_destroyed(owner_id)
+	rpc("sync_fob_destroyed")
+	queue_free()
+
+@rpc("authority", "call_local", "reliable")
+func sync_fob_destroyed() -> void:
+	is_destroyed = true
+	visible = false
+
+### VISION ###
+
+func _setup_vision_area() -> void:
+	if visibility_area == null:
+		return
+	_apply_vision_shape_radius(vision_radius)
+	visibility_area.body_entered.connect(_on_vision_body_entered)
+	visibility_area.body_exited.connect(_on_vision_body_exited)
+	visibility_area.monitoring = true
+
+func _apply_vision_shape_radius(radius: float) -> void:
+	var vis_shape: CollisionShape2D = visibility_area.get_node_or_null("VisibilityShape")
+	if vis_shape == null or not vis_shape.shape is CircleShape2D:
+		return
+	var unique_circle := (vis_shape.shape as CircleShape2D).duplicate() as CircleShape2D
+	unique_circle.radius = radius
+	vis_shape.shape = unique_circle
+
+func _refresh_existing_vision() -> void:
+	if visibility_area == null:
+		return
+	for body in visibility_area.get_overlapping_bodies():
+		_on_vision_body_entered(body)
+
+func _on_vision_body_entered(body: Node2D) -> void:
+	if not is_multiplayer_authority() or is_destroyed:
+		return
+	if not body is BaseUnitServer:
+		return
+	var unit := body as BaseUnitServer
+	if not _is_enemy_unit(unit):
+		return
+	if unit not in has_vision_on:
+		has_vision_on.append(unit)
+	if unit not in _enemies_in_vision:
+		_enemies_in_vision.append(unit)
+	if unit not in unit.visible_by:
+		unit.visible_by.append(self)
+
+func _on_vision_body_exited(body: Node2D) -> void:
+	if not is_multiplayer_authority():
+		return
+	if not body is BaseUnitServer:
+		return
+	var unit := body as BaseUnitServer
+	if unit in has_vision_on:
+		has_vision_on.erase(unit)
+	if unit in _enemies_in_vision:
+		_enemies_in_vision.erase(unit)
+	if unit.visible_by.has(self):
+		unit.visible_by.erase(self)
+
+func _clear_vision_links() -> void:
+	for unit in has_vision_on:
+		if is_instance_valid(unit) and unit.visible_by.has(self):
+			unit.visible_by.erase(self)
+	has_vision_on.clear()
+	_enemies_in_vision.clear()
+
+func _is_enemy_unit(unit: BaseUnitServer) -> bool:
+	if not is_instance_valid(unit):
+		return false
+	_resolve_owner_team()
+	if owner_team != null and unit.owner_team != null:
+		return owner_team != unit.owner_team
+	if owner_id != 0 and unit.owner_id != 0:
+		return owner_id != unit.owner_id
+	return false
 
 ### СИСТЕМА ОТЛОЖЕННОГО СПАВНА ###
 
 func _setup_spawn_timer() -> void:
-	"""
-	Настраивает единый таймер для последовательного спавна (только на сервере)
-	"""
 	if not is_multiplayer_authority():
 		return
-	
 	spawn_timer = Timer.new()
 	spawn_timer.one_shot = true
 	spawn_timer.timeout.connect(_on_spawn_timer_timeout)
 	add_child(spawn_timer)
-	print("🏭 FOB: Единый таймер спавна создан")
 
 func add_spawn_order(
 		unit_type: String,
@@ -110,22 +321,15 @@ func add_spawn_order(
 		spawn_delay: float = -1.0,
 		preset_snapshot: Dictionary = {}
 	) -> void:
-	"""
-	Добавляет заказ на спавн юнита в очередь
-	Запускает спавн если очередь была пуста
-	"""
 	if not is_multiplayer_authority():
-		print("⚠️ FOB SPAWN: add_spawn_order вызвана на клиенте!")
 		return
-	
-	# Определяем время спавна в зависимости от типа юнита
+
 	var resolved_delay := spawn_delay
 	if resolved_delay < 0.0:
 		resolved_delay = UNIT_SPAWN_DELAY
 		if unit_type == "command_unit":
 			resolved_delay = COMMAND_UNIT_SPAWN_DELAY
 
-	# Создаем заказ (без собственного Timer'а)
 	var spawn_order = {
 		"unit_type": unit_type,
 		"unit_cost": unit_cost,
@@ -133,232 +337,122 @@ func add_spawn_order(
 		"spawn_delay": resolved_delay,
 		"preset_snapshot": preset_snapshot,
 	}
-	
-	# Добавляем в очередь
 	spawn_queue.append(spawn_order)
-	
-	var unit_type_name = "обычного юнита" if unit_type != "command_unit" else "командного юнита"
-	print("⏱️ FOB SPAWN: Заказ на ", unit_type_name, " добавлен в очередь FOB (позиция ", spawn_queue.size(), ")")
-	
-	# Если это первый заказ в очереди - запускаем спавн
+
 	if spawn_queue.size() == 1:
 		_start_next_spawn()
 	else:
-		# Если спавн уже идет - просто обновляем счетчик очереди
 		_sync_spawn_ui_to_clients()
-	
-	# UI обновления запускаются в _start_next_spawn()
 
 func _start_next_spawn() -> void:
-	"""
-	Запускает спавн следующего юнита в очереди
-	"""
 	if spawn_queue.size() == 0:
-		print("📋 FOB: Очередь пуста, спавн не запущен")
 		return
-	
 	var current_order = spawn_queue[0]
-	var spawn_delay = current_order["spawn_delay"]
-	
-	# Запускаем таймер для текущего юнита
-	spawn_timer.wait_time = spawn_delay
+	spawn_timer.wait_time = current_order["spawn_delay"]
 	spawn_timer.start()
-	
-	var unit_type_name = "обычного юнита" if current_order["unit_type"] != "command_unit" else "командного юнита"
-	print("🚀 FOB SPAWN: Начат спавн ", unit_type_name, " (", spawn_delay, " сек)")
-	
-	# Обновляем UI с начальным прогрессом (0%)
 	_sync_spawn_ui_to_clients()
-	
-	# Запускаем обновления UI в реальном времени
 	_start_ui_updates()
 
 func _on_spawn_timer_timeout() -> void:
-	"""
-	Обработчик завершения таймера спавна - спавнит текущий юнит и запускает следующий
-	"""
 	if spawn_queue.size() == 0:
-		print("⚠️ FOB: Таймер завершен, но очередь пуста!")
 		return
-	
-	# Берем первый заказ из очереди
 	var current_order = spawn_queue[0]
-	
-	print("✅ FOB SPAWN: Спавним юнита ", current_order["unit_type"], " для игрока ", current_order["player_id"])
-	
-	# Вызываем спавн через UnitSpawnHandler
 	if Handlers.UnitSpawnHandler:
 		Handlers.UnitSpawnHandler._internal_spawn_unit(
-			global_position,  # Спавним в позиции FOB
+			global_position,
 			current_order["unit_type"],
 			current_order["player_id"],
 			current_order.get("preset_snapshot", {})
 		)
-		print("🎯 FOB SPAWN: Юнит успешно заспавнен")
-	else:
-		print("❌ FOB SPAWN: UnitSpawnHandler не найден!")
-	
-	# Удаляем заказ из очереди
 	spawn_queue.pop_front()
-	
-	# Обновляем UI
 	_sync_spawn_ui_to_clients()
-	
-	# Если в очереди еще есть юниты - запускаем спавн следующего
 	if spawn_queue.size() > 0:
-		print("📋 FOB: В очереди осталось ", spawn_queue.size(), " юнитов, запускаем следующий")
 		_start_next_spawn()
-	else:
-		print("🏁 FOB: Очередь спавна завершена")
-		# Останавливаем обновления UI
-		if ui_update_timer:
-			ui_update_timer.stop()
+	elif ui_update_timer:
+		ui_update_timer.stop()
 
 ### UI УПРАВЛЕНИЕ СПАВНОМ ###
 
 func _initialize_spawn_ui() -> void:
-	"""
-	Инициализирует UI элементы спавна на клиенте
-	"""
 	if spawn_bar:
 		spawn_bar.min_value = 0.0
 		spawn_bar.max_value = 100.0
 		spawn_bar.value = 0.0
 		spawn_bar.visible = false
-	
 	if spawn_queue_label:
 		spawn_queue_label.text = "0"
 		spawn_queue_label.visible = false
 
 func _update_spawn_ui_visibility() -> void:
-	"""
-	Обновляет видимость UI спавна на основе владения FOB
-	Вызывается на клиенте при изменении владения
-	"""
 	if is_multiplayer_authority():
-		return  # На сервере UI не нужен
-	
-	# Проверяем, принадлежит ли FOB текущему игроку
+		return
 	var is_my_fob = false
 	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
 		is_my_fob = (owner_id == Handlers.TeamHandler.my_profile.PlayerId)
-	
 	if not is_my_fob:
-		# Скрываем UI если FOB не принадлежит игроку
 		if spawn_bar:
 			spawn_bar.visible = false
 		if spawn_queue_label:
 			spawn_queue_label.visible = false
-	# Если FOB принадлежит игроку, UI будет обновлен через RPC от сервера
 
 func _sync_spawn_ui_to_clients() -> void:
-	"""
-	Синхронизирует состояние UI спавна со всеми клиентами
-	Вызывается только на сервере
-	"""
 	if not is_multiplayer_authority():
 		return
-	
 	var queue_size = spawn_queue.size()
 	var current_progress = 0.0
-	
-	# Если есть активный спавн, получаем прогресс из единого таймера
 	if queue_size > 0 and spawn_timer and spawn_timer.time_left > 0.0:
-		var current_order = spawn_queue[0]  # Первый в очереди = текущий спавн
+		var current_order = spawn_queue[0]
 		var spawn_delay = current_order["spawn_delay"]
-		
 		var elapsed_time = spawn_delay - spawn_timer.time_left
-		current_progress = (elapsed_time / spawn_delay) * 100.0
-		current_progress = clamp(current_progress, 0.0, 100.0)
-		
-		# Дебаг информация
-		# print("🔄 FOB UI: Прогресс ", current_progress, "% (", elapsed_time, "/", spawn_delay, " сек)")
-	
-	# Отправляем обновление всем клиентам
+		current_progress = clamp((elapsed_time / spawn_delay) * 100.0, 0.0, 100.0)
 	update_spawn_ui.rpc(queue_size, current_progress)
 
 @rpc("authority", "call_remote", "reliable")
 func update_spawn_ui(queue_size: int, progress: float) -> void:
-	"""
-	RPC для обновления UI спавна на клиентах
-	"""
 	if is_multiplayer_authority():
-		print("⚠️ FOB UI: update_spawn_ui вызвана на сервере!")
 		return
-	
-	# Проверяем, принадлежит ли FOB текущему игроку
 	var is_my_fob = false
 	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
 		is_my_fob = (owner_id == Handlers.TeamHandler.my_profile.PlayerId)
-	
 	if not is_my_fob:
-		# Скрываем UI если FOB не принадлежит игроку
 		if spawn_bar:
 			spawn_bar.visible = false
 		if spawn_queue_label:
 			spawn_queue_label.visible = false
 		return
-	
-	# Обновляем UI для владельца FOB
 	if queue_size > 0:
-		# Есть юниты в очереди - показываем UI
 		if spawn_queue_label:
 			spawn_queue_label.text = str(queue_size)
 			spawn_queue_label.visible = true
-		
 		if spawn_bar:
 			spawn_bar.value = progress
 			spawn_bar.visible = true
 	else:
-		# Очередь пуста - скрываем UI
 		if spawn_queue_label:
 			spawn_queue_label.visible = false
 		if spawn_bar:
 			spawn_bar.visible = false
 
 func get_spawn_queue_size() -> int:
-	"""
-	Возвращает количество заказов в очереди спавна
-	"""
 	return spawn_queue.size()
 
-### ОБНОВЛЕНИЕ UI В РЕАЛЬНОМ ВРЕМЕНИ ###
-
 func _setup_ui_update_timer() -> void:
-	"""
-	Настраивает таймер для обновления UI спавна (только на сервере)
-	"""
 	if not is_multiplayer_authority():
 		return
-	
 	ui_update_timer = Timer.new()
-	ui_update_timer.wait_time = 0.1  # Обновляем каждые 100ms
+	ui_update_timer.wait_time = 0.1
 	ui_update_timer.timeout.connect(_on_ui_update_timer_timeout)
-	ui_update_timer.autostart = false  # Запускаем только когда есть спавны
+	ui_update_timer.autostart = false
 	add_child(ui_update_timer)
 
 func _on_ui_update_timer_timeout() -> void:
-	"""
-	Обработчик таймера обновления UI
-	"""
 	if spawn_queue.size() > 0 and spawn_timer and spawn_timer.time_left > 0.0:
-		# Есть активный спавн - обновляем UI
 		_sync_spawn_ui_to_clients()
 	else:
-		# Нет активного спавна - останавливаем обновления
 		ui_update_timer.stop()
 
 func _start_ui_updates() -> void:
-	"""
-	Запускает обновления UI если они не активны
-	"""
 	if ui_update_timer and ui_update_timer.time_left > 0.0:
-		return  # Таймер уже работает
+		return
 	if ui_update_timer and spawn_queue.size() > 0:
 		ui_update_timer.start()
-
-func _process(delta: float) -> void:
-	"""
-	Удаляем старую реализацию _process
-	"""
-	pass

@@ -103,7 +103,6 @@ grow_vertical = 2
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=298903271]
 unique_name_in_owner = true
-replication_interval = 0.05
 replication_config = SubResource("SceneReplicationConfig_gofvq")
 public_visibility = false
 script = ExtResource("5_c8msn")

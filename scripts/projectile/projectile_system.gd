@@ -56,6 +56,7 @@ func create_projectile(owner_uid: String, target_uid: String, damage: int, explo
 	# Находим юнит-владелец снаряда по его уникальному ID
 	var owner_unit = Handlers.GameHandler.units_dict.get(owner_uid)
 	var target_unit = Handlers.GameHandler.units_dict.get(target_uid)
+	var target_fob: fob = Handlers.GameHandler.fobs_dict.get(target_uid) if Handlers.GameHandler else null
 	
 	# Проверяем валидность владельца (обязательно)
 	if not owner_unit:
@@ -70,9 +71,9 @@ func create_projectile(owner_uid: String, target_uid: String, damage: int, explo
 	# ВАЖНО: Снаряд летит к позиции цели в момент выстрела, а не следует за движущейся целью
 	var target_position: Vector2
 	if target_unit and is_instance_valid(target_unit):
-		# Цель найдена - стреляем в её текущую позицию
 		target_position = target_unit.global_position
-		# print("🎯 Цель найдена, стреляем в позицию: ", target_position)  # DEBUG
+	elif target_fob and is_instance_valid(target_fob) and target_fob.is_alive():
+		target_position = target_fob.global_position
 	else:
 		# Цель исчезла или умерла - стреляем в направлении по умолчанию
 		target_position = owner_unit.global_position + Vector2(100, 0)

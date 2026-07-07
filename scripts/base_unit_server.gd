@@ -247,6 +247,8 @@ func _physics_process(delta: float) -> void:
 					_process_move_order_immediate(order, delta, _is_bot)
 				"attack":
 					_process_attack_order_immediate(order)
+				"attack_fob":
+					_process_attack_fob_order_immediate(order)
 		
 		# ИСПРАВЛЕНИЕ: Обработка приказов атаки в состоянии AUTO_ATTACKING (автоатака ИИ)
 		# Для автоатаки нужно обрабатывать приказы в каждом фрейме для отзывчивости
@@ -254,6 +256,8 @@ func _physics_process(delta: float) -> void:
 			var attack_order = orders[0]
 			if attack_order.type == "attack":
 				_process_attack_order_immediate(attack_order)
+			elif attack_order.type == "attack_fob":
+				_process_attack_fob_order_immediate(attack_order)
 		
 		# Движение (только если navagent не завершен)
 		if not navagent.is_navigation_finished():
@@ -291,7 +295,7 @@ func _process_move_order_immediate(order: Dictionary, delta: float, is_bot: bool
 	var moved = global_position.distance_to(last_move_position) > 1.5  # Чувствительность к движению
 	
 	if close_enough or nav_done:
-		orders.pop_front()
+		_pop_current_order()
 		unit_state = UNIT_STATES.IDLE
 		stuck_timer = 0.0
 	elif not moved:
@@ -306,35 +310,47 @@ func _process_move_order_immediate(order: Dictionary, delta: float, is_bot: bool
 
 func _process_attack_order_immediate(order: Dictionary) -> void:
 	"""МГНОВЕННАЯ обработка приказов атаки для отзывчивости игрока"""
-	# Переключаемся в состояние атаки
 	if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
 		unit_state = UNIT_STATES.ATTACKING
 	
-	# Безопасная проверка цели
 	if not is_instance_valid(order.target):
-		orders.pop_front()
+		_pop_current_order()
 		unit_state = UNIT_STATES.IDLE
 	else:
 		var target: BaseUnitServer = order.target
-		# Проверяем видимость цели
 		if not can_see_target(target):
-			orders.pop_front()
+			_pop_current_order()
 			unit_state = UNIT_STATES.IDLE
 		else:
-			# Атакуем мгновенно!
 			attack(target)
+
+func _process_attack_fob_order_immediate(order: Dictionary) -> void:
+	if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
+		unit_state = UNIT_STATES.ATTACKING
+	
+	if not is_instance_valid(order.target) or not order.target is fob:
+		_pop_current_order()
+		unit_state = UNIT_STATES.IDLE
+		return
+	
+	var target_fob: fob = order.target
+	if not can_see_fob(target_fob):
+		_pop_current_order()
+		unit_state = UNIT_STATES.IDLE
+	else:
+		attack_fob(target_fob)
 
 func _quick_visibility_check() -> void:
 	"""
 	БЫСТРАЯ проверка видимости без сетевых операций
 	Только локальные флаги, тяжелые сетевые операции в FrameGroup
 	"""
-	# Проверяем видимость ИМЕННО для врагов: если хотя бы один вражеский юнит видит нас
+	# Проверяем видимость ИМЕННО для врагов: юнит или FOB союзника
 	var currently_visible: bool = false
 	var my_team = _get_cached_team()
 	if my_team != null:
 		for viewer in visible_by:
-			if is_instance_valid(viewer) and _is_enemy_unit_fast(viewer, my_team):
+			if is_instance_valid(viewer) and _viewer_reveals_unit(viewer, my_team):
 				currently_visible = true
 				break
 	else:
@@ -364,6 +380,8 @@ func _process_heavy_server_calculations(delta: float) -> void:
 				_process_move_order_heavy_bot(bot_order, delta)
 			"attack":
 				_process_attack_order_heavy_bot(bot_order)
+			"attack_fob":
+				_process_attack_fob_order_heavy_bot(bot_order)
 	# === АВТОАТАКА (ПОИСК ЦЕЛЕЙ) - ТОЛЬКО ЕСЛИ НЕТ ПРИКАЗОВ ===
 	elif orders.size() == 0:
 		_process_auto_attack_heavy()
@@ -399,7 +417,7 @@ func _process_move_order_heavy_bot(order: Dictionary, delta: float) -> void:
 	var moved = global_position.distance_to(last_move_position) > 1.5
 	
 	if close_enough or nav_done:
-		orders.pop_front()
+		_pop_current_order()
 		unit_state = UNIT_STATES.IDLE
 		stuck_timer = 0.0
 	elif not moved:
@@ -412,24 +430,32 @@ func _process_move_order_heavy_bot(order: Dictionary, delta: float) -> void:
 	last_move_position = global_position
 
 func _process_attack_order_heavy_bot(order: Dictionary) -> void:
-	"""ОТЛОЖЕННАЯ обработка приказов атаки для БОТОВ (FrameGroup оптимизация)"""
-	# Переключаемся в состояние атаки
 	if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
 		unit_state = UNIT_STATES.ATTACKING
 	
-	# Безопасная проверка цели
 	if not is_instance_valid(order.target):
-		orders.pop_front()
+		_pop_current_order()
 		unit_state = UNIT_STATES.IDLE
 	else:
 		var target: BaseUnitServer = order.target
-		# Проверяем видимость цели
 		if not can_see_target(target):
-			orders.pop_front()
+			_pop_current_order()
 			unit_state = UNIT_STATES.IDLE
 		else:
-			# Атакуем через FrameGroup оптимизацию
 			attack(target)
+
+func _process_attack_fob_order_heavy_bot(order: Dictionary) -> void:
+	if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
+		unit_state = UNIT_STATES.ATTACKING
+	
+	if not is_instance_valid(order.target) or not order.target is fob:
+		_pop_current_order()
+		unit_state = UNIT_STATES.IDLE
+	elif not can_see_fob(order.target):
+		_pop_current_order()
+		unit_state = UNIT_STATES.IDLE
+	else:
+		attack_fob(order.target)
 
 func _process_auto_attack_heavy() -> void:
 	"""Тяжелый поиск целей для автоатаки"""
@@ -441,7 +467,6 @@ func _process_auto_attack_heavy() -> void:
 	if unit_state == UNIT_STATES.IDLE:
 		var visible_enemies = _get_visible_enemies()
 		
-		# DEBUG: Логирование для диагностики атаки
 		if not visible_enemies.is_empty():
 			var target_enemy = _select_best_target(visible_enemies)
 			if is_valid_unit(target_enemy):
@@ -449,9 +474,14 @@ func _process_auto_attack_heavy() -> void:
 					Handlers.dprint("🎯 ATTACK: %s -> %s" % [name, target_enemy.name])
 				orders.append({"type": "attack", "target": target_enemy})
 				unit_state = UNIT_STATES.AUTO_ATTACKING
+		else:
+			var target_fob = _get_best_enemy_fob_target()
+			if target_fob:
+				orders.append({"type": "attack_fob", "target": target_fob})
+				unit_state = UNIT_STATES.AUTO_ATTACKING
 
 @rpc("any_peer", "reliable")
-func add_order(order_obj, clear_queue:bool=false) -> void:
+func add_order(order_obj, clear_queue: bool = false, capture_at_destination: bool = false) -> void:
 	# Проверка владельца: обычные игроки или сервер для ботов
 	var sender_id = multiplayer.get_remote_sender_id()
 	var is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
@@ -466,19 +496,53 @@ func add_order(order_obj, clear_queue:bool=false) -> void:
 	if is_multiplayer_authority():
 		match typeof(order_obj):
 			TYPE_VECTOR2:
-				# Приказ на движение
 				if clear_queue:
 					orders.clear()
-				orders.append({"type": "move", "position": order_obj})
+				if capture_at_destination and is_command_unit():
+					orders.append({
+						"type": "move_capture",
+						"position": order_obj,
+						"phase": "moving",
+					})
+				else:
+					orders.append({"type": "move", "position": order_obj})
+				_sync_order_queue_to_owner()
 			TYPE_STRING:
-				# Приказ на атаку по имени
 				var target_unit = find_target_by_UID(order_obj)
 				if target_unit is BaseUnitServer:
-					# Проверяем видимость цели перед добавлением приказа
 					if can_see_target(target_unit):
 						if clear_queue:
 							orders.clear()
 						orders.append({"type": "attack", "target": target_unit})
+						_sync_order_queue_to_owner()
+
+@rpc("any_peer", "reliable")
+func request_order_queue() -> void:
+	if owner_id != multiplayer.get_remote_sender_id():
+		return
+	if is_multiplayer_authority():
+		_sync_order_queue_to_owner()
+
+func _build_order_queue_snapshot() -> Array:
+	var snapshot: Array = []
+	for order in orders:
+		match order.get("type", ""):
+			"move", "move_capture":
+				snapshot.append({"type": order.type, "position": order.position})
+	return snapshot
+
+func _sync_order_queue_to_owner() -> void:
+	if not is_multiplayer_authority():
+		return
+	if Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1:
+		return
+	rpc_id(owner_id, "sync_order_queue", _build_order_queue_snapshot())
+
+func _pop_current_order() -> void:
+	if orders.is_empty():
+		return
+	orders.pop_front()
+	_sync_order_queue_to_owner()
 
 @rpc("any_peer", "reliable")
 func get_unit_info() -> void:
@@ -498,8 +562,8 @@ func clear_orders() -> void:
 		
 	if is_multiplayer_authority():
 		orders.clear()
-		# Переводим юнит в состояние ожидания для автоатаки
 		unit_state = UNIT_STATES.IDLE
+		_sync_order_queue_to_owner()
 
 func find_target_by_UID(target_uid: String) -> BaseUnitServer:
 	# Ищем юнит по UID в дереве сцены
@@ -597,6 +661,30 @@ func can_see_target(target: BaseUnitServer) -> bool:
 	_can_see_result = can_see
 	_can_see_frame = current_frame
 	return can_see
+
+func can_see_fob(target_fob: fob) -> bool:
+	if not is_instance_valid(target_fob) or not target_fob.is_alive():
+		return false
+	var my_team = _get_cached_team()
+	if my_team == null:
+		return false
+	if target_fob.get_owner_team() == my_team:
+		return false
+	return global_position.distance_squared_to(target_fob.global_position) <= vision_radius * vision_radius
+
+func _get_best_enemy_fob_target() -> fob:
+	var best_target: fob = null
+	var best_distance := INF
+	for fob_node in get_tree().get_nodes_in_group("fobs"):
+		if not is_instance_valid(fob_node) or not fob_node is fob:
+			continue
+		if not can_see_fob(fob_node):
+			continue
+		var distance := global_position.distance_squared_to(fob_node.global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best_target = fob_node
+	return best_target
 	
 func attack(target: BaseUnitServer) -> void:
 	_profile_function_start("attack")
@@ -612,7 +700,7 @@ func attack(target: BaseUnitServer) -> void:
 	if not can_see_target(target):
 		# Удаляем приказ атаки, так как цель невидима
 		if orders.size() > 0 and orders[0].type == "attack":
-			orders.pop_front()
+			_pop_current_order()
 		if DEBUG_COMBAT:
 			Handlers.dprint("👁️ ATTACK BLOCKED (no vision): %s -> %s" % [name, target.name])
 		_profile_function_end("attack")
@@ -654,6 +742,26 @@ func attack(target: BaseUnitServer) -> void:
 	
 	_last_attack_state = "fired"
 	_profile_function_end("attack")
+
+func attack_fob(target_fob: fob) -> void:
+	_profile_function_start("attack_fob")
+	if not is_instance_valid(target_fob) or not target_fob.is_alive():
+		_profile_function_end("attack_fob")
+		return
+	if not can_see_fob(target_fob):
+		if orders.size() > 0 and orders[0].type == "attack_fob":
+			_pop_current_order()
+		_profile_function_end("attack_fob")
+		return
+	if reload_timer.time_left > 0:
+		_profile_function_end("attack_fob")
+		return
+	if Handlers.ProjectileHandler:
+		var explosion_radius = 50.0
+		Handlers.ProjectileHandler.rpc("create_projectile", UID, target_fob.UID, damage, explosion_radius)
+	reload_timer.wait_time = reload_time
+	reload_timer.start()
+	_profile_function_end("attack_fob")
 
 func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 	"""
@@ -721,7 +829,7 @@ func sync_shield(new_shield_value: int) -> void:
 func die() -> void:
 	unit_died.emit(self)
 	
-	var observers: Array[BaseUnit] = []
+	var observers: Array = []
 	for viewer in visible_by:
 		if is_instance_valid(viewer) and viewer not in observers:
 			observers.append(viewer)
@@ -734,7 +842,7 @@ func die() -> void:
 	_enemies_in_vision.clear()
 	
 	for observer in observers:
-		if observer.has_method("_on_unit_died"):
+		if observer is BaseUnit and observer.has_method("_on_unit_died"):
 			observer._on_unit_died(self)
 	# Снимаем регистрацию из словаря и групп
 	if Handlers.GameHandler and Handlers.GameHandler.has_method("get"):
@@ -972,6 +1080,23 @@ func _is_enemy_unit_fast(unit: BaseUnitServer, my_team) -> bool:
 		return my_team != unit.owner_team
 	if owner_id != null and unit.owner_id != null:
 		return owner_id != unit.owner_id
+	return false
+
+func _is_enemy_fob_viewer(fob_node: fob, my_team) -> bool:
+	if not is_instance_valid(fob_node) or my_team == null:
+		return false
+	var fob_team = fob_node.get_owner_team()
+	if fob_team != null:
+		return fob_team != my_team
+	if fob_node.owner_id != 0 and owner_id != 0:
+		return fob_node.owner_id != owner_id
+	return false
+
+func _viewer_reveals_unit(viewer: Node, my_team) -> bool:
+	if viewer is BaseUnitServer:
+		return _is_enemy_unit_fast(viewer as BaseUnitServer, my_team)
+	if viewer is fob:
+		return _is_enemy_fob_viewer(viewer as fob, my_team)
 	return false
 
 func _select_best_target(enemies: Array[BaseUnitServer]) -> BaseUnitServer:

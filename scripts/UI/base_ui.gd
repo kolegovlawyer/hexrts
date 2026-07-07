@@ -1,11 +1,14 @@
 class_name GameUI extends Node
 
+const _WaypointMarkerManagerScript := preload("res://scripts/UI/waypoint_marker_manager.gd")
+
 @onready var window_size = Vector2(ProjectSettings.get_setting("display/window/size/viewport_width"),
 ProjectSettings.get_setting("display/window/size/viewport_height"))
 @onready var window_size_label = get_node("%WindowSize")
 @onready var mouse_position_label = get_node("%CurrentMousePos")
 
 @onready var win_bar = get_node("%WinBar")
+@onready var win_bar_label = get_node("%WinBarLabel")
 @onready var unit_points = get_node("%UnitPoints")
 
 @onready var hud_board = get_node("%HUDBoard")
@@ -32,6 +35,11 @@ enum INPUT_STATES {IDLE, UNITS_CONTROL, FOB_INTERACT}
 var selection_box
 
 var fobs = {}
+
+var _victory_points_max: int = 1000
+var _last_points_revision: int = -1
+var _game_over_screen: Control = null
+var _waypoint_marker_manager: Node2D = null
 
 var input_state:int = INPUT_STATES.IDLE:
 	set(value):
@@ -112,13 +120,12 @@ func _gui_input(event: InputEvent) -> void:
 			if event is InputEventMouseButton and event.button_index == 2:
 				if event.pressed == false:
 					if Handlers.UnitSelectionHandler.selected_units != null:
+						var clear_queue := not Input.is_key_pressed(KEY_SHIFT)
 						for n in Handlers.UnitSelectionHandler.selected_units:
 							if is_instance_valid(n):
 								var target_position = camera.get_global_mouse_position()
-								#n.navagent.target_position = target_position
-								#print('GLOBAL MOUSE POSITION: ', get_global_mouse_position())
-								print('Через UI отправлен приказ на движение серверному юниту')
-								n.rpc_id(1, "add_order", target_position, true)
+								var capture_at_destination := not clear_queue and n.is_command_unit()
+								n.rpc_id(1, "add_order", target_position, clear_queue, capture_at_destination)
 							#{"order": GameTypes.OrderTypes.MOVE_FORWARD,
 						#"target":cursor_pos}
 							
@@ -243,6 +250,19 @@ func bind_map_world() -> void:
 		return
 	if not is_multiplayer_authority() and Handlers.UIHandler and Handlers.UIHandler.camera:
 		Handlers.UIHandler.camera.set_bounds()
+	_ensure_waypoint_marker_manager()
+
+func _ensure_waypoint_marker_manager() -> void:
+	if world == null or _waypoint_marker_manager != null:
+		return
+	_waypoint_marker_manager = _WaypointMarkerManagerScript.new()
+	world.add_child(_waypoint_marker_manager)
+
+func refresh_waypoint_markers() -> void:
+	if world == null:
+		bind_map_world()
+	if _waypoint_marker_manager and is_instance_valid(_waypoint_marker_manager):
+		_waypoint_marker_manager.refresh_for_selection()
 
 func move_camera_to_fob():
 	print('КНОПКА НАЖАЛАСЬ')
@@ -267,19 +287,38 @@ func _exit_tree():
 	
 ### POINTS DISPLAY FUNCTIONS ###
 
-func update_points_display(recruitment_points: float, victory_points: float) -> void:
-	"""
-	Обновляет отображение очков в UI
-	Вызывается через RPC от сервера
-	"""
-	# Обновляем очки найма в label
+func init_match_balance(balance: Dictionary) -> void:
+	_victory_points_max = int(balance.get("victory_points_to_win", 1000))
+	_last_points_revision = -1
+	unit_points.text = "0"
+	win_bar.min_value = 0.0
+	win_bar.max_value = 100.0
+	win_bar.value = 0.0
+	if win_bar_label:
+		win_bar_label.text = "0 / %d" % _victory_points_max
+
+
+func update_points_display(
+		recruitment_points: float,
+		victory_points: float,
+		revision: int = -1,
+		victory_max: int = -1
+	) -> void:
+	if revision >= 0 and revision <= _last_points_revision:
+		return
+	if revision >= 0:
+		_last_points_revision = revision
+	if victory_max > 0:
+		_victory_points_max = victory_max
+
 	unit_points.text = str(int(recruitment_points))
-	
-	# Обновляем прогресс-бар очков победы
-	var victory_percentage = (victory_points / 500.0) * 100.0  # 500 - цель для победы
+
+	var max_vp := maxf(1.0, float(_victory_points_max))
+	var victory_percentage := clampf((victory_points / max_vp) * 100.0, 0.0, 100.0)
 	win_bar.value = victory_percentage
-	
-	#print("🎯 UI: Обновлены очки - найм: ", int(recruitment_points), " победа: ", int(victory_points), "/500 (", int(victory_percentage), "%)")
+	if win_bar_label:
+		win_bar_label.text = "%d / %d" % [int(victory_points), _victory_points_max]
+
 
 func get_current_recruitment_points() -> int:
 	"""
@@ -298,15 +337,18 @@ func show_insufficient_points_message() -> void:
 	# TODO: Добавить визуальное уведомление в UI (тост, анимация и т.д.)
 
 func _initialize_points_display() -> void:
-	"""
-	Инициализирует отображение очков начальными значениями
-	"""
-	# Устанавливаем начальные значения (будут обновлены сервером)
-	unit_points.text = "0"
-	win_bar.value = 0.0
-	win_bar.max_value = 100.0  # Для процентов (0-100%)
-	win_bar.min_value = 0.0
+	init_match_balance({"victory_points_to_win": 1000})
 	print("🎯 UI: Инициализированы начальные значения очков")
+
+
+func show_game_over(is_winner: bool, reason: String, is_draw: bool = false) -> void:
+	if _game_over_screen and is_instance_valid(_game_over_screen):
+		return
+	var screen: Control = preload("res://prefabs/ui/game_over_screen.tscn").instantiate()
+	_game_over_screen = screen
+	add_child(screen)
+	if screen.has_method("setup"):
+		screen.setup(is_winner, reason, is_draw)
 	
 func start_draw_selection_box(init_position):
 	if world == null:
@@ -367,6 +409,9 @@ func open_unit_editor() -> void:
 func _process(_delta: float) -> void:
 	window_size = get_viewport().size
 	window_size_label.text = str(window_size, window_size.x, window_size.y)
+	if camera == null:
+		mouse_position_label.text = "CAMERA: not ready"
+		return
 	mouse_position_label.text = str(
 		"VIEWPORT_MOUSE_POS: ", get_viewport().get_mouse_position(),
 		"GLOBAL_MOUSE_POS", camera.get_global_mouse_position(),

@@ -1,0 +1,103 @@
+[gd_scene format=3 uid="uid://dmbewpm8a83r5"]
+
+[ext_resource type="Script" uid="uid://dpl8lpx3xgvga" path="res://scripts/map.gd" id="1_yaaqq"]
+[ext_resource type="Script" uid="uid://c50v11n1xtepe" path="res://scripts/game_system/unit_spawner.gd" id="2_xg4pc"]
+[ext_resource type="PackedScene" uid="uid://ca77q4ydbl3cv" path="res://prefabs/maps/main_map_2.tscn" id="3_ojieb"]
+[ext_resource type="PackedScene" uid="uid://bmm7e27ic1c5u" path="res://prefabs/units/base_fob.tscn" id="4_peyd0"]
+[ext_resource type="Texture2D" uid="uid://rjusfrp6cg03" path="res://assets/tilemap/base_hexs.png" id="5_xa2i2"]
+[ext_resource type="Texture2D" uid="uid://b2yssebpb1u5u" path="res://assets/BartSpriter/arrow.png" id="6_rxyc0"]
+[ext_resource type="Script" uid="uid://chlxpr2xjdegu" path="res://scripts/fog_of_war_manager.gd" id="7_lk57u"]
+[ext_resource type="Script" uid="uid://cn01mbav3n71p" path="res://scripts/map_fog_initializer.gd" id="8_e04e3"]
+[ext_resource type="Shader" uid="uid://boaah0tust4ye" path="res://shaders/fog_of_war.gdshader" id="9_s6wlc"]
+[ext_resource type="Script" uid="uid://ce0gqxjh8krt6" path="res://scripts/UI/FogOfWarOverlay.gd" id="10_t22no"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_qfklk"]
+texture = ExtResource("5_xa2i2")
+texture_region_size = Vector2i(256, 256)
+0:0/0 = 0
+1:0/0 = 0
+2:0/0 = 0
+
+[sub_resource type="TileSet" id="TileSet_35fhk"]
+tile_shape = 3
+tile_size = Vector2i(256, 256)
+sources/0 = SubResource("TileSetAtlasSource_qfklk")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_35fhk"]
+shader = ExtResource("9_s6wlc")
+shader_parameter/fog_intensity = 0.8
+shader_parameter/fog_color = Color(0.358568, 0.358716, 0.434492, 1)
+shader_parameter/fog_edge_softness = 50.0
+shader_parameter/fog_animation_speed = 0.3
+shader_parameter/fog_noise_scale = 2.0
+shader_parameter/fog_noise_strength = 0.1
+shader_parameter/unit_count = 0
+shader_parameter/unit_positions = PackedVector2Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/unit_visibility_radii = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+[node name="TestMapWorld" type="Node2D" unique_id=297520143]
+script = ExtResource("1_yaaqq")
+
+[node name="SpawnNode" type="Node2D" parent="." unique_id=1867354453]
+script = ExtResource("2_xg4pc")
+
+[node name="MainMap" parent="." unique_id=596477394 instance=ExtResource("3_ojieb")]
+visible = true
+
+[node name="SpawnerA" parent="MainMap" unique_id=168378332 groups=["team_0_fobs"] instance=ExtResource("4_peyd0")]
+position = Vector2(-442, -831)
+collision_layer = 3
+
+[node name="SpawnerB" parent="MainMap" unique_id=1226671335 groups=["team_1_fobs"] instance=ExtResource("4_peyd0")]
+position = Vector2(-2073, -432)
+collision_layer = 3
+team = 1
+
+[node name="OverlayMap" type="TileMapLayer" parent="." unique_id=253188926]
+light_mask = 2
+visibility_layer = 2
+z_index = 1
+z_as_relative = false
+tile_set = SubResource("TileSet_35fhk")
+
+[node name="CameraCornerBottomRight" type="Node2D" parent="." unique_id=1043491106]
+unique_name_in_owner = true
+position = Vector2(2217, 1116)
+
+[node name="Sprite2D" type="Sprite2D" parent="CameraCornerBottomRight" unique_id=401828759]
+visibility_layer = 5
+rotation = 4.31725
+scale = Vector2(3, 3)
+texture = ExtResource("6_rxyc0")
+
+[node name="CameraCornerTopLeft" type="Node2D" parent="." unique_id=20832825]
+unique_name_in_owner = true
+position = Vector2(-3263, -3097)
+
+[node name="Sprite2D" type="Sprite2D" parent="CameraCornerTopLeft" unique_id=1554642966]
+visibility_layer = 5
+rotation = 4.31725
+scale = Vector2(3, 3)
+texture = ExtResource("6_rxyc0")
+
+[node name="FogOfWarManager" type="Node" parent="." unique_id=1370651019]
+script = ExtResource("7_lk57u")
+
+[node name="FogInitializer" type="Node" parent="FogOfWarManager" unique_id=1467831540]
+script = ExtResource("8_e04e3")
+
+[node name="FogOfWarLayer" type="CanvasLayer" parent="." unique_id=905507223]
+layer = 0
+
+[node name="FogOfWarOverlay" type="ColorRect" parent="FogOfWarLayer" unique_id=1202316360]
+material = SubResource("ShaderMaterial_35fhk")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("10_t22no")
+metadata/_edit_use_anchors_ = true
+
+[node name="BaseUILayer" type="CanvasLayer" parent="." unique_id=62932835]

@@ -43,6 +43,10 @@ func set_shield(value: int) -> void:
 
 var frame_group : int
 var preview: UnitPreview = null
+var _order_queue_snapshot: Array = []
+
+func get_order_queue_snapshot() -> Array:
+	return _order_queue_snapshot
 
 func _ready() -> void:
 	super._ready()
@@ -307,3 +311,11 @@ func set_unit_info(profile_path: String) -> void:
 	"""
 	if profile_path and profile_path != "":
 		unit_profile = load(profile_path)
+
+@rpc("authority", "call_local", "reliable")
+func sync_order_queue(snapshot: Array) -> void:
+	if not is_instance_valid(multiplayer) or owner_id != multiplayer.get_unique_id():
+		return
+	_order_queue_snapshot = snapshot
+	if Handlers.UIHandler and Handlers.UIHandler.has_method("refresh_waypoint_markers"):
+		Handlers.UIHandler.refresh_waypoint_markers()

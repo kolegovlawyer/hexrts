@@ -1,8 +1,9 @@
-﻿class_name GameManager extends Node
+class_name GameManager extends Node
 
 var game_type = "UNKNOWN"
 var map
 @onready var units_dict: Dictionary[String, BaseUnit] = {}
+var fobs_dict: Dictionary = {}
 
 # Словарь гексов карты: позиция_гекса -> объект Hex
 var hexes_dict: Dictionary = {}
@@ -17,13 +18,15 @@ var active_bots: Array[Bot] = []
 
 ### POINTS SYSTEM ###
 
-# Конфигурация очков
-const VICTORY_POINTS_TO_WIN: int = 5000
-const BASE_RECRUITMENT_RATE: float = 1.0  # +1 очко найма в секунду
 const UNIT_SPAWN_COST: int = 10
-# Убираем UNIT_SPAWN_DELAY - теперь это будет в FOB
 
-# Очки игроков: player_id -> {recruitment_points: float, victory_points: float}
+var match_duration_preset: int = VictoryBalance.DurationPreset.NORMAL
+var active_balance: Dictionary = {}
+
+var game_ended: bool = false
+var match_elapsed_seconds: float = 0.0
+
+# Очки игроков: player_id -> {recruitment_points, victory_points, points_revision}
 var player_points: Dictionary = {}
 
 # Таймер для обновления очков каждую секунду
@@ -50,223 +53,365 @@ func _exit_tree():
 
 ### POINTS SYSTEM FUNCTIONS ###
 
+func set_match_duration_preset(preset_id: int) -> void:
+	match_duration_preset = preset_id
+
+
 func setup_points_system() -> void:
-	"""
-	Инициализирует систему очков на сервере
-	"""
 	Handlers.dprint("🏆 POINTS: Инициализация системы очков на сервере")
-	
-	# Создаем таймер для обновления очков
+
 	points_timer = Timer.new()
 	points_timer.wait_time = 1.0
 	points_timer.timeout.connect(_on_points_timer_timeout)
 	points_timer.autostart = true
 	add_child(points_timer)
-	
-	# Инициализируем очки для всех подключенных игроков
+
 	for player_id in multiplayer.get_peers():
 		_initialize_player_points(player_id)
-	
-	# Инициализируем очки для сервера (если он играет)
-	var server_id = multiplayer.get_unique_id()
-	if server_id != 1:  # Сервер имеет ID = 1, но может играть под другим ID
+
+	# Хост (peer 1) играет на сервере, но не входит в get_peers()
+	_initialize_player_points(1)
+
+	var server_id := multiplayer.get_unique_id()
+	if server_id != 1:
 		_initialize_player_points(server_id)
-	
-	# Подключаемся к сигналам сети для новых игроков
+
 	multiplayer.peer_connected.connect(_on_player_connected)
 	multiplayer.peer_disconnected.connect(_on_player_disconnected)
 
+
+func _initialize_active_balance() -> void:
+	if not is_multiplayer_authority():
+		return
+
+	var hex_count := hexes_dict.size()
+	var map_name := str(map) if map else "test_world_1"
+	active_balance = VictoryBalance.build_active_balance(hex_count, map_name, match_duration_preset)
+	match_elapsed_seconds = 0.0
+	game_ended = false
+
+	Handlers.dprint("⚖️ BALANCE: Карта=", map_name, " гексы=", hex_count)
+	Handlers.dprint("  - VP to win: ", active_balance["victory_points_to_win"])
+	Handlers.dprint("  - Match duration: ", active_balance["match_duration_minutes"], " min")
+	Handlers.dprint("  - Domination: ", active_balance["domination_hexes"], " hexes")
+
+	_broadcast_match_balance()
+
+	for player_id in player_points.keys():
+		if not _is_player_bot(player_id):
+			_sync_points_for_player(player_id, false)
+
+
+func _broadcast_match_balance() -> void:
+	if active_balance.is_empty():
+		return
+
+	for player_id in player_points.keys():
+		if _is_player_bot(player_id):
+			continue
+		_send_match_balance_to_player(player_id)
+
+
+func _send_match_balance_to_player(player_id: int) -> void:
+	if _is_local_human_player(player_id):
+		if Handlers.UIHandler:
+			Handlers.UIHandler.init_match_balance(active_balance)
+	elif not _is_player_bot(player_id):
+		sync_match_balance.rpc_id(player_id, active_balance)
+
+
 func _initialize_player_points(player_id: int) -> void:
-	"""
-	Инициализирует очки для нового игрока
-	"""
 	Handlers.dprint("🎯 GAME DEBUG: Инициализация очков для player_id: ", player_id)
-	
+
 	player_points[player_id] = {
-		"recruitment_points": 50.0,  # Начальные очки найма (5 юнитов)
-		"victory_points": 0.0
+		"recruitment_points": VictoryBalance.INITIAL_RECRUITMENT_POINTS,
+		"victory_points": 0.0,
+		"points_revision": 0,
 	}
-	Handlers.dprint("💰 POINTS: Инициализированы очки для игрока ", player_id)
-	Handlers.dprint("  - recruitment_points: ", player_points[player_id]["recruitment_points"])
-	Handlers.dprint("  - victory_points: ", player_points[player_id]["victory_points"])
-	
-	# Проверяем является ли это ботом
-	var is_bot = _is_player_bot(player_id)
-	if is_bot:
+
+	if _is_player_bot(player_id):
 		Handlers.dprint("🤖 GAME DEBUG: Игрок ", player_id, " определен как бот")
-	
-	# Отправляем начальные очки клиенту (только если это не сервер и не бот)
-	if player_id != 1 and not is_bot:
-		Handlers.dprint("📡 GAME DEBUG: Отправляем начальные очки RPC игроку ", player_id)
-		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
-	else:
-		Handlers.dprint("🚫 GAME DEBUG: Пропускаем RPC для player_id: ", player_id, " (сервер: ", player_id == 1, ", бот: ", is_bot, ")")
+
+	_sync_points_for_player(player_id, false)
+
 
 func _on_player_connected(player_id: int) -> void:
-	"""
-	Обработчик подключения нового игрока
-	"""
 	_initialize_player_points(player_id)
+	if not active_balance.is_empty():
+		call_deferred("_send_match_balance_to_player", player_id)
+
 
 func _on_player_disconnected(player_id: int) -> void:
-	"""
-	Обработчик отключения игрока
-	"""
 	if player_points.has(player_id):
 		player_points.erase(player_id)
 	Handlers.dprint("👋 POINTS: Удалены очки игрока ", player_id)
 
+
 func _on_points_timer_timeout() -> void:
-	"""
-	Обновляет очки всех игроков каждую секунду
-	"""
+	if game_ended:
+		return
+
+	match_elapsed_seconds += 1.0
+
 	for player_id in player_points.keys():
-		# Пропускаем сервер (ID = 1)
-		if player_id == 1:
-			continue
 		_update_player_points(player_id)
-	
-	# Обрабатываем очередь отложенного спавна
-	# _process_delayed_spawn_queue() # Удалено
+
+	if _check_time_limit_victory():
+		return
+
+	_check_domination_victory()
+
 
 func _update_player_points(player_id: int) -> void:
-	"""
-	Обновляет очки конкретного игрока на основе контролируемых гексов
-	"""
 	if not player_points.has(player_id):
-		Handlers.dprint("⚠️ POINTS DEBUG: player_id ", player_id, " не найден в player_points")
 		return
-	
-	# Подсчитываем количество гексов игрока
-	var player_hexes_count = _count_player_hexes(player_id)
-	
-	# Рассчитываем прирост очков найма (базовый + бонус от гексов)
-	var recruitment_bonus = _calculate_recruitment_bonus(player_hexes_count)
-	var recruitment_gain = BASE_RECRUITMENT_RATE + recruitment_bonus
+
+	var player_hexes_count := _count_player_hexes(player_id)
+	var recruitment_gain := VictoryBalance.calculate_recruitment_gain(player_hexes_count)
+	var victory_gain := VictoryBalance.calculate_victory_gain(player_hexes_count)
+
 	player_points[player_id]["recruitment_points"] += recruitment_gain
-	
-	# Рассчитываем прирост очков победы (только от гексов)
-	var victory_gain = _calculate_victory_gain(player_hexes_count)
 	player_points[player_id]["victory_points"] += victory_gain
-	
-	# Проверяем условие победы
-	if player_points[player_id]["victory_points"] >= VICTORY_POINTS_TO_WIN:
-		_handle_player_victory(player_id)
-	
-	# Проверяем является ли это ботом
-	var is_bot = _is_player_bot(player_id)
-	
-	# Отправляем обновленные очки клиенту (только если это не бот и не сервер)
-	if not is_bot and player_id != 1:
-		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
-	
-	# Логируем только для ботов или каждые 10 секунд для остальных
-	if is_bot or Time.get_unix_time_from_system() as int % 10 == 0:
-		Handlers.dprint("📊 POINTS: Игрок ", player_id, " (бот: ", is_bot, ") гексы: ", player_hexes_count, " очки найма: +", recruitment_gain, " очки победы: +", victory_gain)
+
+	_sync_points_for_player(player_id, true)
+
+	if _check_vp_threshold_victory(player_id):
+		return
+
+	var is_bot := _is_player_bot(player_id)
+	if is_bot or int(match_elapsed_seconds) % 10 == 0:
+		Handlers.dprint(
+			"📊 POINTS: Игрок ", player_id,
+			" гексы: ", player_hexes_count,
+			" найм: +", recruitment_gain,
+			" VP: +", victory_gain
+		)
+
+
+func _sync_points_for_player(player_id: int, increment_revision: bool = false) -> void:
+	if not player_points.has(player_id) or _is_player_bot(player_id):
+		return
+
+	if increment_revision:
+		player_points[player_id]["points_revision"] = int(player_points[player_id].get("points_revision", 0)) + 1
+
+	var recruitment: float = player_points[player_id]["recruitment_points"]
+	var victory: float = player_points[player_id]["victory_points"]
+	var revision: int = player_points[player_id]["points_revision"]
+	var victory_max: int = int(active_balance.get("victory_points_to_win", 1000))
+
+	if _is_local_human_player(player_id):
+		if Handlers.UIHandler:
+			Handlers.UIHandler.update_points_display(recruitment, victory, revision, victory_max)
+	elif not _is_player_bot(player_id):
+		sync_player_points.rpc_id(player_id, recruitment, victory, revision, victory_max)
+
+
+func _is_local_human_player(player_id: int) -> bool:
+	return multiplayer.get_unique_id() == player_id and not _is_player_bot(player_id)
+
 
 func _count_player_hexes(player_id: int) -> int:
-	"""
-	Подсчитывает количество гексов, контролируемых игроком
-	"""
-	var count = 0
-	var player_team = _get_player_team(player_id)
-	
+	var player_team := _get_player_team(player_id)
 	if player_team == -1:
 		return 0
-	
+	return _count_team_hexes(player_team)
+
+
+func _count_team_hexes(team: int) -> int:
+	var count := 0
 	for hex in hexes_dict.values():
-		if hex.team_owner == player_team:
+		if hex.team_owner == team:
 			count += 1
-	
 	return count
 
+
 func _get_player_team(player_id: int) -> int:
-	"""
-	Получает номер команды игрока через существующую систему команд
-	"""
 	if not Handlers.TeamHandler:
-		Handlers.dprint("⚠️ POINTS: TeamHandler не найден!")
 		return -1
-	
-	# Сначала проверяем является ли это ботом
-	var is_bot = _is_player_bot(player_id)
-	if is_bot:
+
+	if _is_player_bot(player_id):
 		for bot in active_bots:
 			if bot.bot_id == player_id:
-				var bot_team_int := int(bot.bot_team)
-				Handlers.dprint("🤖 POINTS: Бот ", player_id, " команда ", bot_team_int)
-				return bot_team_int
-		Handlers.dprint("❌ POINTS: Бот ", player_id, " не найден в active_bots!")
+				return int(bot.bot_team)
 		return -1
-	
-	# Для обычных игроков используем TeamHandler
+
 	var player = Handlers.TeamHandler.find_player_by_id(player_id)
 	if not player:
-		Handlers.dprint("⚠️ POINTS: Игрок ", player_id, " не найден в TeamHandler!")
 		return -1
-	
-	# Конвертируем GameTypes.Teams в int
-	var team_int = int(player.team)
-	#Handlers.dprint("🏷️ POINTS: Игрок ", player_id, " команда ", team_int)
-	return team_int
+	return int(player.team)
 
-func _calculate_recruitment_bonus(hexes_count: int) -> float:
-	"""
-	Рассчитывает бонус очков найма от количества гексов (нелинейный)
-	Максимум +10/сек при большом количестве гексов
-	"""
-	if hexes_count <= 0:
-		return 0.0
-	
-	# Формула: bonus = hexes * 0.02 - hexes^2 * 0.00002
-	# При 500 гексах: 10 - 5 = 5/сек
-	# При 707 гексах: 14.14 - 10 = 4.14/сек (пик)
-	# При 1000 гексах: 20 - 20 = 0/сек
-	var bonus = hexes_count * 0.02 - pow(hexes_count, 2) * 0.00002
-	return max(0.0, min(10.0, bonus))
 
-func _calculate_victory_gain(hexes_count: int) -> float:
-	"""
-	Рассчитывает прирост очков победы от количества гексов (убывающая отдача)
-	"""
-	if hexes_count <= 0:
-		return 0.0
-	
-	# Формула: gain = hexes * 0.5 - hexes^2 * 0.0005
-	# При 100 гексах: 50 - 5 = 45/сек
-	# При 500 гексах: 250 - 125 = 125/сек (пик)
-	# При 1000 гексах: 500 - 500 = 0/сек
-	var gain = hexes_count * 0.5 - pow(hexes_count, 2) * 0.0005
-	return max(0.0, gain)
+func _get_human_players_on_team(team: int) -> Array[int]:
+	var result: Array[int] = []
+	if not Handlers.TeamHandler:
+		return result
+	for player in Handlers.TeamHandler.players:
+		if int(player.team) != team:
+			continue
+		if _is_player_bot(player.PlayerId):
+			continue
+		if player.PlayerId == 2 or player.PlayerId == 3:
+			continue
+		result.append(player.PlayerId)
+	return result
 
-func _handle_player_victory(player_id: int) -> void:
-	"""
-	Обрабатывает победу игрока
-	"""
-	Handlers.dprint("🏆 VICTORY: Игрок ", player_id, " победил!")
-	# TODO: Реализовать логику завершения игры
-	announce_victory.rpc(player_id)
 
-@rpc("any_peer", "call_local", "reliable")
-func sync_player_points(recruitment_points: float, victory_points: float) -> void:
-	"""
-	RPC для синхронизации очков с клиентом
-	"""
-	if is_multiplayer_authority():
-		Handlers.dprint("⚠️ POINTS: sync_player_points вызвана на сервере!")
+func _get_enemy_human_player_ids(player_id: int) -> Array[int]:
+	var team := _get_player_team(player_id)
+	if team == -1 or not Handlers.TeamHandler:
+		return []
+	var result: Array[int] = []
+	for enemy in Handlers.TeamHandler.get_enemy_team_players(team):
+		if _is_player_bot(enemy.PlayerId):
+			continue
+		result.append(enemy.PlayerId)
+	return result
+
+
+func _check_vp_threshold_victory(player_id: int) -> bool:
+	if game_ended or active_balance.is_empty():
+		return false
+	var threshold: int = int(active_balance["victory_points_to_win"])
+	if player_points[player_id]["victory_points"] >= threshold:
+		end_match(
+			[player_id],
+			_get_enemy_human_player_ids(player_id),
+			VictoryBalance.REASON_VP_THRESHOLD
+		)
+		return true
+	return false
+
+
+func _check_domination_victory() -> bool:
+	if game_ended or active_balance.is_empty():
+		return false
+
+	var threshold: int = int(active_balance["domination_hexes"])
+	for team in [0, 1]:
+		if _count_team_hexes(team) >= threshold:
+			var winners := _get_human_players_on_team(team)
+			var losers := _get_human_players_on_team(1 - team)
+			end_match(winners, losers, VictoryBalance.REASON_DOMINATION)
+			return true
+	return false
+
+
+func _check_time_limit_victory() -> bool:
+	if game_ended or active_balance.is_empty():
+		return false
+
+	if match_elapsed_seconds < float(active_balance["match_duration_seconds"]):
+		return false
+
+	var best_vp := -1.0
+	var best_players: Array[int] = []
+
+	for player_id in player_points.keys():
+		if _is_player_bot(player_id):
+			continue
+		var vp: float = player_points[player_id]["victory_points"]
+		if vp > best_vp:
+			best_vp = vp
+			best_players = [player_id]
+		elif is_equal_approx(vp, best_vp) and player_id not in best_players:
+			best_players.append(player_id)
+
+	if best_players.is_empty():
+		return false
+
+	if best_players.size() > 1:
+		end_match_draw(best_players, VictoryBalance.REASON_TIME_LIMIT)
+	else:
+		var winner_id: int = best_players[0]
+		end_match([winner_id], _get_enemy_human_player_ids(winner_id), VictoryBalance.REASON_TIME_LIMIT)
+	return true
+
+
+func end_match(winner_player_ids: Array[int], loser_player_ids: Array[int], reason: String) -> void:
+	if game_ended:
 		return
-	
-	# Обновляем UI на клиенте
-	if Handlers.UIHandler:
-		Handlers.UIHandler.update_points_display(recruitment_points, victory_points)
+	game_ended = true
+	if points_timer:
+		points_timer.stop()
+
+	Handlers.dprint("🏁 MATCH END: ", reason, " winners=", winner_player_ids, " losers=", loser_player_ids)
+
+	for winner_id in winner_player_ids:
+		_notify_match_result(winner_id, true, reason)
+	for loser_id in loser_player_ids:
+		if loser_id not in winner_player_ids:
+			_notify_match_result(loser_id, false, reason)
+
+
+func end_match_draw(player_ids: Array[int], reason: String) -> void:
+	if game_ended:
+		return
+	game_ended = true
+	if points_timer:
+		points_timer.stop()
+
+	Handlers.dprint("🏁 MATCH END (DRAW): ", reason, " players=", player_ids)
+	for player_id in player_ids:
+		_notify_match_result(player_id, false, reason, true)
+
+
+func _notify_match_result(player_id: int, is_winner: bool, reason: String, is_draw: bool = false) -> void:
+	if _is_player_bot(player_id):
+		return
+	if _is_local_human_player(player_id):
+		_show_game_over_local(is_winner, reason, is_draw)
+	else:
+		show_game_over.rpc_id(player_id, is_winner, reason, is_draw)
+
+
+func _show_game_over_local(is_winner: bool, reason: String, is_draw: bool) -> void:
+	if not Handlers.UIHandler:
+		return
+	Handlers.UIHandler.show_game_over(is_winner, reason, is_draw)
+
 
 @rpc("authority", "call_remote", "reliable")
-func announce_victory(winner_player_id: int) -> void:
-	"""
-	RPC для объявления победы
-	"""
-	Handlers.dprint("🎉 VICTORY: Игрок ", winner_player_id, " выиграл игру!")
-	# TODO: Показать экран победы
+func sync_match_balance(balance: Dictionary) -> void:
+	if is_multiplayer_authority():
+		return
+	if Handlers.UIHandler:
+		Handlers.UIHandler.init_match_balance(balance)
+
+
+@rpc("authority", "call_remote", "reliable")
+func sync_player_points(
+		recruitment_points: float,
+		victory_points: float,
+		revision: int,
+		victory_max: int
+	) -> void:
+	if is_multiplayer_authority():
+		return
+	if Handlers.UIHandler:
+		Handlers.UIHandler.update_points_display(recruitment_points, victory_points, revision, victory_max)
+
+
+@rpc("authority", "call_remote", "reliable")
+func show_game_over(is_winner: bool, reason: String, is_draw: bool) -> void:
+	if Handlers.UIHandler:
+		Handlers.UIHandler.show_game_over(is_winner, reason, is_draw)
+
+func register_fob(fob_node: fob) -> void:
+	if not is_multiplayer_authority() or fob_node.UID == "":
+		return
+	fobs_dict[fob_node.UID] = fob_node
+
+func unregister_fob(fob_node: fob) -> void:
+	if fob_node.UID in fobs_dict:
+		fobs_dict.erase(fob_node.UID)
+
+func handle_fob_destroyed(owner_player_id: int) -> void:
+	if not is_multiplayer_authority() or game_ended:
+		return
+	Handlers.dprint("🏚️ FOB: База игрока ", owner_player_id, " уничтожена")
+	var winners := _get_enemy_human_player_ids(owner_player_id)
+	end_match(winners, [owner_player_id], VictoryBalance.REASON_FOB_DESTROYED)
 
 ### SPAWN VALIDATION SYSTEM ###
 
@@ -292,18 +437,9 @@ func validate_unit_spawn(player_id: int, unit_cost: int = UNIT_SPAWN_COST) -> bo
 	# Списываем очки
 	player_points[player_id]["recruitment_points"] -= unit_cost
 	Handlers.dprint("✅ SPAWN: Списано ", unit_cost, " очков у игрока ", player_id, " (осталось: ", player_points[player_id]["recruitment_points"], ")")
-	
-	# Проверяем является ли player_id ботом (для отладки RPC ошибки)
-	var is_bot = _is_player_bot(player_id)
-	
-	Handlers.dprint("📡 GAME DEBUG: Отправка RPC player_id: ", player_id, " is_bot: ", is_bot)
-	
-	# Отправляем обновленные очки клиенту (только если это не бот и не сервер)
-	if not is_bot and player_id != 1:
-		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
-	else:
-		Handlers.dprint("🤖 GAME DEBUG: Пропускаем RPC для player_id: ", player_id, " (бот: ", is_bot, ", сервер: ", player_id == 1, ")")
-	
+
+	_sync_points_for_player(player_id, true)
+
 	return true
 
 # Удалено: add_delayed_spawn, _process_delayed_spawn_queue, _execute_delayed_spawn
@@ -314,19 +450,17 @@ func instantiate_network():
 	else:
 		add_child(load("res://scenes/client/client.tscn").instantiate())
 
-func set_map(map_name:String):
+func set_map(map_name: String) -> void:
 	map = map_name
-	#var map_obj = load("res://scenes/maps/%s.tscn" % map).instantiate()
-	var map_obj = load("res://scenes/maps/test_world_1.tscn").instantiate()
+	var scene_path := VictoryBalance.resolve_map_scene_path(map_name)
+	var map_obj = load(scene_path).instantiate()
 	for map_node in get_node("Map").get_children():
 		map_node.queue_free()
 	get_node("Map").add_child(map_obj)
-	#$MultiplayerSpawner.spawn_path = map_obj
 
 	if Handlers.UIHandler:
 		Handlers.UIHandler.bind_map_world()
 
-	# Инициализируем систему гексов после загрузки карты
 	call_deferred("initialize_hexes")
 
 func create_camera(role: String) -> void:
@@ -342,10 +476,11 @@ func create_ui():
 	var ui = load("res://scenes/client/base_ui.tscn").instantiate()
 	$"%UICanvasLayer".add_child(ui)
 
-func set_type_server(port:int):
+func set_type_server(port: int) -> void:
 	game_type = "Server"
-	
+
 	instantiate_network()
+	create_ui()
 	create_camera(game_type)
 
 	Handlers.NetworkHandler.start_server(port)
@@ -545,6 +680,9 @@ func initialize_hexes() -> void:
 	else:
 		Handlers.dprint("📊 DEBUG: Слишком много гексов для детального отображения (", hexes_dict.size(), ")")
 
+	if is_multiplayer_authority():
+		_initialize_active_balance()
+
 func get_hex_at_position(hex_position: Vector2i):
 	"""Возвращает объект гекса по позиции или null если гекса нет"""
 	var hex = hexes_dict.get(hex_position, null)
@@ -587,6 +725,8 @@ func update_hex_overlay(hex_position: Vector2i, team_owner: int) -> void:
 		-1: team_str = "нейтральный"
 		_: team_str = str(team_owner)
 	Handlers.dprint("📡 ГЕКСЫ: RPC отправлен всем клиентам о захвате гекса ", hex_position, " командой ", team_str)
+
+	_check_domination_victory()
 
 @rpc("authority", "call_remote", "reliable")
 func sync_hex_capture(hex_position: Vector2i, new_owner_team: int) -> void:
@@ -690,9 +830,10 @@ func send_full_map_state_to_new_player(player_id: int):
 	var is_bot = _is_player_bot(player_id)
 	Handlers.dprint("🔍 SYNC DEBUG: send_full_map_state для player_id: ", player_id, " is_bot: ", is_bot)
 	
-	# Отправляем очки новому игроку (только если не бот)
+	# Отправляем очки и баланс новому игроку (только если не бот)
 	if player_points.has(player_id) and not is_bot:
-		sync_player_points.rpc_id(player_id, player_points[player_id]["recruitment_points"], player_points[player_id]["victory_points"])
+		_send_match_balance_to_player(player_id)
+		_sync_points_for_player(player_id, false)
 		Handlers.dprint("📡 SYNC: Отправлены очки игроку ", player_id)
 	elif is_bot:
 		Handlers.dprint("🤖 SYNC: Пропускаем отправку очков боту ", player_id)

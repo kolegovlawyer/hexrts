@@ -51,14 +51,17 @@ func _on_host_button_pressed():
 	var port = int($"Host-Tab/PortEdit".text)
 	var map_option: OptionButton = $"Host-Tab/OptionButton"
 	var map = map_option.get_item_text(map_option.selected)
-	_trace("HOST_CLICK port=%s map=%s" % [str(port), map])
-	
-	get_tree().get_root().add_child(load("res://scenes/game.tscn").instantiate()) 
-	
+	var duration_option: OptionButton = $"Host-Tab/DurationOption"
+	var duration_preset := duration_option.get_selected_id()
+	_trace("HOST_CLICK port=%s map=%s duration=%s" % [str(port), map, str(duration_preset)])
+
+	get_tree().get_root().add_child(load("res://scenes/game.tscn").instantiate())
+
+	Handlers.GameHandler.set_match_duration_preset(duration_preset)
 	Handlers.GameHandler.set_type_server(port)
 	Handlers.GameHandler.set_map(map)
 	Handlers.TeamHandler.on_connect()
-	
+
 	get_tree().get_root().get_node("./Lobby").queue_free()
 	
 

@@ -315,6 +315,7 @@ layout_mode = 2
 text = "Закрыть"
 
 [node name="PresetExportRack" type="HBoxContainer" parent="MarginContainer/MainContainer" unique_id=1496467370]
+visible = false
 layout_mode = 2
 alignment = 1
 

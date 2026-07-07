@@ -395,31 +395,44 @@ func _update_spawn_ui_visibility() -> void:
 		if spawn_queue_label:
 			spawn_queue_label.visible = false
 
+func server_reassign_owner(old_id: int, new_id: int) -> void:
+	if not is_multiplayer_authority():
+		return
+	if owner_id == old_id:
+		owner_id = new_id
+	for order in spawn_queue:
+		if int(order.get("player_id", 0)) == old_id:
+			order["player_id"] = new_id
+
+
+func _get_spawn_progress() -> float:
+	var queue_size := spawn_queue.size()
+	if queue_size == 0 or not spawn_timer or spawn_timer.time_left <= 0.0:
+		return 0.0
+	var current_order = spawn_queue[0]
+	var spawn_delay: float = current_order["spawn_delay"]
+	var elapsed_time := spawn_delay - spawn_timer.time_left
+	return clamp((elapsed_time / spawn_delay) * 100.0, 0.0, 100.0)
+
+
+func sync_spawn_ui_for_owner() -> void:
+	if not is_multiplayer_authority():
+		return
+	_sync_spawn_ui_to_clients()
+
+
 func _sync_spawn_ui_to_clients() -> void:
 	if not is_multiplayer_authority():
 		return
-	var queue_size = spawn_queue.size()
-	var current_progress = 0.0
-	if queue_size > 0 and spawn_timer and spawn_timer.time_left > 0.0:
-		var current_order = spawn_queue[0]
-		var spawn_delay = current_order["spawn_delay"]
-		var elapsed_time = spawn_delay - spawn_timer.time_left
-		current_progress = clamp((elapsed_time / spawn_delay) * 100.0, 0.0, 100.0)
-	update_spawn_ui.rpc(queue_size, current_progress)
+	var queue_size := spawn_queue.size()
+	var current_progress := _get_spawn_progress()
+	if owner_id == multiplayer.get_unique_id():
+		_apply_spawn_ui(queue_size, current_progress)
+	elif owner_id in multiplayer.get_peers():
+		update_spawn_ui.rpc_id(owner_id, queue_size, current_progress)
 
-@rpc("authority", "call_remote", "reliable")
-func update_spawn_ui(queue_size: int, progress: float) -> void:
-	if is_multiplayer_authority():
-		return
-	var is_my_fob = false
-	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
-		is_my_fob = (owner_id == Handlers.TeamHandler.my_profile.PlayerId)
-	if not is_my_fob:
-		if spawn_bar:
-			spawn_bar.visible = false
-		if spawn_queue_label:
-			spawn_queue_label.visible = false
-		return
+
+func _apply_spawn_ui(queue_size: int, progress: float) -> void:
 	if queue_size > 0:
 		if spawn_queue_label:
 			spawn_queue_label.text = str(queue_size)
@@ -432,6 +445,22 @@ func update_spawn_ui(queue_size: int, progress: float) -> void:
 			spawn_queue_label.visible = false
 		if spawn_bar:
 			spawn_bar.visible = false
+
+
+@rpc("any_peer", "reliable")
+func update_spawn_ui(queue_size: int, progress: float) -> void:
+	if multiplayer.is_server():
+		return
+	var is_my_fob := false
+	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
+		is_my_fob = (owner_id == Handlers.TeamHandler.my_profile.PlayerId)
+	if not is_my_fob:
+		if spawn_bar:
+			spawn_bar.visible = false
+		if spawn_queue_label:
+			spawn_queue_label.visible = false
+		return
+	_apply_spawn_ui(queue_size, progress)
 
 func get_spawn_queue_size() -> int:
 	return spawn_queue.size()

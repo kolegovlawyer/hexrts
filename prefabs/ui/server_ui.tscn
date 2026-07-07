@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bww4cuwi8tmfo"]
 
-[node name="ServerUI" type="Control"]
+[node name="ServerUI" type="Control" unique_id=1712520385]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -8,7 +8,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=530534892]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0

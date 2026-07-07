@@ -20,7 +20,10 @@ func _ready():
 
 func on_connect(team=null):
 	if not is_multiplayer_authority():
-		rpc_id(1, "request_to_add_to_team", team)
+		var nickname := "Player"
+		if Handlers.NetworkHandler and Handlers.NetworkHandler.get("nickname"):
+			nickname = str(Handlers.NetworkHandler.nickname)
+		rpc_id(1, "request_to_add_to_team", team, nickname)
 		rpc_id(1, "request_players_list")
 	else:
 		# Assume its host | TODO: Make this players not shown in leaderboards
@@ -31,10 +34,13 @@ func _exit_tree():
 	Handlers.TeamHandler = null
 
 @rpc("any_peer", "reliable")
-func request_to_add_to_team(team:GameTypes.Teams):
+func request_to_add_to_team(team: GameTypes.Teams, nickname: String = ""):
 	if is_multiplayer_authority():
-		if not find_player_by_id(multiplayer.get_remote_sender_id()):
-			rpc("add_to_team", multiplayer.get_remote_sender_id(), team)
+		var sender := multiplayer.get_remote_sender_id()
+		if Handlers.GameHandler:
+			Handlers.GameHandler.on_client_joining(sender, nickname, int(team))
+		if not find_player_by_id(sender):
+			rpc("add_to_team", sender, team)
 
 @rpc("authority", "reliable", "call_local")
 func add_to_team(player, team: GameTypes.Teams): # player is int, PlayerProfile
@@ -53,15 +59,41 @@ func add_to_team(player, team: GameTypes.Teams): # player is int, PlayerProfile
 			if not is_multiplayer_authority() and not my_profile:
 				if multiplayer.get_unique_id() == player.PlayerId:
 					my_profile = player
-	var start_fob = get_tree().get_nodes_in_group("team_%d_fobs" % team).pick_random()
 	var assigned_player_id: int
 	if player is int:
 		assigned_player_id = player
 	else:
 		assigned_player_id = player.PlayerId
-	start_fob.owner_id = assigned_player_id
+
+	var existing_fob = null
+	for fob_node in get_tree().get_nodes_in_group("team_%d_fobs" % int(team)):
+		if fob_node.owner_id == assigned_player_id:
+			existing_fob = fob_node
+			break
+	if existing_fob == null:
+		var team_fobs = get_tree().get_nodes_in_group("team_%d_fobs" % int(team))
+		if not team_fobs.is_empty():
+			existing_fob = team_fobs.pick_random()
+			existing_fob.owner_id = assigned_player_id
 	print_rich("[color=green][b][TEAM] Player %s joined to team %s[/b][/color]" % [assigned_player_id, team])
-			
+
+	if is_multiplayer_authority() and Handlers.GameHandler:
+		Handlers.GameHandler.on_player_joined_team(assigned_player_id)
+
+	if not is_multiplayer_authority() and multiplayer.get_unique_id() == assigned_player_id:
+		call_deferred("_refresh_client_world_visuals")
+
+
+func _refresh_client_world_visuals() -> void:
+	if Handlers.GameHandler and Handlers.GameHandler.has_method("_refresh_client_world_visuals"):
+		Handlers.GameHandler._refresh_client_world_visuals()
+	else:
+		for unit in get_tree().get_nodes_in_group("units"):
+			if unit.has_method("update_visual"):
+				unit.update_visual()
+		for fob_node in get_tree().get_nodes_in_group("fobs"):
+			if fob_node.has_method("update_visual"):
+				fob_node.update_visual()
 
 
 @rpc("authority", "reliable", "call_local")

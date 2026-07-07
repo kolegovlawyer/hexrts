@@ -6,6 +6,7 @@ signal camera_zoomed()
 @export var edge_margin = 10
 @export var camera_speed = 400.0
 @export var return_speed = 300.0  # Скорость возврата камеры в границы
+@export var observer_mode: bool = false  # Режим наблюдения на dedicated server (без HUD)
 @onready var un_zoomed_viewport_size = get_viewport().size#Vector2(640,360)
 var zoom_x = 0.5
 var zoom_y = 0.5
@@ -23,6 +24,10 @@ func _ready():
 	# Инициализируем переменные отслеживания
 	_last_position = position
 	_last_zoom = zoom
+
+func set_observer_mode(enabled: bool) -> void:
+	observer_mode = enabled
+
 
 func set_bounds():
 	TOP_CORNER = get_node('/root/Game/Map').get_children()[0].get_node('CameraCornerBottomRight').position
@@ -118,9 +123,18 @@ func _notification(notification):
 		print('Window lost focus - camera movement disabled')
 	
 func _input(event):
-	pass
 	var mouse_position = get_viewport().get_mouse_position()
 	var pre_zoom_value = zoom
+
+	# Серверный режим наблюдения: ПКМ — переместить камеру к курсору
+	if observer_mode and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed:
+		if TOP_CORNER != null and BOTTOM_CORNER != null and check_maps_bound(get_global_mouse_position()):
+			position = get_global_mouse_position()
+			if position != _last_position:
+				_last_position = position
+				camera_moved.emit()
+		return
+
 	if event is InputEventMouseButton and event.button_index == 5 and event.pressed == true:
 		if zoom_x > 0.2:
 			zoom_x -= 0.1

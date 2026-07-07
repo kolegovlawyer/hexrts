@@ -11,6 +11,9 @@ var hexes_dict: Dictionary = {}
 # Ссылка на OverlayMap для обновления тайлов захвата
 var overlay_map: TileMapLayer
 
+# Камера наблюдения в режиме dedicated server (без клиентского HUD)
+var observer_camera: Camera2D = null
+
 ### BOT MANAGEMENT SYSTEM ###
 
 # Список активных ботов
@@ -28,6 +31,11 @@ var match_elapsed_seconds: float = 0.0
 
 # Очки игроков: player_id -> {recruitment_points, victory_points, points_revision}
 var player_points: Dictionary = {}
+
+# peer_id -> nickname (normalized key)
+var _player_nicknames: Dictionary = {}
+# nickname -> {points, team, old_peer_id} — сохранённая сессия после дисконнекта
+var _disconnected_sessions: Dictionary = {}
 
 # Таймер для обновления очков каждую секунду
 var points_timer: Timer
@@ -116,7 +124,7 @@ func _send_match_balance_to_player(player_id: int) -> void:
 	if _is_local_human_player(player_id):
 		if Handlers.UIHandler:
 			Handlers.UIHandler.init_match_balance(active_balance)
-	elif not _is_player_bot(player_id):
+	elif _is_connected_remote_peer(player_id):
 		sync_match_balance.rpc_id(player_id, active_balance)
 
 
@@ -135,16 +143,105 @@ func _initialize_player_points(player_id: int) -> void:
 	_sync_points_for_player(player_id, false)
 
 
-func _on_player_connected(player_id: int) -> void:
-	_initialize_player_points(player_id)
+func _on_player_connected(_player_id: int) -> void:
+	# Вход игрока обрабатывается в on_client_joining через request_to_add_to_team
+	pass
+
+
+func on_client_joining(peer_id: int, nickname: String, _team: int) -> void:
+	if not is_multiplayer_authority():
+		return
+
+	var nick_key := _normalize_nickname(nickname, peer_id)
+	_player_nicknames[peer_id] = nick_key
+
+	if _disconnected_sessions.has(nick_key):
+		var saved: Dictionary = _disconnected_sessions[nick_key]
+		player_points[peer_id] = saved["points"].duplicate(true)
+		var old_peer_id: int = int(saved.get("old_peer_id", -1))
+		if old_peer_id > 0 and old_peer_id != peer_id:
+			_reassign_owned_entities(old_peer_id, peer_id)
+		_disconnected_sessions.erase(nick_key)
+		Handlers.dprint("🔄 RECONNECT: Восстановлена сессия ", nick_key, " для peer ", peer_id)
+	else:
+		_initialize_player_points(peer_id)
+
+	_sync_points_for_player(peer_id, false)
 	if not active_balance.is_empty():
-		call_deferred("_send_match_balance_to_player", player_id)
+		_send_match_balance_to_player(peer_id)
+
+
+func _normalize_nickname(nickname: String, peer_id: int) -> String:
+	var trimmed := nickname.strip_edges().to_lower()
+	if trimmed == "":
+		return "player_%d" % peer_id
+	return trimmed
+
+
+func _save_disconnected_session(player_id: int) -> void:
+	var nick_key: String = str(_player_nicknames.get(player_id, ""))
+	if nick_key == "" or not player_points.has(player_id):
+		return
+	_disconnected_sessions[nick_key] = {
+		"points": player_points[player_id].duplicate(true),
+		"team": _get_player_team(player_id),
+		"old_peer_id": player_id,
+	}
+	Handlers.dprint("💾 RECONNECT: Сохранена сессия ", nick_key, " (peer ", player_id, ")")
+
+
+func _reassign_owned_entities(old_id: int, new_id: int) -> void:
+	for fob_node in get_tree().get_nodes_in_group("fobs"):
+		if fob_node.owner_id == old_id:
+			if fob_node.has_method("server_reassign_owner"):
+				fob_node.server_reassign_owner(old_id, new_id)
+			else:
+				fob_node.owner_id = new_id
+	for unit in get_tree().get_nodes_in_group("units"):
+		if unit is BaseUnitServer and unit.owner_id == old_id:
+			unit.server_reassign_owner(new_id)
+
+
+func on_player_joined_team(peer_id: int) -> void:
+	if not is_multiplayer_authority():
+		return
+
+	for unit in get_tree().get_nodes_in_group("units"):
+		if unit is BaseUnitServer:
+			unit.force_update_visibility()
+
+	for fob_node in get_tree().get_nodes_in_group("fobs"):
+		if fob_node.owner_id == peer_id and fob_node.has_method("sync_spawn_ui_for_owner"):
+			fob_node.sync_spawn_ui_for_owner()
+
+	if _is_local_human_player(peer_id):
+		call_deferred("_refresh_client_world_visuals")
+	elif _is_connected_remote_peer(peer_id):
+		notify_reconnect_visual_refresh.rpc_id(peer_id)
+
+
+@rpc("any_peer", "reliable")
+func notify_reconnect_visual_refresh() -> void:
+	if multiplayer.is_server():
+		return
+	_refresh_client_world_visuals()
+
+
+func _refresh_client_world_visuals() -> void:
+	for unit in get_tree().get_nodes_in_group("units"):
+		if unit.has_method("update_visual"):
+			unit.update_visual()
+	for fob_node in get_tree().get_nodes_in_group("fobs"):
+		if fob_node.has_method("update_visual"):
+			fob_node.update_visual()
 
 
 func _on_player_disconnected(player_id: int) -> void:
+	_save_disconnected_session(player_id)
+	_player_nicknames.erase(player_id)
 	if player_points.has(player_id):
 		player_points.erase(player_id)
-	Handlers.dprint("👋 POINTS: Удалены очки игрока ", player_id)
+	Handlers.dprint("👋 POINTS: Игрок ", player_id, " отключён (сессия сохранена для reconnect)")
 
 
 func _on_points_timer_timeout() -> void:
@@ -188,7 +285,25 @@ func _update_player_points(player_id: int) -> void:
 		)
 
 
+func _get_enemy_team_victory_points(player_id: int) -> float:
+	var team := _get_player_team(player_id)
+	if team == -1 or not Handlers.TeamHandler:
+		return 0.0
+	var max_vp := 0.0
+	for enemy in Handlers.TeamHandler.get_enemy_team_players(team):
+		var enemy_id: int = enemy.PlayerId
+		if player_points.has(enemy_id):
+			max_vp = maxf(max_vp, float(player_points[enemy_id]["victory_points"]))
+	return max_vp
+
+
+func _is_connected_remote_peer(peer_id: int) -> bool:
+	return peer_id in multiplayer.get_peers()
+
+
 func _sync_points_for_player(player_id: int, increment_revision: bool = false) -> void:
+	if not multiplayer.is_server():
+		return
 	if not player_points.has(player_id) or _is_player_bot(player_id):
 		return
 
@@ -197,14 +312,19 @@ func _sync_points_for_player(player_id: int, increment_revision: bool = false) -
 
 	var recruitment: float = player_points[player_id]["recruitment_points"]
 	var victory: float = player_points[player_id]["victory_points"]
+	var enemy_victory: float = _get_enemy_team_victory_points(player_id)
 	var revision: int = player_points[player_id]["points_revision"]
 	var victory_max: int = int(active_balance.get("victory_points_to_win", 1000))
 
 	if _is_local_human_player(player_id):
 		if Handlers.UIHandler:
-			Handlers.UIHandler.update_points_display(recruitment, victory, revision, victory_max)
-	elif not _is_player_bot(player_id):
-		sync_player_points.rpc_id(player_id, recruitment, victory, revision, victory_max)
+			Handlers.UIHandler.update_points_display(
+				recruitment, victory, revision, victory_max, enemy_victory
+			)
+	elif _is_connected_remote_peer(player_id):
+		sync_player_points.rpc_id(
+			player_id, recruitment, victory, revision, victory_max, enemy_victory
+		)
 
 
 func _is_local_human_player(player_id: int) -> bool:
@@ -361,7 +481,7 @@ func _notify_match_result(player_id: int, is_winner: bool, reason: String, is_dr
 		return
 	if _is_local_human_player(player_id):
 		_show_game_over_local(is_winner, reason, is_draw)
-	else:
+	elif _is_connected_remote_peer(player_id):
 		show_game_over.rpc_id(player_id, is_winner, reason, is_draw)
 
 
@@ -371,29 +491,34 @@ func _show_game_over_local(is_winner: bool, reason: String, is_draw: bool) -> vo
 	Handlers.UIHandler.show_game_over(is_winner, reason, is_draw)
 
 
-@rpc("authority", "call_remote", "reliable")
+@rpc("any_peer", "reliable")
 func sync_match_balance(balance: Dictionary) -> void:
-	if is_multiplayer_authority():
+	if multiplayer.is_server():
 		return
 	if Handlers.UIHandler:
 		Handlers.UIHandler.init_match_balance(balance)
 
 
-@rpc("authority", "call_remote", "reliable")
+@rpc("any_peer", "reliable")
 func sync_player_points(
 		recruitment_points: float,
 		victory_points: float,
 		revision: int,
-		victory_max: int
+		victory_max: int,
+		enemy_victory_points: float = 0.0
 	) -> void:
-	if is_multiplayer_authority():
+	if multiplayer.is_server():
 		return
 	if Handlers.UIHandler:
-		Handlers.UIHandler.update_points_display(recruitment_points, victory_points, revision, victory_max)
+		Handlers.UIHandler.update_points_display(
+			recruitment_points, victory_points, revision, victory_max, enemy_victory_points
+		)
 
 
-@rpc("authority", "call_remote", "reliable")
+@rpc("any_peer", "reliable")
 func show_game_over(is_winner: bool, reason: String, is_draw: bool) -> void:
+	if multiplayer.is_server():
+		return
 	if Handlers.UIHandler:
 		Handlers.UIHandler.show_game_over(is_winner, reason, is_draw)
 
@@ -464,13 +589,19 @@ func set_map(map_name: String) -> void:
 	call_deferred("initialize_hexes")
 
 func create_camera(role: String) -> void:
-	if role == 'Client':
-		var camera = load("res://scenes/client/camera_2d.tscn").instantiate()
-		add_child(camera)
-		Handlers.UIHandler.camera = camera
-	elif role == 'Server':
-		var camera = load("res://scenes/client/camera_2d.tscn").instantiate()
-		add_child(camera)
+	var camera_node: Camera2D = load("res://scenes/client/camera_2d.tscn").instantiate()
+	add_child(camera_node)
+	if role == "Server":
+		observer_camera = camera_node
+		if camera_node.has_method("set_observer_mode"):
+			camera_node.set_observer_mode(true)
+	elif role == "Client" and Handlers.UIHandler:
+		Handlers.UIHandler.camera = camera_node
+
+
+func setup_observer_camera_bounds() -> void:
+	if observer_camera and observer_camera.has_method("set_bounds"):
+		observer_camera.set_bounds()
 
 func create_ui():
 	var ui = load("res://scenes/client/base_ui.tscn").instantiate()
@@ -480,7 +611,6 @@ func set_type_server(port: int) -> void:
 	game_type = "Server"
 
 	instantiate_network()
-	create_ui()
 	create_camera(game_type)
 
 	Handlers.NetworkHandler.start_server(port)
@@ -682,6 +812,14 @@ func initialize_hexes() -> void:
 
 	if is_multiplayer_authority():
 		_initialize_active_balance()
+		setup_observer_camera_bounds()
+
+	_try_autoload_unit_presets()
+
+
+func _try_autoload_unit_presets() -> void:
+	if UnitPresetManager.try_autoload_presets():
+		Handlers.dprint("UnitPresetManager: пресеты загружены с диска")
 
 func get_hex_at_position(hex_position: Vector2i):
 	"""Возвращает объект гекса по позиции или null если гекса нет"""
@@ -859,16 +997,15 @@ func send_full_map_state_to_new_player(player_id: int):
 	
 	# Отправляем состояние карты (ботам тоже нужно знать состояние карты)
 	Handlers.dprint("📡 SYNC: Отправляем ", captured_hexes.size(), " захваченных гексов игроку ", player_id)
-	sync_full_map_state.rpc_id(player_id, captured_hexes)
+	if _is_connected_remote_peer(player_id):
+		sync_full_map_state.rpc_id(player_id, captured_hexes)
 
-@rpc("authority", "call_remote", "reliable")
+@rpc("any_peer", "reliable")
 func sync_full_map_state(captured_hexes_data: Array):
 	"""
 	RPC функция для получения полного состояния карты на клиенте
-	Вызывается только на клиентах при подключении к серверу
 	"""
-	if is_multiplayer_authority():
-		Handlers.dprint("⚠️ SYNC: sync_full_map_state вызвана на сервере, пропускаем")
+	if multiplayer.is_server():
 		return
 	
 	Handlers.dprint("📥 SYNC: Получили данные о ", captured_hexes_data.size(), " захваченных гексах")
@@ -905,3 +1042,4 @@ func sync_full_map_state(captured_hexes_data: Array):
 			Handlers.dprint("❌ SYNC: Гекс не найден по позиции ", hex_pos)
 	
 	Handlers.dprint("🎯 SYNC: Синхронизация состояния карты завершена")
+	call_deferred("_refresh_client_world_visuals")

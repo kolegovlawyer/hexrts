@@ -865,6 +865,25 @@ func is_valid_unit(unit) -> bool:
 	"""Проверяет, что объект существует и является BaseUnitServer"""
 	return unit != null and is_instance_valid(unit) and unit is BaseUnitServer
 
+func server_reassign_owner(new_owner_id: int) -> void:
+	if not is_multiplayer_authority():
+		return
+	owner_id = new_owner_id
+	if is_instance_valid(synchronizer):
+		synchronizer.owner_id = new_owner_id
+	owner_team = null
+	_team_resolve_error_logged = false
+	_last_enemy_visibility_valid = false
+
+
+func force_update_visibility() -> void:
+	if not is_multiplayer_authority():
+		return
+	_last_visibility_update_frame = -100
+	_last_enemy_visibility_valid = false
+	update_visibility()
+
+
 func update_visibility():
 	"""ОПТИМИЗИРОВАНО: Обновление видимости с кэшированием"""
 	if not is_multiplayer_authority():

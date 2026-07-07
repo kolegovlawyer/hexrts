@@ -15,11 +15,11 @@ const COMMAND_COST_MULTIPLIER := 2.0
 const SPAWN_SECONDS_PER_COST_POINT := 0.2
 
 ## Перевод очков редактора в игровые значения (дефолт 5 ≈ текущий base_unit).
-const HEALTH_PER_STAT := 6
-const SHIELD_PER_STAT := 3
-const SPEED_PER_STAT := 60
+const HEALTH_PER_STAT := 5
+const SHIELD_PER_STAT := 5
+const SPEED_PER_STAT := 30
 const DAMAGE_PER_STAT := 1
-const VISION_RADIUS_PER_STAT := 80.0
+const VISION_RADIUS_PER_STAT := 40
 
 
 static func default_stats() -> Dictionary:

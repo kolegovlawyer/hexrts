@@ -156,6 +156,7 @@ func _on_save_pressed() -> void:
 			unit_type_list.select(i)
 			break
 	_suppress_list_signal = false
+	UnitPresetManager.export_presets_to_disk(_get_player_id())
 
 
 func _on_close_pressed() -> void:

@@ -101,3 +101,15 @@ func import_presets_from_disk(player_id: int) -> bool:
 	_presets_by_player[player_id] = loaded_presets
 	presets_changed.emit(player_id)
 	return true
+
+
+func get_local_player_id() -> int:
+	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
+		return Handlers.TeamHandler.my_profile.PlayerId
+	if multiplayer.has_multiplayer_peer():
+		return multiplayer.get_unique_id()
+	return 1
+
+
+func try_autoload_presets() -> bool:
+	return import_presets_from_disk(get_local_player_id())

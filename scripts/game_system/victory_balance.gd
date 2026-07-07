@@ -17,6 +17,9 @@ const VP_QUADRATIC_COEF := 0.0005
 # Пример: при 200 гексах и 0.35 берём ~70 гексов как типичный контроль к середине матча
 const AVERAGE_CONTROL_RATIO := 0.35
 
+# Множитель итогового порога VP к победе (0.5 = матч примерно в 2 раза короче по очкам)
+const VICTORY_POINTS_TARGET_SCALE := 0.5
+
 # Доля карты (0.0–1.0), которую нужно контролировать для победы по доминации
 # 0.70 = победа при удержании 70% гексов
 const DOMINATION_PERCENT := 0.70
@@ -101,7 +104,8 @@ static func calculate_victory_points_to_win(hex_count: int, match_minutes: float
 	var vp_rate := calculate_victory_gain(avg_hexes)
 	if vp_rate <= 0.0:
 		return 1000
-	return maxi(100, int(roundf(vp_rate * match_minutes * 60.0)))
+	var raw_target := vp_rate * match_minutes * 60.0
+	return maxi(100, int(roundf(raw_target * VICTORY_POINTS_TARGET_SCALE)))
 
 
 static func get_domination_threshold_hexes(hex_count: int) -> int:

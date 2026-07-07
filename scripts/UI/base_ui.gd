@@ -9,6 +9,8 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 
 @onready var win_bar = get_node("%WinBar")
 @onready var win_bar_label = get_node("%WinBarLabel")
+@onready var enemy_team_win_bar = get_node("%EnemyTeamWinBar")
+@onready var enemy_team_win_label = get_node("%EnemyTeamWinLabel")
 @onready var unit_points = get_node("%UnitPoints")
 
 @onready var hud_board = get_node("%HUDBoard")
@@ -94,6 +96,8 @@ func _input(event:InputEvent) -> void:
 #navagent.target_position = get_global_mouse_position()
 
 func _gui_input(event: InputEvent) -> void:
+	if camera == null:
+		return
 	match input_state:
 		
 		INPUT_STATES.IDLE:
@@ -280,7 +284,8 @@ func update_visible_units():
 		n.update_visual()
 	
 func _on_viewport_size_changed():
-	camera.un_zoomed_viewport_size = get_viewport().size
+	if camera:
+		camera.un_zoomed_viewport_size = get_viewport().size
 	
 func _exit_tree():
 	Handlers.UIHandler = null
@@ -296,13 +301,33 @@ func init_match_balance(balance: Dictionary) -> void:
 	win_bar.value = 0.0
 	if win_bar_label:
 		win_bar_label.text = "0 / %d" % _victory_points_max
+	if enemy_team_win_bar:
+		enemy_team_win_bar.min_value = 0.0
+		enemy_team_win_bar.max_value = 100.0
+		enemy_team_win_bar.value = 0.0
+	if enemy_team_win_label:
+		enemy_team_win_label.text = "0 / %d" % _victory_points_max
+
+
+func _update_victory_bars(own_victory: float, enemy_victory: float) -> void:
+	var max_vp := maxf(1.0, float(_victory_points_max))
+	var own_pct := clampf((own_victory / max_vp) * 100.0, 0.0, 100.0)
+	win_bar.value = own_pct
+	if win_bar_label:
+		win_bar_label.text = "%d / %d" % [int(own_victory), _victory_points_max]
+	if enemy_team_win_bar:
+		var enemy_pct := clampf((enemy_victory / max_vp) * 100.0, 0.0, 100.0)
+		enemy_team_win_bar.value = enemy_pct
+	if enemy_team_win_label:
+		enemy_team_win_label.text = "%d / %d" % [int(enemy_victory), _victory_points_max]
 
 
 func update_points_display(
 		recruitment_points: float,
 		victory_points: float,
 		revision: int = -1,
-		victory_max: int = -1
+		victory_max: int = -1,
+		enemy_victory_points: float = -1.0
 	) -> void:
 	if revision >= 0 and revision <= _last_points_revision:
 		return
@@ -313,11 +338,8 @@ func update_points_display(
 
 	unit_points.text = str(int(recruitment_points))
 
-	var max_vp := maxf(1.0, float(_victory_points_max))
-	var victory_percentage := clampf((victory_points / max_vp) * 100.0, 0.0, 100.0)
-	win_bar.value = victory_percentage
-	if win_bar_label:
-		win_bar_label.text = "%d / %d" % [int(victory_points), _victory_points_max]
+	var enemy_vp := enemy_victory_points if enemy_victory_points >= 0.0 else 0.0
+	_update_victory_bars(victory_points, enemy_vp)
 
 
 func get_current_recruitment_points() -> int:

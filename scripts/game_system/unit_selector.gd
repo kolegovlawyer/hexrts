@@ -29,7 +29,10 @@ func clear_selection():
 			else:
 				unit.selected = false
 	selected_units.clear()
-	_refresh_waypoint_markers()
+	if Handlers.UIHandler and Handlers.UIHandler.has_method("reset_patrol_hud_on_selection_change"):
+		Handlers.UIHandler.reset_patrol_hud_on_selection_change()
+	else:
+		_refresh_waypoint_markers()
 	_sync_unit_rack_selection()
 	
 func edit_unit_state(unit:Node):
@@ -103,5 +106,7 @@ func remove_unit_from_selection(unit: BaseUnit):
 		if selected_units.is_empty():
 			if Handlers.UIHandler:
 				Handlers.UIHandler.input_state = 0
+				if Handlers.UIHandler.has_method("reset_patrol_hud_on_selection_change"):
+					Handlers.UIHandler.reset_patrol_hud_on_selection_change()
 	_refresh_waypoint_markers()
 	_sync_unit_rack_selection()

@@ -87,13 +87,16 @@ func setup_points_system() -> void:
 
 	for player_id in multiplayer.get_peers():
 		_initialize_player_points(player_id)
+		movement_attack_by_player[player_id] = true
 
 	# Хост (peer 1) играет на сервере, но не входит в get_peers()
 	_initialize_player_points(1)
+	movement_attack_by_player[1] = true
 
 	var server_id := multiplayer.get_unique_id()
 	if server_id != 1:
 		_initialize_player_points(server_id)
+		movement_attack_by_player[server_id] = true
 
 	multiplayer.peer_connected.connect(_on_player_connected)
 	multiplayer.peer_disconnected.connect(_on_player_disconnected)
@@ -177,6 +180,7 @@ func on_client_joining(peer_id: int, nickname: String, _team: int) -> void:
 	else:
 		_initialize_player_points(peer_id)
 
+	movement_attack_by_player[peer_id] = true
 	_sync_points_for_player(peer_id, false)
 	if not active_balance.is_empty():
 		_send_match_balance_to_player(peer_id)
@@ -727,7 +731,7 @@ func set_movement_attack_enabled(enabled: bool) -> void:
 func is_movement_attack_enabled(player_id: int) -> bool:
 	if get_bot_team_by_id(player_id) != -1:
 		return false
-	return movement_attack_by_player.get(player_id, false)
+	return movement_attack_by_player.get(player_id, true)
 
 
 func register_bot(bot: Bot) -> void:

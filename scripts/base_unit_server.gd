@@ -162,6 +162,13 @@ const CROWD_REACH_DIST: float = 40.0
 const CROWD_PRIORITY_IDLE: float = 1.0
 const CROWD_PRIORITY_MOVING: float = 0.2
 const MOVING_ATTACK_MIN_SPEED: float = 8.0
+
+enum RoutePatrolMode { NONE, LOOP, PING_PONG }
+
+var route_patrol_mode: int = RoutePatrolMode.NONE
+var route_waypoints: Array[Vector2] = []
+var _route_patrol_index: int = 0
+var _route_patrol_direction: int = 1
 const MOVING_SHOOT_MAX_SPREAD: float = 70.0
 const LATERAL_PUSH_RADIUS: float = 70.0
 const LATERAL_PUSH_STRENGTH: float = 0.55
@@ -294,15 +301,18 @@ func _physics_process(delta: float) -> void:
 		# ⚡ КРИТИЧЕСКИ ВАЖНО: Обработка приказов ТОЛЬКО ИГРОКОВ мгновенно!
 		var _is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
 		if not _is_bot and orders.size() > 0:
-			var move_order: Dictionary = _find_first_order(["move"])
+			var move_order: Dictionary = _find_first_order(["move", "move_capture"])
 			var attack_order: Dictionary = _find_first_order(["attack"])
 			var fob_order: Dictionary = _find_first_order(["attack_fob"])
+			var attack_pos_order: Dictionary = _find_first_order(["attack_position"])
 			if not move_order.is_empty():
 				_process_move_order_immediate(move_order, delta, _is_bot)
 			if not attack_order.is_empty():
 				_process_attack_order_immediate(attack_order)
 			elif not fob_order.is_empty():
 				_process_attack_fob_order_immediate(fob_order)
+			elif not attack_pos_order.is_empty():
+				_process_attack_position_order_immediate(attack_pos_order)
 		
 		# ИСПРАВЛЕНИЕ: Обработка приказов атаки в состоянии AUTO_ATTACKING (автоатака ИИ)
 		# Для автоатаки нужно обрабатывать приказы в каждом фрейме для отзывчивости
@@ -383,14 +393,7 @@ func _process_move_order_immediate(order: Dictionary, delta: float, is_bot: bool
 			stuck_timer = 0.0
 			_update_move_progress_or_abort(pos, delta)
 		else:
-			_pop_current_order()
-			unit_state = UNIT_STATES.IDLE
-			_clear_active_route_wp(true)
-			stuck_timer = 0.0
-			no_progress_timer = 0.0
-			_progress_best_dist = INF
-			_static_block_frames = 0
-			_unit_block_frames = 0
+			_complete_move_order()
 	elif not moved:
 		stuck_timer += delta
 		if stuck_timer > 2.5:
@@ -439,6 +442,139 @@ func _process_attack_fob_order_immediate(order: Dictionary) -> void:
 			unit_state = UNIT_STATES.IDLE
 	else:
 		attack_fob(target_fob)
+
+func _process_attack_position_order_immediate(order: Dictionary) -> void:
+	if not order.has("position"):
+		_pop_order_by_type("attack_position")
+		return
+	if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
+		unit_state = UNIT_STATES.ATTACKING
+	var target_pos: Vector2 = order.get("position", Vector2.ZERO)
+	if global_position.distance_to(target_pos) > vision_radius:
+		return
+	attack_at_position(target_pos)
+
+func _complete_move_order() -> void:
+	_pop_current_order()
+	if not _find_first_order(["move", "move_capture"]).is_empty():
+		return
+	if route_patrol_mode != RoutePatrolMode.NONE:
+		_enqueue_next_patrol_leg()
+		stuck_timer = 0.0
+		no_progress_timer = 0.0
+		_progress_best_dist = INF
+		_static_block_frames = 0
+		_unit_block_frames = 0
+		return
+	_clear_active_route_wp(true)
+	stuck_timer = 0.0
+	no_progress_timer = 0.0
+	_progress_best_dist = INF
+	_static_block_frames = 0
+	_unit_block_frames = 0
+	if orders.is_empty():
+		unit_state = UNIT_STATES.IDLE
+	elif not _has_order_type("attack") and not _has_order_type("attack_fob") \
+			and not _has_order_type("attack_position"):
+		unit_state = UNIT_STATES.IDLE
+
+func _reset_route_patrol() -> void:
+	route_patrol_mode = RoutePatrolMode.NONE
+	route_waypoints.clear()
+	_route_patrol_index = 0
+	_route_patrol_direction = 1
+
+func _extract_route_waypoints_from_orders() -> Array[Vector2]:
+	var result: Array[Vector2] = []
+	for order in orders:
+		var order_type: String = order.get("type", "")
+		if order_type in ["move", "move_capture"] and order.has("position"):
+			result.append(order.position)
+	return result
+
+func _enqueue_next_patrol_leg() -> void:
+	if route_waypoints.is_empty():
+		return
+	var pos: Vector2 = route_waypoints[_route_patrol_index]
+	orders.append({"type": "move", "position": pos})
+	_sync_order_queue_to_owner()
+	_advance_patrol_index()
+
+func _advance_patrol_index() -> void:
+	if route_waypoints.is_empty():
+		return
+	match route_patrol_mode:
+		RoutePatrolMode.LOOP:
+			_route_patrol_index = (_route_patrol_index + 1) % route_waypoints.size()
+		RoutePatrolMode.PING_PONG:
+			_route_patrol_index += _route_patrol_direction
+			if _route_patrol_index >= route_waypoints.size():
+				_route_patrol_index = maxi(0, route_waypoints.size() - 2)
+				_route_patrol_direction = -1
+			elif _route_patrol_index < 0:
+				_route_patrol_index = mini(1, route_waypoints.size() - 1)
+				_route_patrol_direction = 1
+
+@rpc("any_peer", "reliable")
+func set_route_patrol_mode(mode: int) -> void:
+	if not is_multiplayer_authority():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if owner_id != sender_id:
+		return
+	var waypoints := _extract_route_waypoints_from_orders()
+	if waypoints.is_empty():
+		return
+	route_waypoints = waypoints
+	route_patrol_mode = mode
+	_route_patrol_index = 0
+	_route_patrol_direction = 1
+
+@rpc("any_peer", "reliable")
+func add_patrol_waypoint(
+		world_x: float,
+		world_y: float,
+		mode: int,
+		is_first: bool
+	) -> void:
+	if not is_multiplayer_authority():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if owner_id != sender_id:
+		return
+	var pos := Vector2(world_x, world_y)
+	if is_first:
+		orders.clear()
+		_clear_active_route_wp()
+		_reset_route_patrol()
+		route_patrol_mode = mode
+		_route_patrol_index = 0
+		_route_patrol_direction = 1
+	elif route_patrol_mode == RoutePatrolMode.NONE:
+		route_patrol_mode = mode
+	route_waypoints.append(pos)
+	orders.append({"type": "move", "position": pos})
+	_reset_move_progress_tracking(pos)
+	_sync_order_queue_to_owner()
+
+@rpc("any_peer", "reliable")
+func add_attack_position_order(
+		world_x: float,
+		world_y: float,
+		clear_queue: bool = true
+	) -> void:
+	if not is_multiplayer_authority():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if owner_id != sender_id:
+		return
+	var pos := Vector2(world_x, world_y)
+	if clear_queue:
+		orders.clear()
+		_clear_active_route_wp()
+		_reset_route_patrol()
+	orders.append({"type": "attack_position", "position": pos})
+	_sync_order_queue_to_owner()
 
 func _quick_visibility_check() -> void:
 	"""
@@ -528,14 +664,7 @@ func _process_move_order_heavy_bot(order: Dictionary, delta: float) -> void:
 			stuck_timer = 0.0
 			_update_move_progress_or_abort(pos, delta)
 		else:
-			_pop_current_order()
-			unit_state = UNIT_STATES.IDLE
-			_clear_active_route_wp(true)
-			stuck_timer = 0.0
-			no_progress_timer = 0.0
-			_progress_best_dist = INF
-			_static_block_frames = 0
-			_unit_block_frames = 0
+			_complete_move_order()
 	elif not moved:
 		stuck_timer += delta
 		if stuck_timer > 3.0:  # Ботам можно дать больше времени
@@ -630,6 +759,7 @@ func add_order(order_obj, clear_queue: bool = false, capture_at_destination: boo
 				if clear_queue:
 					orders.clear()
 					_clear_active_route_wp()
+					_reset_route_patrol()
 				if capture_at_destination and is_command_unit():
 					orders.append({
 						"type": "move_capture",
@@ -659,10 +789,18 @@ func request_order_queue() -> void:
 
 func _build_order_queue_snapshot() -> Array:
 	var snapshot: Array = []
+	# Полный маршрут патруля: в orders остаётся только текущий/ближайший leg.
+	if route_patrol_mode != RoutePatrolMode.NONE and not route_waypoints.is_empty():
+		for wp in route_waypoints:
+			snapshot.append({"type": "move", "position": wp})
+		return snapshot
 	for order in orders:
 		match order.get("type", ""):
 			"move", "move_capture":
-				snapshot.append({"type": order.type, "position": order.position})
+				snapshot.append({
+					"type": order.get("type", "move"),
+					"position": order.get("position", Vector2.ZERO),
+				})
 	return snapshot
 
 func _sync_order_queue_to_owner() -> void:
@@ -731,7 +869,7 @@ func _try_opportunistic_attack_while_moving() -> void:
 		return
 	if reload_timer.time_left > 0:
 		return
-	if _has_order_type("attack") or _has_order_type("attack_fob"):
+	if _has_order_type("attack") or _has_order_type("attack_fob") or _has_order_type("attack_position"):
 		return
 	
 	var visible_enemies: Array[BaseUnitServer] = _get_visible_enemies()
@@ -765,6 +903,8 @@ func clear_orders() -> void:
 		orders.clear()
 		unit_state = UNIT_STATES.IDLE
 		_clear_active_route_wp()
+		_reset_route_patrol()
+		navagent.target_position = global_position
 		_sync_order_queue_to_owner()
 
 func find_target_by_UID(target_uid: String) -> BaseUnitServer:
@@ -969,7 +1109,27 @@ func attack_fob(target_fob: fob) -> void:
 		)
 	reload_timer.wait_time = reload_time
 	reload_timer.start()
+	
+	_last_attack_state = "fired"
 	_profile_function_end("attack_fob")
+
+func attack_at_position(target_pos: Vector2) -> void:
+	if reload_timer.time_left > 0:
+		return
+	if Handlers.ProjectileHandler:
+		var explosion_radius := 50.0
+		var spread_offset: Vector2 = Vector2.ZERO
+		Handlers.ProjectileHandler.rpc(
+			"create_projectile_at_position",
+			UID,
+			target_pos,
+			damage,
+			explosion_radius,
+			spread_offset.x,
+			spread_offset.y
+		)
+	reload_timer.wait_time = reload_time
+	reload_timer.start()
 
 func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 	"""

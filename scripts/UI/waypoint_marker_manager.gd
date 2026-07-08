@@ -40,6 +40,20 @@ func refresh_for_selection() -> void:
 			marker_index += 1
 			_spawn_marker(pos, marker_index)
 
+
+func show_waypoints(waypoints: Array) -> void:
+	clear_all_markers()
+	var seen_positions: Array[Vector2] = []
+	var marker_index := 0
+	for entry in waypoints:
+		if entry is Vector2:
+			var pos: Vector2 = entry
+			if _is_duplicate_position(pos, seen_positions):
+				continue
+			seen_positions.append(pos)
+			marker_index += 1
+			_spawn_marker(pos, marker_index)
+
 func _is_duplicate_position(pos: Vector2, seen_positions: Array[Vector2]) -> bool:
 	for seen in seen_positions:
 		if seen.distance_to(pos) < POSITION_EPSILON:

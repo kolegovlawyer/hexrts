@@ -106,6 +106,33 @@ func create_projectile(
 		target_position,
 		explosion_radius)
 
+@rpc("any_peer", "call_local", "reliable")
+func create_projectile_at_position(
+		owner_uid: String,
+		target_pos: Vector2,
+		damage: int,
+		explosion_radius: float = 50.0,
+		aim_offset_x: float = 0.0,
+		aim_offset_y: float = 0.0
+	) -> void:
+	if not multiplayer.is_server():
+		return
+	var owner_unit = Handlers.GameHandler.units_dict.get(owner_uid)
+	if not owner_unit or not is_instance_valid(owner_unit):
+		return
+	var target_position: Vector2 = target_pos + Vector2(aim_offset_x, aim_offset_y)
+	var projectile = preload("res://scripts/projectile/projectile.gd").new()
+	projectile.init(owner_unit, target_position, damage, explosion_radius)
+	add_child(projectile)
+	projectiles.append(projectile)
+	projectile.destroyed.connect(_on_projectile_destroyed)
+	rpc(
+		"create_visual_projectile",
+		owner_unit.global_position,
+		target_position,
+		explosion_radius
+	)
+
 ## КЛИЕНТСКИЕ ФУНКЦИИ
 @rpc("authority", "call_local", "reliable") 
 func create_visual_projectile(start_pos: Vector2, target_pos: Vector2, explosion_radius: float) -> void:

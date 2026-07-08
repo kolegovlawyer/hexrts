@@ -145,6 +145,30 @@ func clear_orders() -> void:
 	pass
 
 @rpc("any_peer", "reliable")
+func set_route_patrol_mode(_mode: int) -> void:
+	"""Stub: режим патруля маршрута (BaseUnitServer)."""
+	pass
+
+@rpc("any_peer", "reliable")
+func add_patrol_waypoint(
+		_world_x: float,
+		_world_y: float,
+		_mode: int,
+		_is_first: bool
+	) -> void:
+	"""Stub: точка маршрута патруля (BaseUnitServer)."""
+	pass
+
+@rpc("any_peer", "reliable")
+func add_attack_position_order(
+		_world_x: float,
+		_world_y: float,
+		_clear_queue: bool = true
+	) -> void:
+	"""Stub: точечная атака по координатам (BaseUnitServer)."""
+	pass
+
+@rpc("any_peer", "reliable")
 func request_order_queue() -> void:
 	"""Запрашивает у сервера снимок очереди приказов для отображения маркеров"""
 	pass

@@ -31,8 +31,31 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 @onready var auto_attack_button = get_node(
 	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/ToggleAutoAttackButton"
 )
+@onready var point_attack_button = get_node(
+	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/PointAttack"
+)
+@onready var stop_button = get_node(
+	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/StopButton"
+)
+@onready var path_button = get_node(
+	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/PathButton"
+)
+@onready var circle_patrol_button = get_node(
+	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/CirclePatrolButton"
+)
+@onready var line_patrol_button = get_node(
+	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/LinePatrolButton"
+)
+
+enum HUD_ORDER_MODES { NONE, POINT_ATTACK, PATH, CIRCLE_PATROL, LINE_PATROL }
+
+const ROUTE_PATROL_LOOP := 1
+const ROUTE_PATROL_PING_PONG := 2
 
 var _auto_attack_button_bg: Panel = null
+var _hud_order_mode: int = HUD_ORDER_MODES.NONE
+var _hud_mode_button_bgs: Dictionary = {}
+var _patrol_session_has_waypoints: bool = false
 
 var unit_editor: UnitEditor = null
 
@@ -140,33 +163,9 @@ func _gui_input(event: InputEvent) -> void:
 		
 		
 		INPUT_STATES.UNITS_CONTROL:
-			
-			# Right click — 1 юнит ВСЕГДА точно в клик; группа (>=2 уникальных) — разброс
 			if event is InputEventMouseButton and event.button_index == 2:
 				if event.pressed == false:
-					if Handlers.UnitSelectionHandler.selected_units != null:
-						var clear_queue := not Input.is_key_pressed(KEY_SHIFT)
-						var selected: Array = []
-						for n in Handlers.UnitSelectionHandler.selected_units:
-							if is_instance_valid(n) and n not in selected:
-								selected.append(n)
-						if selected.is_empty():
-							return
-						var mouse_pos: Vector2 = camera.get_global_mouse_position()
-						# Одиночный приказ — всегда точная точка клика, без scatter/jitter
-						if selected.size() == 1:
-							var solo = selected[0]
-							var capture_solo: bool = (not clear_queue) and solo.is_command_unit()
-							solo.rpc_id(1, "add_order", mouse_pos, clear_queue, capture_solo)
-						else:
-							var targets: Array[Vector2] = _FormationHelperScript.scatter_around(
-								mouse_pos, selected.size()
-							)
-							for i in range(selected.size()):
-								var n = selected[i]
-								var target_position: Vector2 = targets[i] if i < targets.size() else mouse_pos
-								var capture_at_destination: bool = (not clear_queue) and n.is_command_unit()
-								n.rpc_id(1, "add_order", target_position, clear_queue, capture_at_destination)
+					_handle_units_control_rmb()
 			elif event is InputEventMouseButton and event.button_index == 1 and event.pressed == true:
 				start_draw_selection_box(camera.get_global_mouse_position())
 			
@@ -201,14 +200,236 @@ func _ready() -> void:
 		spread_button.pressed.connect(_on_spread_pressed)
 	if movement_attack_toggle:
 		movement_attack_toggle.toggle_mode = true
+		movement_attack_toggle.button_pressed = true
 		movement_attack_toggle.toggled.connect(_on_movement_attack_toggled)
 		_update_movement_attack_toggle_visual(movement_attack_toggle.button_pressed)
+		if Handlers.GameHandler:
+			Handlers.GameHandler.rpc("set_movement_attack_enabled", true)
 	if auto_attack_button:
 		_auto_attack_button_bg = auto_attack_button.get_node_or_null("BGPanel") as Panel
 		auto_attack_button.pressed.connect(_on_auto_attack_pressed)
 		_update_auto_attack_button_visual()
+	_setup_hud_order_buttons()
 	_initialize_points_display()
 	_initialize_battle_log()
+
+func _setup_hud_order_buttons() -> void:
+	_register_hud_mode_button(point_attack_button)
+	_register_hud_mode_button(path_button)
+	_register_hud_mode_button(circle_patrol_button)
+	_register_hud_mode_button(line_patrol_button)
+	if point_attack_button:
+		point_attack_button.toggle_mode = true
+		point_attack_button.toggled.connect(_on_point_attack_toggled)
+	if path_button:
+		path_button.toggle_mode = true
+		path_button.toggled.connect(_on_path_button_toggled)
+	if circle_patrol_button:
+		circle_patrol_button.toggle_mode = true
+		circle_patrol_button.toggled.connect(_on_circle_patrol_toggled)
+	if line_patrol_button:
+		line_patrol_button.toggle_mode = true
+		line_patrol_button.toggled.connect(_on_line_patrol_toggled)
+	if stop_button:
+		stop_button.pressed.connect(_on_stop_pressed)
+	_update_hud_mode_button_visuals()
+
+func _register_hud_mode_button(button: BaseButton) -> void:
+	if button == null:
+		return
+	var bg := button.get_node_or_null("BGPanel") as Panel
+	if bg:
+		_hud_mode_button_bgs[button] = bg
+
+func _set_hud_order_mode(mode: int) -> void:
+	_hud_order_mode = mode
+	_update_hud_mode_button_visuals()
+
+func _update_hud_mode_button_visuals() -> void:
+	var active_button: BaseButton = null
+	match _hud_order_mode:
+		HUD_ORDER_MODES.POINT_ATTACK:
+			active_button = point_attack_button
+		HUD_ORDER_MODES.PATH:
+			active_button = path_button
+		HUD_ORDER_MODES.CIRCLE_PATROL:
+			active_button = circle_patrol_button
+		HUD_ORDER_MODES.LINE_PATROL:
+			active_button = line_patrol_button
+	for button in _hud_mode_button_bgs.keys():
+		var bg: Panel = _hud_mode_button_bgs[button]
+		if bg == null:
+			continue
+		var style := StyleBoxFlat.new()
+		if button == active_button:
+			style.bg_color = Color(0.25, 0.55, 0.85, 0.9)
+		else:
+			style.bg_color = Color(0.15, 0.15, 0.2, 0.75)
+		bg.add_theme_stylebox_override("panel", style)
+	if point_attack_button and not point_attack_button.toggled \
+			and _hud_order_mode == HUD_ORDER_MODES.POINT_ATTACK:
+		point_attack_button.set_pressed_no_signal(true)
+	if path_button and not path_button.toggled and _hud_order_mode == HUD_ORDER_MODES.PATH:
+		path_button.set_pressed_no_signal(true)
+	if circle_patrol_button and not circle_patrol_button.toggled \
+			and _hud_order_mode == HUD_ORDER_MODES.CIRCLE_PATROL:
+		circle_patrol_button.set_pressed_no_signal(true)
+	if line_patrol_button and not line_patrol_button.toggled \
+			and _hud_order_mode == HUD_ORDER_MODES.LINE_PATROL:
+		line_patrol_button.set_pressed_no_signal(true)
+	if circle_patrol_button and _hud_order_mode != HUD_ORDER_MODES.CIRCLE_PATROL:
+		circle_patrol_button.set_pressed_no_signal(false)
+	if line_patrol_button and _hud_order_mode != HUD_ORDER_MODES.LINE_PATROL:
+		line_patrol_button.set_pressed_no_signal(false)
+
+func reset_patrol_hud_on_selection_change() -> void:
+	_patrol_session_has_waypoints = false
+	if _hud_order_mode == HUD_ORDER_MODES.CIRCLE_PATROL \
+			or _hud_order_mode == HUD_ORDER_MODES.LINE_PATROL:
+		_hud_order_mode = HUD_ORDER_MODES.NONE
+	_update_hud_mode_button_visuals()
+	refresh_waypoint_markers()
+
+func _get_own_selected_units() -> Array:
+	var result: Array = []
+	if Handlers.UnitSelectionHandler == null:
+		return result
+	var my_id: int = multiplayer.get_unique_id()
+	for unit in Handlers.UnitSelectionHandler.selected_units:
+		if is_instance_valid(unit) and unit.owner_id == my_id:
+			result.append(unit)
+	return result
+
+func _snap_mouse_to_hex_center(mouse_pos: Vector2) -> Vector2:
+	if Handlers.GameHandler == null or Handlers.GameHandler.overlay_map == null:
+		return mouse_pos
+	var overlay_map: TileMapLayer = Handlers.GameHandler.overlay_map
+	var local_pos: Vector2 = overlay_map.to_local(mouse_pos)
+	var tile: Vector2i = overlay_map.local_to_map(local_pos)
+	var world_pos: Vector2 = overlay_map.map_to_local(tile)
+	return overlay_map.to_global(world_pos)
+
+func _resolve_clear_queue_for_map_order() -> bool:
+	if _hud_order_mode == HUD_ORDER_MODES.PATH:
+		return false
+	return not Input.is_key_pressed(KEY_SHIFT)
+
+func _get_active_patrol_mode() -> int:
+	if _hud_order_mode == HUD_ORDER_MODES.LINE_PATROL:
+		return ROUTE_PATROL_PING_PONG
+	return ROUTE_PATROL_LOOP
+
+func _handle_units_control_rmb() -> void:
+	if Handlers.UnitSelectionHandler == null:
+		return
+	var selected: Array = []
+	for n in Handlers.UnitSelectionHandler.selected_units:
+		if is_instance_valid(n) and n not in selected:
+			selected.append(n)
+	if selected.is_empty():
+		return
+	var mouse_pos: Vector2 = camera.get_global_mouse_position()
+	if _hud_order_mode == HUD_ORDER_MODES.POINT_ATTACK:
+		_issue_point_attack_orders(selected, _snap_mouse_to_hex_center(mouse_pos))
+		return
+	if _hud_order_mode == HUD_ORDER_MODES.CIRCLE_PATROL \
+			or _hud_order_mode == HUD_ORDER_MODES.LINE_PATROL:
+		_issue_patrol_waypoints(selected, mouse_pos, _get_active_patrol_mode())
+		return
+	var clear_queue := _resolve_clear_queue_for_map_order()
+	_issue_move_orders(selected, mouse_pos, clear_queue)
+
+func _issue_move_orders(selected: Array, mouse_pos: Vector2, clear_queue: bool) -> void:
+	if selected.size() == 1:
+		var solo = selected[0]
+		var capture_solo: bool = (not clear_queue) and solo.is_command_unit()
+		solo.rpc_id(1, "add_order", mouse_pos, clear_queue, capture_solo)
+		return
+	var targets: Array[Vector2] = _FormationHelperScript.scatter_around(mouse_pos, selected.size())
+	for i in range(selected.size()):
+		var n = selected[i]
+		var target_position: Vector2 = targets[i] if i < targets.size() else mouse_pos
+		var capture_at_destination: bool = (not clear_queue) and n.is_command_unit()
+		n.rpc_id(1, "add_order", target_position, clear_queue, capture_at_destination)
+
+func _issue_point_attack_orders(selected: Array, target_pos: Vector2) -> void:
+	if selected.size() == 1:
+		selected[0].rpc_id(
+			1, "add_attack_position_order", target_pos.x, target_pos.y, true
+		)
+		return
+	var targets: Array[Vector2] = _FormationHelperScript.scatter_around(target_pos, selected.size())
+	for i in range(selected.size()):
+		var scatter_pos: Vector2 = targets[i] if i < targets.size() else target_pos
+		selected[i].rpc_id(
+			1, "add_attack_position_order", scatter_pos.x, scatter_pos.y, true
+		)
+
+func _issue_patrol_waypoints(selected: Array, mouse_pos: Vector2, mode: int) -> void:
+	var is_first_marker: bool = not _patrol_session_has_waypoints
+	_patrol_session_has_waypoints = true
+	if selected.size() == 1:
+		selected[0].rpc_id(
+			1, "add_patrol_waypoint", mouse_pos.x, mouse_pos.y, mode, is_first_marker
+		)
+		return
+	var targets: Array[Vector2] = _FormationHelperScript.scatter_around(mouse_pos, selected.size())
+	for i in range(selected.size()):
+		var target_position: Vector2 = targets[i] if i < targets.size() else mouse_pos
+		selected[i].rpc_id(
+			1,
+			"add_patrol_waypoint",
+			target_position.x,
+			target_position.y,
+			mode,
+			is_first_marker
+		)
+
+func _on_point_attack_toggled(pressed: bool) -> void:
+	if pressed:
+		_set_hud_order_mode(HUD_ORDER_MODES.POINT_ATTACK)
+		_sync_exclusive_hud_toggles(point_attack_button)
+	else:
+		if _hud_order_mode == HUD_ORDER_MODES.POINT_ATTACK:
+			_set_hud_order_mode(HUD_ORDER_MODES.NONE)
+
+func _on_path_button_toggled(pressed: bool) -> void:
+	if pressed:
+		_set_hud_order_mode(HUD_ORDER_MODES.PATH)
+		_sync_exclusive_hud_toggles(path_button)
+	else:
+		if _hud_order_mode == HUD_ORDER_MODES.PATH:
+			_set_hud_order_mode(HUD_ORDER_MODES.NONE)
+
+func _sync_exclusive_hud_toggles(active: BaseButton) -> void:
+	for button in [point_attack_button, path_button, circle_patrol_button, line_patrol_button]:
+		if button == null or button == active:
+			continue
+		if button.toggle_mode:
+			button.set_pressed_no_signal(false)
+
+func _on_circle_patrol_toggled(pressed: bool) -> void:
+	if pressed:
+		_patrol_session_has_waypoints = false
+		_set_hud_order_mode(HUD_ORDER_MODES.CIRCLE_PATROL)
+		_sync_exclusive_hud_toggles(circle_patrol_button)
+	else:
+		if _hud_order_mode == HUD_ORDER_MODES.CIRCLE_PATROL:
+			_set_hud_order_mode(HUD_ORDER_MODES.NONE)
+
+func _on_line_patrol_toggled(pressed: bool) -> void:
+	if pressed:
+		_patrol_session_has_waypoints = false
+		_set_hud_order_mode(HUD_ORDER_MODES.LINE_PATROL)
+		_sync_exclusive_hud_toggles(line_patrol_button)
+	else:
+		if _hud_order_mode == HUD_ORDER_MODES.LINE_PATROL:
+			_set_hud_order_mode(HUD_ORDER_MODES.NONE)
+
+func _on_stop_pressed() -> void:
+	for unit in _get_own_selected_units():
+		unit.rpc_id(1, "clear_orders")
+	reset_patrol_hud_on_selection_change()
 
 func _on_spread_pressed() -> void:
 	"""Рассредоточить выбранных юнитов от центроида группы."""

@@ -545,6 +545,7 @@ mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
 [node name="StopButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=1043006424]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4

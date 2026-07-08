@@ -142,10 +142,16 @@ func _force_bot_spawn(bot: Bot, fob) -> void:
 		var bot_points = Handlers.GameHandler.player_points[bot.bot_id]["recruitment_points"]
 		print("💰 SERVER UI: У бота ", bot_points, " очков найма")
 		
-		if bot_points >= 20:  # Стоимость командного юнита
-			# Добавляем заказ на спавн командного юнита
+		if bot_points >= 20:  # Минимальная проверка; точная стоимость — из пресета
 			if fob.has_method("add_spawn_order"):
-				fob.add_spawn_order("command_unit", 20, bot.bot_id)
+				var cmd_preset := UnitPreset.create_command_default()
+				fob.add_spawn_order(
+					"command_unit",
+					cmd_preset.get_cost(),
+					bot.bot_id,
+					cmd_preset.get_spawn_time(),
+					cmd_preset.to_spawn_snapshot()
+				)
 				print("✅ SERVER UI: Добавлен заказ на командный юнит для бота")
 			else:
 				print("❌ SERVER UI: FOB не имеет метода add_spawn_order")

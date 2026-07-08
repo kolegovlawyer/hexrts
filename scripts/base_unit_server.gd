@@ -681,6 +681,11 @@ func _process_heavy_server_calculations(delta: float) -> void:
 		match bot_order.type:
 			"move":
 				_process_move_order_heavy_bot(bot_order, delta)
+			"move_capture":
+				if is_command_unit():
+					_process_move_capture_order_heavy_bot(bot_order, delta)
+				else:
+					_process_move_order_heavy_bot(bot_order, delta)
 			"attack":
 				_process_attack_order_heavy_bot(bot_order)
 			"attack_fob":
@@ -742,6 +747,69 @@ func _process_move_order_heavy_bot(order: Dictionary, delta: float) -> void:
 		stuck_timer = 0.0
 		_update_move_progress_or_abort(pos, delta)
 	last_move_position = global_position
+
+func _process_move_capture_order_heavy_bot(order: Dictionary, delta: float) -> void:
+	"""Отложенная обработка move_capture для бот-КШМ."""
+	var phase: String = order.get("phase", "moving")
+	if phase == "moving":
+		if unit_state != UNIT_STATES.MOVING:
+			unit_state = UNIT_STATES.MOVING
+			_set_navigation_avoidance(true)
+			_reset_move_progress_tracking(order.position)
+
+		var pos: Vector2 = order.position
+		navagent.target_position = _route_smart_target(pos)
+
+		if not navagent.is_target_reachable():
+			var alternative_target = _find_alternative_path_target(pos)
+			navagent.target_position = _route_smart_target(alternative_target)
+
+		var distance_to_target = global_position.distance_to(pos)
+		var close_enough_threshold := 36.0
+		var close_enough = distance_to_target < close_enough_threshold
+		var nav_done = navagent.is_navigation_finished()
+		var moved = global_position.distance_to(last_move_position) > 1.5
+
+		if close_enough or nav_done:
+			if global_position.distance_to(pos) > close_enough_threshold:
+				var next_wp: Vector2 = _route_smart_target(pos)
+				if next_wp.distance_to(global_position) <= close_enough_threshold:
+					_release_route_wp_keep_side()
+					next_wp = pos
+				navagent.target_position = next_wp
+				stuck_timer = 0.0
+				_update_move_progress_or_abort(pos, delta)
+			else:
+				order["phase"] = "capturing"
+				unit_state = UNIT_STATES.IDLE
+				_clear_active_route_wp(true)
+				stuck_timer = 0.0
+				no_progress_timer = 0.0
+				_progress_best_dist = INF
+				if navagent:
+					navagent.target_position = global_position
+					navagent.set_velocity(Vector2.ZERO)
+				if self is CommandUnitServer:
+					var command_unit := self as CommandUnitServer
+					command_unit.check_current_hex()
+					command_unit._evaluate_waypoint_capture(order)
+		elif not moved:
+			stuck_timer += delta
+			if stuck_timer > 3.0:
+				_execute_smart_unstuck_maneuver(pos)
+				stuck_timer = 0.0
+			_update_move_progress_or_abort(pos, delta)
+		else:
+			stuck_timer = 0.0
+			_update_move_progress_or_abort(pos, delta)
+		last_move_position = global_position
+	elif phase == "capturing":
+		unit_state = UNIT_STATES.IDLE
+		if navagent:
+			navagent.target_position = global_position
+			navagent.set_velocity(Vector2.ZERO)
+		if self is CommandUnitServer:
+			(self as CommandUnitServer)._evaluate_waypoint_capture(order)
 
 func _process_attack_order_heavy_bot(order: Dictionary) -> void:
 	if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:

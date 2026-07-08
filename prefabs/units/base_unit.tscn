@@ -5,6 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://4485x57dhdcs" path="res://assets/units/arrow.png" id="3_o3c7t"]
 [ext_resource type="Texture2D" uid="uid://fb0j5huhafry" path="res://assets/all_icons/circle-s.png" id="4_3coue"]
 [ext_resource type="Script" uid="uid://b1fv54ksitimn" path="res://scripts/networking/synchronizer.gd" id="5_c8msn"]
+[ext_resource type="Theme" uid="uid://cs6k2aheouulp" path="res://prefabs/themes/main_theme.tres" id="5_ky6gu"]
 [ext_resource type="Texture2D" uid="uid://dwwvimsrx2f7h" path="res://assets/all_icons/rank-1.png" id="6_3coue"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_lxa7t"]
@@ -85,6 +86,7 @@ offset_right = 20.0
 offset_bottom = -53.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("5_ky6gu")
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=130657607]
 unique_name_in_owner = true

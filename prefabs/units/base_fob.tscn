@@ -2,7 +2,9 @@
 
 [ext_resource type="Script" uid="uid://br3p3va4cia5i" path="res://scripts/units/base_fob.gd" id="1_hdomf"]
 [ext_resource type="Texture2D" uid="uid://c7x5c3ox81lok" path="res://assets/BartSpriter/home.png" id="2_ifoug"]
-[ext_resource type="Texture2D" uid="uid://ba30087ucun2e" path="res://assets/units/bars/capture_progress.png" id="3_q6ea7"]
+[ext_resource type="Texture2D" uid="uid://b8fuvv8mk7led" path="res://assets/units/bars/capture_bar/variant-a/background.png" id="3_culj7"]
+[ext_resource type="Texture2D" uid="uid://b1uq8xg60stct" path="res://assets/units/bars/capture_bar/variant-a/border.png" id="4_k04jd"]
+[ext_resource type="Texture2D" uid="uid://6mm882jw0ke7" path="res://assets/units/bars/capture_bar/variant-a/progress.png" id="5_mytjd"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mru0y"]
 size = Vector2(75, 75)
@@ -88,12 +90,11 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 value = 80.0
 fill_mode = 4
-texture_under = ExtResource("3_q6ea7")
-texture_over = ExtResource("3_q6ea7")
-texture_progress = ExtResource("3_q6ea7")
+texture_under = ExtResource("3_culj7")
+texture_over = ExtResource("4_k04jd")
+texture_progress = ExtResource("5_mytjd")
 tint_under = Color(0.54902, 0.478431, 0.219608, 0.141176)
 tint_over = Color(1, 1, 1, 0)
-tint_progress = Color(0.613102, 0.53899, 3.85046e-07, 1)
 
 [node name="SpawnQueueLabel" type="Label" parent="." unique_id=2037763988]
 unique_name_in_owner = true

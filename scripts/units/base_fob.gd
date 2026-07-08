@@ -7,6 +7,8 @@ const DEFAULT_MAX_HEALTH := 500
 const DEFAULT_MAX_SHIELD := 150
 const SHIELD_REGEN_RATE := 2.0
 const SHIELD_REGEN_DELAY := 5.0
+# Слой 10 — только клик мышью; mask=0 → нет физики с юнитами/картой.
+const PICK_COLLISION_LAYER := 512
 
 @onready var sprite = get_node("%Sprite")
 @onready var spawn_bar = get_node("%SpawnProgress")
@@ -67,6 +69,7 @@ var selected: bool = false:
 func _ready() -> void:
 	add_to_group("fobs")
 	_init_vitals_ui()
+	_setup_pick_only_collision()
 
 	if is_multiplayer_authority():
 		_health = max_health
@@ -80,9 +83,19 @@ func _ready() -> void:
 		if Handlers.GameHandler and Handlers.GameHandler.has_method("register_fob"):
 			Handlers.GameHandler.register_fob(self)
 	else:
-		connect("input_event", handle_input)
 		update_visual()
 		_initialize_spawn_ui()
+
+
+func _setup_pick_only_collision() -> void:
+	collision_layer = PICK_COLLISION_LAYER
+	collision_mask = 0
+	input_pickable = true
+	var body_shape: CollisionShape2D = get_node_or_null("CollisionShape") as CollisionShape2D
+	if body_shape:
+		body_shape.disabled = false
+	if not input_event.is_connected(handle_input):
+		input_event.connect(handle_input)
 
 func _exit_tree() -> void:
 	if is_multiplayer_authority() and Handlers.GameHandler and Handlers.GameHandler.has_method("unregister_fob"):
@@ -118,6 +131,8 @@ func is_alive() -> bool:
 	return not is_destroyed and _health > 0
 
 func handle_input(_viewport, event, _shape_idx):
+	if Handlers.TeamHandler == null or Handlers.TeamHandler.my_profile == null:
+		return
 	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
 		if event is InputEventMouseButton and event.button_index == 1:
 			if event.pressed == true:

@@ -19,7 +19,7 @@ bg_color = Color(0.898039, 0.52549, 0.988235, 1)
 [node name="Spawner" type="StaticBody2D" unique_id=1343847166]
 top_level = true
 z_index = 10
-collision_layer = 2
+collision_layer = 512
 collision_mask = 0
 input_pickable = true
 script = ExtResource("1_hdomf")
@@ -36,7 +36,6 @@ texture = ExtResource("2_ifoug")
 unique_name_in_owner = true
 visible = false
 collision_layer = 0
-collision_mask = 1
 monitorable = false
 
 [node name="VisibilityShape" type="CollisionShape2D" parent="VisibilityArea" unique_id=347829990]

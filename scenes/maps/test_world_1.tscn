@@ -48,11 +48,9 @@ navigation_visibility_mode = 1
 
 [node name="SpawnerA" parent="MainMap" unique_id=168378332 groups=["team_0_fobs"] instance=ExtResource("2_ptgwm")]
 position = Vector2(303, -1577)
-collision_layer = 2
 
 [node name="SpawnerB" parent="MainMap" unique_id=1226671335 groups=["team_1_fobs"] instance=ExtResource("2_ptgwm")]
 position = Vector2(-555, -1355)
-collision_layer = 2
 team = 1
 
 [node name="OverlayMap" type="TileMapLayer" parent="." unique_id=253188926]

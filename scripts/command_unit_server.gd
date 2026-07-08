@@ -245,6 +245,7 @@ func _physics_process(delta: float) -> void:
 				if orders.size() > 0 and orders[0].type == "move_capture":
 					if orders[0].get("phase", "moving") == "capturing":
 						_pop_current_order()
+						_advance_queue_after_move_leg()
 
 func _should_defer_route_order() -> bool:
 	"""
@@ -274,7 +275,7 @@ func _process_move_capture_order_immediate(order: Dictionary, delta: float, is_b
 			navagent.target_position = _route_smart_target(alternative_target)
 		
 		var distance_to_target = global_position.distance_to(pos)
-		var close_enough_threshold = 28.0 if is_bot else 16.0
+		var close_enough_threshold: float = _get_close_enough_threshold(is_bot)
 		var close_enough = distance_to_target < close_enough_threshold
 		var nav_done = navagent.is_navigation_finished()
 		var moved = global_position.distance_to(last_move_position) > 1.5
@@ -295,6 +296,9 @@ func _process_move_capture_order_immediate(order: Dictionary, delta: float, is_b
 				stuck_timer = 0.0
 				no_progress_timer = 0.0
 				_progress_best_dist = INF
+				if navagent:
+					navagent.target_position = global_position
+					navagent.set_velocity(Vector2.ZERO)
 				check_current_hex()
 				_evaluate_waypoint_capture(order)
 		elif not moved:
@@ -309,6 +313,9 @@ func _process_move_capture_order_immediate(order: Dictionary, delta: float, is_b
 		last_move_position = global_position
 	elif phase == "capturing":
 		unit_state = UNIT_STATES.IDLE
+		if navagent:
+			navagent.target_position = global_position
+			navagent.set_velocity(Vector2.ZERO)
 		_evaluate_waypoint_capture(order)
 
 func _evaluate_waypoint_capture(_order: Dictionary) -> void:
@@ -319,14 +326,17 @@ func _evaluate_waypoint_capture(_order: Dictionary) -> void:
 	var hex = Handlers.GameHandler.get_hex_at_world_position(global_position)
 	if hex == null:
 		_pop_current_order()
+		_advance_queue_after_move_leg()
 		return
 	
 	if hex.team_owner == owner_team:
 		_pop_current_order()
+		_advance_queue_after_move_leg()
 		return
 	
 	if not hex.can_be_captured_by_team(owner_team):
 		_pop_current_order()
+		_advance_queue_after_move_leg()
 		return
 	
 	if hex != current_hex:
@@ -502,10 +512,13 @@ func _initiate_retreat() -> void:
 	# Находим позицию для отступления (база или безопасная зона)
 	retreat_target_position = _find_safe_retreat_position()
 	
-	# Очищаем текущие приказы и отступаем
+	# Очищаем текущие приказы и отступаем (plain move — без захвата по пути)
 	orders.clear()
 	_sync_order_queue_to_owner()
-	add_order(retreat_target_position, true)
+	orders.append({"type": "move", "position": retreat_target_position})
+	_reset_move_progress_tracking(retreat_target_position)
+	_sync_order_queue_to_owner()
+	unit_state = UNIT_STATES.MOVING
 	
 	print("🏃 RETREAT: CommandUnit ", name, " начинает отступление к безопасной позиции")
 

@@ -47,11 +47,9 @@ visible = true
 
 [node name="SpawnerA" parent="MainMap" unique_id=168378332 groups=["team_0_fobs"] instance=ExtResource("4_peyd0")]
 position = Vector2(-442, -831)
-collision_layer = 2
 
 [node name="SpawnerB" parent="MainMap" unique_id=1226671335 groups=["team_1_fobs"] instance=ExtResource("4_peyd0")]
 position = Vector2(-2073, -432)
-collision_layer = 2
 team = 1
 
 [node name="OverlayMap" type="TileMapLayer" parent="." unique_id=253188926]

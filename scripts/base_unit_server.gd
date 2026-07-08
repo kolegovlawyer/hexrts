@@ -134,7 +134,7 @@ const STUCK_ABORT_SECONDS: float = 5.0
 const STUCK_ABORT_ROUTE_SECONDS: float = 14.0
 const STUCK_PROGRESS_EPS: float = 12.0  # сколько нужно приблизиться к цели, чтобы сбросить таймер
 var _route_abort_unstuck_used: bool = false
-# Сколько кадров подряд упираемся в StaticBody (FOB) — ранний обход без ожидания stuck 2.5s
+# Сколько кадров подряд упираемся в StaticBody — ранний обход без ожидания stuck 2.5s
 var _static_block_frames: int = 0
 var _unit_block_frames: int = 0
 var _desired_velocity: Vector2 = Vector2.ZERO
@@ -143,17 +143,12 @@ var _desired_velocity: Vector2 = Vector2.ZERO
 var _crowd_cache_wp: Vector2 = Vector2.ZERO
 var _crowd_cache_final: Vector2 = Vector2.ZERO
 var _crowd_cache_frame: int = -999
-# Липкий промежуточный waypoint (FOB/толпа), пока не доедем
+# Липкий промежуточный waypoint (толпа), пока не доедем
 var _active_route_wp: Vector2 = Vector2.ZERO
 var _has_active_route_wp: bool = false
 # Зафиксированная сторона объезда: -1 left, +1 right, 0 unset (анти-трэшинг)
 var _crowd_commit_side: int = 0
 var _is_actively_moving: bool = false
-
-# FOB footprint: half of collision (~37.5) + unit radius (~20) + margin
-const FOB_AVOID_HALF: float = 60.0
-const FOB_DETOUR_MARGIN: float = 35.0
-const FOB_PROBE_CLEARANCE: float = 95.0  # half diag of avoid box + buffer
 
 # Обход стоящих групп юнитов (маршрут, не только RVO)
 const CROWD_MIN_UNITS: int = 2
@@ -315,7 +310,8 @@ func _physics_process(delta: float) -> void:
 		# ⚡ КРИТИЧЕСКИ ВАЖНО: Обработка приказов ТОЛЬКО ИГРОКОВ мгновенно!
 		var _is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
 		if not _is_bot and orders.size() > 0:
-			var move_order: Dictionary = _find_first_order(["move", "move_capture"])
+			# move_capture обрабатывает CommandUnitServer — не как обычный move
+			var move_order: Dictionary = _find_first_order(["move"])
 			var attack_order: Dictionary = _find_first_order(["attack"])
 			var fob_order: Dictionary = _find_first_order(["attack_fob"])
 			var attack_pos_order: Dictionary = _find_first_order(["attack_position"])
@@ -472,8 +468,18 @@ func _process_attack_position_order_immediate(order: Dictionary) -> void:
 		return
 	attack_at_position(target_pos)
 
+func _make_move_order(target_pos: Vector2) -> Dictionary:
+	if is_command_unit():
+		return {"type": "move_capture", "position": target_pos, "phase": "moving"}
+	return {"type": "move", "position": target_pos}
+
+
 func _complete_move_order() -> void:
 	_pop_current_order()
+	_advance_queue_after_move_leg()
+
+
+func _advance_queue_after_move_leg() -> void:
 	if not _find_first_order(["move", "move_capture"]).is_empty():
 		return
 	if route_patrol_mode != RoutePatrolMode.NONE:
@@ -552,7 +558,7 @@ func _enqueue_next_patrol_leg() -> void:
 		return
 	var canonical: Vector2 = route_waypoints[_route_patrol_index]
 	var move_target: Vector2 = _route_move_target(canonical)
-	orders.append({"type": "move", "position": move_target})
+	orders.append(_make_move_order(move_target))
 	_sync_order_queue_to_owner()
 	_advance_patrol_index()
 
@@ -614,7 +620,7 @@ func add_patrol_waypoint(
 		route_patrol_mode = mode
 	route_waypoints.append(canonical)
 	var move_target: Vector2 = _route_move_target(canonical)
-	orders.append({"type": "move", "position": move_target})
+	orders.append(_make_move_order(move_target))
 	_reset_move_progress_tracking(move_target)
 	_sync_order_queue_to_owner()
 
@@ -802,7 +808,7 @@ func toggle_auto_attack() -> void:
 		rpc_id(owner_id, "sync_auto_attack_enabled", auto_attack_enabled)
 
 @rpc("any_peer", "reliable")
-func add_order(order_obj, clear_queue: bool = false, capture_at_destination: bool = false) -> void:
+func add_order(order_obj, clear_queue: bool = false, _capture_at_destination: bool = false) -> void:
 	# Проверка владельца: обычные игроки или сервер для ботов
 	var sender_id = multiplayer.get_remote_sender_id()
 	var is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
@@ -821,14 +827,7 @@ func add_order(order_obj, clear_queue: bool = false, capture_at_destination: boo
 					orders.clear()
 					_clear_active_route_wp()
 					_reset_route_patrol()
-				if capture_at_destination and is_command_unit():
-					orders.append({
-						"type": "move_capture",
-						"position": order_obj,
-						"phase": "moving",
-					})
-				else:
-					orders.append({"type": "move", "position": order_obj})
+				orders.append(_make_move_order(order_obj))
 				_reset_move_progress_tracking(order_obj)
 				_sync_order_queue_to_owner()
 			TYPE_STRING:
@@ -1699,6 +1698,8 @@ func _has_geometry_slide_collision() -> bool:
 		var collider = col.get_collider()
 		if collider is BaseUnitServer:
 			continue
+		if collider is fob:
+			continue
 		return true
 	return false
 
@@ -1813,11 +1814,7 @@ func _find_nearest_own_fob() -> fob:
 
 
 func _fob_approach_position(target_fob: fob) -> Vector2:
-	var fob_center: Vector2 = target_fob.global_position
-	var to_unit: Vector2 = global_position - fob_center
-	if to_unit.length_squared() < 1.0:
-		to_unit = Vector2.RIGHT
-	return fob_center + to_unit.normalized() * (FOB_AVOID_HALF + 20.0)
+	return target_fob.global_position
 
 
 func _find_alternative_path_target(original_target: Vector2) -> Vector2:
@@ -1845,7 +1842,7 @@ func _find_alternative_path_target(original_target: Vector2) -> Vector2:
 
 func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
 	"""
-	Выход из застревания: сначала маршрутный detour (FOB/толпа),
+	Выход из застревания: маршрутный detour (толпа),
 	потом боковой hop с той же commit-стороны. Random — только крайний случай.
 	"""
 	_crowd_cache_frame = -999
@@ -1893,7 +1890,7 @@ func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
 
 
 func _check_early_block_unstuck() -> void:
-	"""Ранний detour при упирании в FOB/юнитов — без сброса стороны и без random thrash."""
+	"""Ранний detour при упирании в статику/юнитов — без сброса стороны и без random thrash."""
 	var hit_static := false
 	var hit_unit := false
 	for i in range(get_slide_collision_count()):
@@ -1901,6 +1898,8 @@ func _check_early_block_unstuck() -> void:
 		if col == null:
 			continue
 		var collider = col.get_collider()
+		if collider is fob:
+			continue
 		if collider is StaticBody2D:
 			hit_static = true
 		elif collider is BaseUnitServer and collider != self:
@@ -2029,7 +2028,7 @@ func _apply_lateral_crowd_bias(desired: Vector2) -> Vector2:
 
 
 func _route_smart_target(final_target: Vector2) -> Vector2:
-	"""Липкий промежуточный waypoint: FOB / толпа, пока не доедем."""
+	"""Липкий промежуточный waypoint: толпа, пока не доедем."""
 	if _has_active_route_wp:
 		if global_position.distance_to(_active_route_wp) > CROWD_REACH_DIST:
 			return _active_route_wp
@@ -2037,80 +2036,11 @@ func _route_smart_target(final_target: Vector2) -> Vector2:
 		_has_active_route_wp = false
 		_active_route_wp = Vector2.ZERO
 	
-	var after_fob: Vector2 = _get_fob_detour_waypoint(final_target)
-	if after_fob.distance_squared_to(final_target) > 1.0:
-		_set_active_route_wp(after_fob)
-		return after_fob
-	
 	var after_crowd: Vector2 = _get_crowd_detour_waypoint(final_target)
 	if after_crowd.distance_squared_to(final_target) > 1.0:
 		_set_active_route_wp(after_crowd)
 		return after_crowd
 	return final_target
-
-
-func _route_target_avoiding_fobs(final_target: Vector2) -> Vector2:
-	return _route_smart_target(final_target)
-
-
-func _get_fob_detour_waypoint(final_target: Vector2) -> Vector2:
-	"""FOB на отрезке self→target → боковой waypoint."""
-	if not is_inside_tree():
-		return final_target
-	var best_fob: Node2D = null
-	var best_t: float = 2.0
-	var from: Vector2 = global_position
-	var segment: Vector2 = final_target - from
-	var seg_len_sq: float = segment.length_squared()
-	if seg_len_sq < 1.0:
-		return final_target
-	
-	for fob_node in get_tree().get_nodes_in_group("fobs"):
-		if not is_instance_valid(fob_node) or not (fob_node is Node2D):
-			continue
-		var fob_pos: Vector2 = (fob_node as Node2D).global_position
-		var t: float = clampf(((fob_pos - from).dot(segment)) / seg_len_sq, 0.0, 1.0)
-		var closest: Vector2 = from + segment * t
-		if closest.distance_to(fob_pos) > FOB_PROBE_CLEARANCE:
-			continue
-		if t < 0.05 or t > 0.95:
-			continue
-		if t < best_t:
-			best_t = t
-			best_fob = fob_node as Node2D
-	
-	if best_fob == null:
-		return final_target
-	
-	var fob_center: Vector2 = best_fob.global_position
-	var along: Vector2 = segment.normalized()
-	var left: Vector2 = Vector2(-along.y, along.x)
-	var offset_dist: float = FOB_AVOID_HALF + FOB_DETOUR_MARGIN
-	var left_wp: Vector2 = fob_center + left * offset_dist
-	var right_wp: Vector2 = fob_center - left * offset_dist
-	
-	if global_position.distance_to(left_wp) <= 28.0 or global_position.distance_to(right_wp) <= 28.0:
-		return final_target
-	
-	var chosen: Vector2 = left_wp if global_position.distance_squared_to(left_wp) <= global_position.distance_squared_to(right_wp) else right_wp
-	if _crowd_commit_side > 0:
-		chosen = right_wp
-	elif _crowd_commit_side < 0:
-		chosen = left_wp
-	else:
-		_crowd_commit_side = 1 if chosen == right_wp else -1
-	
-	var prev_target: Vector2 = navagent.target_position
-	navagent.target_position = chosen
-	if not navagent.is_target_reachable():
-		var other: Vector2 = right_wp if chosen == left_wp else left_wp
-		navagent.target_position = other
-		if navagent.is_target_reachable():
-			_crowd_commit_side = 1 if other == right_wp else -1
-			return other
-		navagent.target_position = prev_target
-		return final_target
-	return chosen
 
 
 func _get_crowd_detour_waypoint(final_target: Vector2) -> Vector2:

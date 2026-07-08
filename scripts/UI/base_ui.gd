@@ -368,21 +368,17 @@ func _issue_point_attack_orders(selected: Array, target_pos: Vector2) -> void:
 func _issue_patrol_waypoints(selected: Array, mouse_pos: Vector2, mode: int) -> void:
 	var is_first_marker: bool = not _patrol_session_has_waypoints
 	_patrol_session_has_waypoints = true
-	if selected.size() == 1:
-		selected[0].rpc_id(
-			1, "add_patrol_waypoint", mouse_pos.x, mouse_pos.y, mode, is_first_marker
-		)
-		return
-	var targets: Array[Vector2] = _FormationHelperScript.scatter_around(mouse_pos, selected.size())
-	for i in range(selected.size()):
-		var target_position: Vector2 = targets[i] if i < targets.size() else mouse_pos
+	var lane_count: int = selected.size()
+	for i in range(lane_count):
 		selected[i].rpc_id(
 			1,
 			"add_patrol_waypoint",
-			target_position.x,
-			target_position.y,
+			mouse_pos.x,
+			mouse_pos.y,
 			mode,
-			is_first_marker
+			is_first_marker,
+			i,
+			lane_count
 		)
 
 func _on_point_attack_toggled(pressed: bool) -> void:

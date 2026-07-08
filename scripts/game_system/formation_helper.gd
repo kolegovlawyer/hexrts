@@ -35,6 +35,21 @@ static func scatter_around(
 	return result
 
 
+static func lane_offset(
+	lane_index: int,
+	lane_count: int,
+	radius: float = MOVE_SCATTER_RADIUS
+) -> Vector2:
+	"""Детерминированный offset для lane_index в группе lane_count (без rand)."""
+	if lane_count <= 1 or lane_index < 0 or lane_index >= lane_count:
+		return Vector2.ZERO
+	var golden_angle: float = PI * (3.0 - sqrt(5.0))
+	var t: float = float(lane_index) / float(lane_count - 1)
+	var r: float = radius * sqrt(t)
+	var angle: float = float(lane_index) * golden_angle
+	return Vector2(cos(angle), sin(angle)) * r
+
+
 static func spread_from_positions(
 	positions: Array[Vector2],
 	distance: float = SPREAD_DISTANCE

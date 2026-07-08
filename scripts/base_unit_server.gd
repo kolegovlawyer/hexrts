@@ -131,7 +131,9 @@ var last_move_position: Vector2 = Vector2.ZERO
 var no_progress_timer: float = 0.0
 var _progress_best_dist: float = INF
 const STUCK_ABORT_SECONDS: float = 5.0
+const STUCK_ABORT_ROUTE_SECONDS: float = 14.0
 const STUCK_PROGRESS_EPS: float = 12.0  # сколько нужно приблизиться к цели, чтобы сбросить таймер
+var _route_abort_unstuck_used: bool = false
 # Сколько кадров подряд упираемся в StaticBody (FOB) — ранний обход без ожидания stuck 2.5s
 var _static_block_frames: int = 0
 var _unit_block_frames: int = 0
@@ -161,12 +163,15 @@ const CROWD_CACHE_FRAMES: int = 12
 const CROWD_REACH_DIST: float = 40.0
 const CROWD_PRIORITY_IDLE: float = 1.0
 const CROWD_PRIORITY_MOVING: float = 0.2
+const CROWD_PRIORITY_ROUTE: float = 0.05
+const CLOSE_ENOUGH_ROUTE: float = 26.0
 const MOVING_ATTACK_MIN_SPEED: float = 8.0
 
 enum RoutePatrolMode { NONE, LOOP, PING_PONG }
 
 var route_patrol_mode: int = RoutePatrolMode.NONE
 var route_waypoints: Array[Vector2] = []
+var _route_lane_offset: Vector2 = Vector2.ZERO
 var _route_patrol_index: int = 0
 var _route_patrol_direction: int = 1
 const MOVING_SHOOT_MAX_SPREAD: float = 70.0
@@ -278,7 +283,8 @@ func on_velocity_computed(safe_velocity: Vector2) -> void:
 		return
 	if safe_velocity.length_squared() < 1.0 and _desired_velocity.length_squared() > 100.0:
 		# RVO зажат — мягкий push вдоль desired
-		velocity = _desired_velocity.normalized() * min(speed * 0.45, _desired_velocity.length())
+		var push_factor: float = 0.65 if _has_committed_route() else 0.45
+		velocity = _desired_velocity.normalized() * min(speed * push_factor, _desired_velocity.length())
 	else:
 		velocity = safe_velocity
 	move_and_slide()
@@ -332,7 +338,10 @@ func _physics_process(delta: float) -> void:
 		var wants_move: bool = not navagent.is_navigation_finished()
 		_is_actively_moving = wants_move
 		if wants_move:
-			navagent.avoidance_priority = CROWD_PRIORITY_MOVING
+			if _has_committed_route():
+				navagent.avoidance_priority = CROWD_PRIORITY_ROUTE
+			else:
+				navagent.avoidance_priority = CROWD_PRIORITY_MOVING
 			var next_path_position: Vector2 = navagent.get_next_path_position()
 			_desired_velocity = global_position.direction_to(next_path_position) * speed
 			# Soft lateral bias away from locked blockers so RVO prefers a side early
@@ -376,7 +385,7 @@ func _process_move_order_immediate(order: Dictionary, delta: float, is_bot: bool
 	# Увеличенный порог для ботов (проблема малых расстояний!)
 	var distance_to_target = global_position.distance_to(pos)
 	# Чуть шире порог, чтобы толпа раньше завершала приказ и не пихалась в точку
-	var close_enough_threshold = 28.0 if is_bot else 16.0
+	var close_enough_threshold: float = _get_close_enough_threshold(is_bot)
 	var close_enough = distance_to_target < close_enough_threshold
 	var nav_done = navagent.is_navigation_finished()
 	var moved = global_position.distance_to(last_move_position) > 1.5  # Чувствительность к движению
@@ -483,6 +492,43 @@ func _reset_route_patrol() -> void:
 	route_waypoints.clear()
 	_route_patrol_index = 0
 	_route_patrol_direction = 1
+	_route_lane_offset = Vector2.ZERO
+
+
+func _route_move_target(canonical: Vector2) -> Vector2:
+	return canonical + _route_lane_offset
+
+
+func _count_move_orders_in_queue() -> int:
+	var count: int = 0
+	for order in orders:
+		var order_type: String = str(order.get("type", ""))
+		if order_type == "move" or order_type == "move_capture":
+			count += 1
+	return count
+
+
+func _has_committed_route() -> bool:
+	return route_patrol_mode != RoutePatrolMode.NONE \
+		or _count_move_orders_in_queue() > 1
+
+
+func _get_stuck_abort_seconds() -> float:
+	return STUCK_ABORT_ROUTE_SECONDS if _has_committed_route() else STUCK_ABORT_SECONDS
+
+
+func _get_close_enough_threshold(is_bot: bool) -> float:
+	if is_bot:
+		return 36.0
+	if route_patrol_mode != RoutePatrolMode.NONE:
+		return CLOSE_ENOUGH_ROUTE
+	return 16.0
+
+
+func _is_rvo_crowd_blocked() -> bool:
+	return _is_actively_moving \
+		and _desired_velocity.length_squared() > 100.0 \
+		and velocity.length_squared() < 4.0
 
 func _extract_route_waypoints_from_orders() -> Array[Vector2]:
 	var result: Array[Vector2] = []
@@ -495,8 +541,9 @@ func _extract_route_waypoints_from_orders() -> Array[Vector2]:
 func _enqueue_next_patrol_leg() -> void:
 	if route_waypoints.is_empty():
 		return
-	var pos: Vector2 = route_waypoints[_route_patrol_index]
-	orders.append({"type": "move", "position": pos})
+	var canonical: Vector2 = route_waypoints[_route_patrol_index]
+	var move_target: Vector2 = _route_move_target(canonical)
+	orders.append({"type": "move", "position": move_target})
 	_sync_order_queue_to_owner()
 	_advance_patrol_index()
 
@@ -535,14 +582,16 @@ func add_patrol_waypoint(
 		world_x: float,
 		world_y: float,
 		mode: int,
-		is_first: bool
+		is_first: bool,
+		lane_index: int = 0,
+		lane_count: int = 1
 	) -> void:
 	if not is_multiplayer_authority():
 		return
 	var sender_id := multiplayer.get_remote_sender_id()
 	if owner_id != sender_id:
 		return
-	var pos := Vector2(world_x, world_y)
+	var canonical := Vector2(world_x, world_y)
 	if is_first:
 		orders.clear()
 		_clear_active_route_wp()
@@ -550,11 +599,14 @@ func add_patrol_waypoint(
 		route_patrol_mode = mode
 		_route_patrol_index = 0
 		_route_patrol_direction = 1
+		if lane_count > 1:
+			_route_lane_offset = FormationHelper.lane_offset(lane_index, lane_count)
 	elif route_patrol_mode == RoutePatrolMode.NONE:
 		route_patrol_mode = mode
-	route_waypoints.append(pos)
-	orders.append({"type": "move", "position": pos})
-	_reset_move_progress_tracking(pos)
+	route_waypoints.append(canonical)
+	var move_target: Vector2 = _route_move_target(canonical)
+	orders.append({"type": "move", "position": move_target})
+	_reset_move_progress_tracking(move_target)
 	_sync_order_queue_to_owner()
 
 @rpc("any_peer", "reliable")
@@ -1618,43 +1670,90 @@ func _reset_move_progress_tracking(goal: Vector2) -> void:
 	no_progress_timer = 0.0
 	_progress_best_dist = global_position.distance_to(goal)
 	stuck_timer = 0.0
+	_route_abort_unstuck_used = false
 
 
 func _update_move_progress_or_abort(goal: Vector2, delta: float) -> void:
 	"""
-	Если ~5с нет существенного приближения к финальной цели приказа —
-	брос move → IDLE + запись в battle log. Без бесконечного кружения в пачке.
+	Если нет существенного приближения к финальной цели приказа —
+	abort + отход к FOB (battle log). На маршруте — дольше ждём и пробуем unstuck.
 	"""
 	var dist: float = global_position.distance_to(goal)
 	if dist < _progress_best_dist - STUCK_PROGRESS_EPS:
 		_progress_best_dist = dist
 		no_progress_timer = 0.0
+		_route_abort_unstuck_used = false
+		return
+	if _has_committed_route() and _is_rvo_crowd_blocked():
 		return
 	no_progress_timer += delta
-	if no_progress_timer < STUCK_ABORT_SECONDS:
+	var abort_seconds: float = _get_stuck_abort_seconds()
+	if no_progress_timer < abort_seconds:
+		return
+	if _has_committed_route() and not _route_abort_unstuck_used:
+		_execute_smart_unstuck_maneuver(goal)
+		_route_abort_unstuck_used = true
+		no_progress_timer = 0.0
+		_progress_best_dist = global_position.distance_to(goal)
 		return
 	_abort_move_due_to_stuck()
 
 
 func _abort_move_due_to_stuck() -> void:
-	"""Останавливаем застрявшего юнита и уведомляем владельца через battle log."""
-	orders.clear()
-	unit_state = UNIT_STATES.IDLE
+	"""Застрявший юнит: battle log + отход к ближайшему своему FOB."""
+	if Handlers.GameHandler and Handlers.GameHandler.battle_log:
+		Handlers.GameHandler.battle_log.on_unit_stuck(self)
+	_reset_route_patrol()
 	_clear_active_route_wp(true)
 	stuck_timer = 0.0
 	no_progress_timer = 0.0
 	_progress_best_dist = INF
 	_static_block_frames = 0
 	_unit_block_frames = 0
+	_route_abort_unstuck_used = false
 	_desired_velocity = Vector2.ZERO
 	velocity = Vector2.ZERO
-	if navagent:
-		navagent.set_velocity(Vector2.ZERO)
-		# Останавливаем путь: цель = текущая позиция
-		navagent.target_position = global_position
+	orders.clear()
+	var target_fob: fob = _find_nearest_own_fob()
+	if target_fob != null and target_fob.is_alive():
+		var approach: Vector2 = _fob_approach_position(target_fob)
+		orders.append({"type": "move", "position": approach})
+		unit_state = UNIT_STATES.MOVING
+		_reset_move_progress_tracking(approach)
+		if navagent:
+			navagent.target_position = _route_smart_target(approach)
+	else:
+		unit_state = UNIT_STATES.IDLE
+		if navagent:
+			navagent.set_velocity(Vector2.ZERO)
+			navagent.target_position = global_position
 	_sync_order_queue_to_owner()
-	if Handlers.GameHandler and Handlers.GameHandler.battle_log:
-		Handlers.GameHandler.battle_log.on_unit_stuck(self)
+
+
+func _find_nearest_own_fob() -> fob:
+	if not is_inside_tree():
+		return null
+	var best: fob = null
+	var best_dist_sq: float = INF
+	for node in get_tree().get_nodes_in_group("fobs"):
+		if not is_instance_valid(node) or not (node is fob):
+			continue
+		var fob_node: fob = node as fob
+		if fob_node.owner_id != owner_id or not fob_node.is_alive():
+			continue
+		var dist_sq: float = global_position.distance_squared_to(fob_node.global_position)
+		if dist_sq < best_dist_sq:
+			best_dist_sq = dist_sq
+			best = fob_node
+	return best
+
+
+func _fob_approach_position(target_fob: fob) -> Vector2:
+	var fob_center: Vector2 = target_fob.global_position
+	var to_unit: Vector2 = global_position - fob_center
+	if to_unit.length_squared() < 1.0:
+		to_unit = Vector2.RIGHT
+	return fob_center + to_unit.normalized() * (FOB_AVOID_HALF + 20.0)
 
 
 func _find_alternative_path_target(original_target: Vector2) -> Vector2:
@@ -1801,10 +1900,23 @@ func _is_unit_stationary_blocker(other: BaseUnitServer) -> bool:
 	return true
 
 
+func _is_soft_moving_blocker(other: BaseUnitServer) -> bool:
+	"""Союзник с move-приказом, но почти не движется — мягкое препятствие."""
+	if not is_instance_valid(other) or other == self:
+		return false
+	if other.owner_id != owner_id:
+		return false
+	if other.orders.is_empty():
+		return false
+	var ot: String = str(other.orders[0].get("type", ""))
+	if ot != "move" and ot != "move_capture":
+		return false
+	return other.velocity.length() < MOVING_ATTACK_MIN_SPEED
+
+
 func _apply_lateral_crowd_bias(desired: Vector2) -> Vector2:
 	"""
-	Лёгкий боковой bias от ближайших locked-юнитов впереди
-	(force-based tip из RTS/A* forums + RVO desired velocity).
+	Лёгкий боковой bias от ближайших locked-юнитов и медленных союзников впереди.
 	"""
 	if desired.length_squared() < 1.0 or not is_inside_tree():
 		return desired
@@ -1816,8 +1928,12 @@ func _apply_lateral_crowd_bias(desired: Vector2) -> Vector2:
 		if other == self or not (other is BaseUnitServer):
 			continue
 		var ou: BaseUnitServer = other as BaseUnitServer
-		if not _is_unit_stationary_blocker(ou):
-			continue
+		var is_stationary: bool = _is_unit_stationary_blocker(ou)
+		var is_soft_moving: bool = false
+		if not is_stationary:
+			is_soft_moving = _is_soft_moving_blocker(ou)
+			if not is_soft_moving:
+				continue
 		var to_other: Vector2 = ou.global_position - global_position
 		var dist: float = to_other.length()
 		if dist > LATERAL_PUSH_RADIUS or dist < 1.0:
@@ -1826,8 +1942,8 @@ func _apply_lateral_crowd_bias(desired: Vector2) -> Vector2:
 		if to_other.dot(fwd) < 0.0:
 			continue
 		var side: float = to_other.normalized().dot(left)
-		# Отталкиваемся от стороны, где юнит: если юнит слева (side>0) — bias вправо
-		lateral_sum -= side * (1.0 - dist / LATERAL_PUSH_RADIUS)
+		var weight: float = 1.0 if is_stationary else 0.5
+		lateral_sum -= side * (1.0 - dist / LATERAL_PUSH_RADIUS) * weight
 		samples += 1
 		if samples >= 6:
 			break

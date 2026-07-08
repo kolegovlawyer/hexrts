@@ -154,7 +154,9 @@ func add_patrol_waypoint(
 		_world_x: float,
 		_world_y: float,
 		_mode: int,
-		_is_first: bool
+		_is_first: bool,
+		_lane_index: int = 0,
+		_lane_count: int = 1
 	) -> void:
 	"""Stub: точка маршрута патруля (BaseUnitServer)."""
 	pass

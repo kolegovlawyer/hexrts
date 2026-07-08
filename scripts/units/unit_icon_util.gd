@@ -3,8 +3,9 @@ extends RefCounted
 
 const ICONS_DIR := "res://assets/all_icons/"
 
-const SIZE_SMALL_MAX_COST := 40
-const SIZE_MEDIUM_MAX_COST := 80
+## Пороги размера иконки по сумме статов: S 5–20, M 21–35, L 36+.
+const SIZE_SMALL_MAX_SUM := 20
+const SIZE_MEDIUM_MAX_SUM := 35
 
 ## Приоритет при равенстве доминирующих статов.
 const DOMINANT_STAT_PRIORITY: Array[String] = ["health", "damage", "range", "shield", "speed"]
@@ -37,10 +38,10 @@ static func are_all_stats_equal(stats: Dictionary) -> bool:
 	return true
 
 
-static func get_size_suffix(cost: int) -> String:
-	if cost > SIZE_MEDIUM_MAX_COST:
+static func get_size_suffix_for_stat_sum(stat_sum: int) -> String:
+	if stat_sum > SIZE_MEDIUM_MAX_SUM:
 		return "l"
-	if cost >= SIZE_SMALL_MAX_COST:
+	if stat_sum > SIZE_SMALL_MAX_SUM:
 		return "m"
 	return "s"
 
@@ -49,10 +50,10 @@ static func get_icon_path(shape: String, size_suffix: String) -> String:
 	return ICONS_DIR + "%s-%s.png" % [shape, size_suffix]
 
 
-static func get_icon_path_from_stats(stats: Dictionary, is_command: bool) -> String:
+static func get_icon_path_from_stats(stats: Dictionary, _is_command: bool = false) -> String:
 	var shape := "circle" if are_all_stats_equal(stats) else str(STAT_TO_SHAPE.get(get_dominant_stat(stats), "cross"))
-	var cost := UnitPresetBalance.calculate_cost(stats, is_command)
-	return get_icon_path(shape, get_size_suffix(cost))
+	var stat_sum := UnitPresetBalance.sum_stats(stats)
+	return get_icon_path(shape, get_size_suffix_for_stat_sum(stat_sum))
 
 
 static func get_icon_path_for_preset(preset: UnitPreset) -> String:

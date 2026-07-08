@@ -1,13 +1,11 @@
-[gd_scene load_steps=5 format=3 uid="uid://bwp5hwlei615o"]
+[gd_scene format=3 uid="uid://bwp5hwlei615o"]
 
+[ext_resource type="Theme" uid="uid://cs6k2aheouulp" path="res://prefabs/themes/main_theme.tres" id="1_kdulx"]
 [ext_resource type="Script" uid="uid://disni6i8y4hfe" path="res://scripts/UI/fob_panel.gd" id="1_qhmdu"]
 [ext_resource type="PackedScene" uid="uid://bchss6rum1oey" path="res://prefabs/ui/unit_card.tscn" id="2_cmduc"]
 [ext_resource type="PackedScene" uid="uid://y2kl2a7ru2u6" path="res://prefabs/ui/command_unit_card.tscn" id="3_81dbq"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_x7peu"]
-bg_color = Color(0.252028, 0.252028, 0.252028, 0.34902)
-
-[node name="FobPanel" type="PanelContainer"]
+[node name="FobPanel" type="PanelContainer" unique_id=1378171201]
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
@@ -16,30 +14,30 @@ anchor_bottom = 0.5
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 1
-theme_override_styles/panel = SubResource("StyleBoxFlat_x7peu")
+theme = ExtResource("1_kdulx")
 script = ExtResource("1_qhmdu")
 
-[node name="FobPanelMarginContainer" type="MarginContainer" parent="."]
+[node name="FobPanelMarginContainer" type="MarginContainer" parent="." unique_id=1019126946]
 layout_mode = 2
 theme_override_constants/margin_left = 5
 theme_override_constants/margin_top = 5
 theme_override_constants/margin_right = 5
 theme_override_constants/margin_bottom = 5
 
-[node name="MainRack" type="VBoxContainer" parent="FobPanelMarginContainer"]
+[node name="MainRack" type="VBoxContainer" parent="FobPanelMarginContainer" unique_id=1052869094]
 layout_mode = 2
 
-[node name="TitleLabel" type="Label" parent="FobPanelMarginContainer/MainRack"]
+[node name="TitleLabel" type="Label" parent="FobPanelMarginContainer/MainRack" unique_id=1817187306]
 layout_mode = 2
 text = "Unit Production"
 horizontal_alignment = 1
 
-[node name="UnitsBoard" type="HBoxContainer" parent="FobPanelMarginContainer/MainRack"]
+[node name="UnitsBoard" type="HBoxContainer" parent="FobPanelMarginContainer/MainRack" unique_id=1861081196]
 layout_mode = 2
 
-[node name="UnitCard" parent="FobPanelMarginContainer/MainRack/UnitsBoard" instance=ExtResource("2_cmduc")]
+[node name="UnitCard" parent="FobPanelMarginContainer/MainRack/UnitsBoard" unique_id=563312457 instance=ExtResource("2_cmduc")]
 layout_mode = 2
 mouse_filter = 1
 
-[node name="CommandUnitCard2" parent="FobPanelMarginContainer/MainRack/UnitsBoard" instance=ExtResource("3_81dbq")]
+[node name="CommandUnitCard2" parent="FobPanelMarginContainer/MainRack/UnitsBoard" unique_id=142660473 instance=ExtResource("3_81dbq")]
 layout_mode = 2

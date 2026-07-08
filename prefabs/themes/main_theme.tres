@@ -1,0 +1,16 @@
+[gd_resource type="Theme" format=3 uid="uid://cs6k2aheouulp"]
+
+[ext_resource type="FontFile" uid="uid://itslrqt02h67" path="res://assets/fonts/JetBrainsMonoNL-Regular.ttf" id="1_ekhwo"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_7c8ct"]
+bg_color = Color(0.13333334, 0.13333334, 0.18039216, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.5882353, 0.5882353, 0.7372549, 1)
+
+[resource]
+default_font = ExtResource("1_ekhwo")
+default_font_size = 12
+PanelContainer/styles/panel = SubResource("StyleBoxFlat_7c8ct")

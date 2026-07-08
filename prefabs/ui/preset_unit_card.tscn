@@ -1,12 +1,18 @@
 [gd_scene format=3 uid="uid://jsnyh1bnqrga"]
 
+[ext_resource type="Theme" uid="uid://cs6k2aheouulp" path="res://prefabs/themes/main_theme.tres" id="1_n5sns"]
 [ext_resource type="Script" uid="uid://d3x7omvvg5rek" path="res://scripts/UI/preset_unit_card.gd" id="1_preset"]
 
 [node name="PresetUnitCard" type="PanelContainer" unique_id=854243466]
+theme = ExtResource("1_n5sns")
 script = ExtResource("1_preset")
 
 [node name="MarginContainer" type="MarginContainer" parent="." unique_id=1193298858]
 layout_mode = 2
+theme_override_constants/margin_left = 3
+theme_override_constants/margin_top = 3
+theme_override_constants/margin_right = 3
+theme_override_constants/margin_bottom = 3
 
 [node name="MainRack" type="VBoxContainer" parent="MarginContainer" unique_id=1079060374]
 layout_mode = 2
@@ -14,23 +20,29 @@ layout_mode = 2
 [node name="NameLabel" type="Label" parent="MarginContainer/MainRack" unique_id=2092660524]
 layout_mode = 2
 text = "МК-1"
+horizontal_alignment = 1
 
 [node name="AttackLabel" type="Label" parent="MarginContainer/MainRack" unique_id=788810721]
 layout_mode = 2
 text = "Атака: 5"
+horizontal_alignment = 1
 
 [node name="RangeLabel" type="Label" parent="MarginContainer/MainRack" unique_id=81254800]
 layout_mode = 2
 text = "Обзор: 5"
+horizontal_alignment = 1
 
 [node name="SpeedLabel" type="Label" parent="MarginContainer/MainRack" unique_id=1413612882]
 layout_mode = 2
 text = "Скорость: 5"
+horizontal_alignment = 1
 
 [node name="HealthLabel" type="Label" parent="MarginContainer/MainRack" unique_id=1578384700]
 layout_mode = 2
 text = "Прочность: 5"
+horizontal_alignment = 1
 
 [node name="CostLabel" type="Label" parent="MarginContainer/MainRack" unique_id=141737595]
 layout_mode = 2
 text = "Цена: 25"
+horizontal_alignment = 1

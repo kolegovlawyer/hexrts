@@ -1,15 +1,7 @@
 [gd_scene format=3 uid="uid://bw3enpouyp31e"]
 
-[ext_resource type="StyleBox" uid="uid://dkdtwbvicdmyv" path="res://prefabs/ui/themes/main_style.tres" id="1_kgsmo"]
+[ext_resource type="Theme" uid="uid://cs6k2aheouulp" path="res://prefabs/themes/main_theme.tres" id="1_i5vhy"]
 [ext_resource type="Script" uid="uid://bssnie2mgc4es" path="res://scripts/UI/unit_editor.gd" id="2_i5vhy"]
-
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_vq60a"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1hqq8"]
-
-[sub_resource type="Theme" id="Theme_t2ad6"]
-ProgressBar/styles/background = SubResource("StyleBoxEmpty_vq60a")
-ProgressBar/styles/fill = SubResource("StyleBoxFlat_1hqq8")
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_63f6l"]
 bg_color = Color(0.6, 0.6, 0.6, 0)
@@ -55,15 +47,16 @@ offset_right = 202.0
 offset_bottom = 123.0
 grow_horizontal = 2
 grow_vertical = 2
-theme = SubResource("Theme_t2ad6")
-theme_override_styles/panel = ExtResource("1_kgsmo")
+theme = ExtResource("1_i5vhy")
 script = ExtResource("2_i5vhy")
 
 [node name="ColorPanel" type="Panel" parent="." unique_id=1677711983]
+visible = false
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_63f6l")
 
 [node name="ColorPanel2" type="Panel" parent="." unique_id=135081827]
+visible = false
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_re5vh")
 
@@ -102,6 +95,10 @@ text = "?"
 layout_mode = 2
 text = "Save
 "
+
+[node name="DeleteButton" type="Button" parent="MarginContainer/MainContainer/HeaderRack" unique_id=3847291056]
+layout_mode = 2
+text = "Удалить"
 
 [node name="ComandButton" type="Button" parent="MarginContainer/MainContainer/HeaderRack" unique_id=1494386578]
 layout_mode = 2

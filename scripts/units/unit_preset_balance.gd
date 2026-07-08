@@ -5,13 +5,14 @@ extends RefCounted
 
 const STAT_MIN := 1
 const STAT_MAX := 20
+const STAT_SUM_MAX := 40
 const DEFAULT_STAT := 5
 const STAT_KEYS: Array[String] = ["health", "speed", "damage", "shield", "range"]
 
 const BASE_COST_PER_POINT := 1
 const COMMAND_COST_MULTIPLIER := 2.0
 
-## Секунд найма на 1 очко стоимости (25 очков -> 5 сек, 100 -> 20 сек).
+## Секунд найма на 1 очко стоимости (25 очков -> 5 сек, 40 -> 8 сек).
 const SPAWN_SECONDS_PER_COST_POINT := 0.2
 
 ## Перевод очков редактора в игровые значения (дефолт 5 ≈ текущий base_unit).
@@ -21,16 +22,19 @@ const SPEED_PER_STAT := 30
 const DAMAGE_PER_STAT := 1
 const VISION_RADIUS_PER_STAT := 40
 
-## Визуальный масштаб по стоимости пресета.
-const NORMAL_COST_MIN := 5
-const NORMAL_COST_MAX := 100
-const NORMAL_SCALE_MIN := 0.5
-const NORMAL_SCALE_MAX := 1.5
+## Множители кривой speed: stat=1 → +200% (×3), stat=20 → −20% от линейной базы.
+const SPEED_MULT_AT_MIN := 3.0
+const SPEED_MULT_AT_MAX := 0.8
 
-const COMMAND_COST_MIN := 10
-const COMMAND_COST_MAX := 200
-const COMMAND_SCALE_MIN := 1.0
-const COMMAND_SCALE_MAX := 2.0
+## Множители кривой обзора: stat=1 → +200% (×3), stat=20 → −10% от линейной базы.
+const VISION_MULT_AT_MIN := 3.0
+const VISION_MULT_AT_MAX := 0.9
+
+## Визуальный масштаб иконки по сумме статов (5 → 0.5×, 40 → 1.5×).
+const SCALE_STAT_SUM_MIN := 5
+const SCALE_STAT_SUM_MAX := STAT_SUM_MAX
+const SCALE_MIN := 0.5
+const SCALE_MAX := 1.5
 
 
 static func default_stats() -> Dictionary:
@@ -80,8 +84,19 @@ static func to_game_shield(stat: int) -> int:
 	return clamp_stat(stat) * SHIELD_PER_STAT
 
 
+static func _curved_stat_value(stat: int, per_stat: int, mult_at_min: float, mult_at_max: float) -> float:
+	## Якоря на stat=1 и stat=20; между ними — lerp итогового значения.
+	## Нельзя умножать stat на падающий множитель: при mult(20)=0.8 stat=15
+	## даёт 15×30×1.38≈621, а stat=20 — только 480.
+	var s := float(clamp_stat(stat))
+	var value_at_min := float(STAT_MIN) * float(per_stat) * mult_at_min
+	var value_at_max := float(STAT_MAX) * float(per_stat) * mult_at_max
+	var t := (s - float(STAT_MIN)) / float(STAT_MAX - STAT_MIN)
+	return lerpf(value_at_min, value_at_max, t)
+
+
 static func to_game_speed(stat: int) -> int:
-	return clamp_stat(stat) * SPEED_PER_STAT
+	return int(round(_curved_stat_value(stat, SPEED_PER_STAT, SPEED_MULT_AT_MIN, SPEED_MULT_AT_MAX)))
 
 
 static func to_game_damage(stat: int) -> int:
@@ -89,7 +104,7 @@ static func to_game_damage(stat: int) -> int:
 
 
 static func to_game_vision_radius(stat: int) -> float:
-	return float(clamp_stat(stat)) * VISION_RADIUS_PER_STAT
+	return _curved_stat_value(stat, VISION_RADIUS_PER_STAT, VISION_MULT_AT_MIN, VISION_MULT_AT_MAX)
 
 
 static func validate_spawn_request(stats: Dictionary, is_command: bool, claimed_cost: int) -> bool:
@@ -97,8 +112,14 @@ static func validate_spawn_request(stats: Dictionary, is_command: bool, claimed_
 
 
 static func get_max_cost(is_command: bool) -> int:
-	var max_stat_sum := STAT_MAX * STAT_KEYS.size()
-	return max_stat_sum * get_cost_per_point(is_command)
+	return STAT_SUM_MAX * get_cost_per_point(is_command)
+
+
+static func can_increase_stat(stats: Dictionary, stat_key: String) -> bool:
+	if sum_stats(stats) >= STAT_SUM_MAX:
+		return false
+	var current := clamp_stat(int(stats.get(stat_key, DEFAULT_STAT)))
+	return current < STAT_MAX
 
 
 static func are_raw_stats_within_limits(stats: Dictionary) -> bool:
@@ -113,18 +134,29 @@ static func are_raw_stats_within_limits(stats: Dictionary) -> bool:
 	return true
 
 
-static func is_valid_preset_stats(stats: Dictionary, is_command: bool) -> bool:
+static func is_valid_preset_stats(stats: Dictionary, _is_command: bool) -> bool:
 	if not are_raw_stats_within_limits(stats):
 		return false
-	return calculate_cost(stats, is_command) <= get_max_cost(is_command)
+	return sum_stats(stats) <= STAT_SUM_MAX
+
+
+static func stat_sum_from_recruitment_cost(cost: int, is_command: bool) -> int:
+	var per_point := get_cost_per_point(is_command)
+	if per_point <= 0:
+		return 0
+	return cost / per_point
+
+
+static func visual_scale_for_stat_sum(stat_sum: int) -> float:
+	var t := 0.0
+	if SCALE_STAT_SUM_MAX > SCALE_STAT_SUM_MIN:
+		t = clampf(
+			float(stat_sum - SCALE_STAT_SUM_MIN) / float(SCALE_STAT_SUM_MAX - SCALE_STAT_SUM_MIN),
+			0.0,
+			1.0
+		)
+	return lerpf(SCALE_MIN, SCALE_MAX, t)
 
 
 static func visual_scale_for_cost(cost: int, is_command: bool) -> float:
-	var c_min: int = COMMAND_COST_MIN if is_command else NORMAL_COST_MIN
-	var c_max: int = COMMAND_COST_MAX if is_command else NORMAL_COST_MAX
-	var s_min: float = COMMAND_SCALE_MIN if is_command else NORMAL_SCALE_MIN
-	var s_max: float = COMMAND_SCALE_MAX if is_command else NORMAL_SCALE_MAX
-	var t := 0.0
-	if c_max > c_min:
-		t = clampf(float(cost - c_min) / float(c_max - c_min), 0.0, 1.0)
-	return lerpf(s_min, s_max, t)
+	return visual_scale_for_stat_sum(stat_sum_from_recruitment_cost(cost, is_command))

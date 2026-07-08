@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3 uid="uid://bchss6rum1oey"]
+[gd_scene format=3 uid="uid://bchss6rum1oey"]
 
 [ext_resource type="Script" uid="uid://b8pkgen7g6dc6" path="res://scripts/UI/unit_card.gd" id="1_lxerf"]
 
-[node name="UnitCard" type="PanelContainer"]
+[node name="UnitCard" type="PanelContainer" unique_id=1993099615]
 anchors_preset = -1
 anchor_left = 0.465712
 anchor_top = 0.378086
@@ -14,38 +14,38 @@ grow_vertical = 2
 script = ExtResource("1_lxerf")
 metadata/_edit_use_anchors_ = true
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=164870763]
 layout_mode = 2
 
-[node name="MainRack" type="VBoxContainer" parent="MarginContainer"]
+[node name="MainRack" type="VBoxContainer" parent="MarginContainer" unique_id=138446862]
 layout_mode = 2
 
-[node name="NameLabel" type="Label" parent="MarginContainer/MainRack"]
+[node name="NameLabel" type="Label" parent="MarginContainer/MainRack" unique_id=452965838]
 layout_mode = 2
 text = "BaseUnit"
 
-[node name="AttackLabel" type="Label" parent="MarginContainer/MainRack"]
+[node name="AttackLabel" type="Label" parent="MarginContainer/MainRack" unique_id=1739378491]
 layout_mode = 2
 text = "Attack: 20
 "
 
-[node name="RangeLabel" type="Label" parent="MarginContainer/MainRack"]
+[node name="RangeLabel" type="Label" parent="MarginContainer/MainRack" unique_id=1870773918]
 layout_mode = 2
 text = "Range: 20
 "
 
-[node name="RoFLabel" type="Label" parent="MarginContainer/MainRack"]
+[node name="RoFLabel" type="Label" parent="MarginContainer/MainRack" unique_id=1841627448]
 layout_mode = 2
 text = "RoF: 20"
 
-[node name="SpeedLabel" type="Label" parent="MarginContainer/MainRack"]
+[node name="SpeedLabel" type="Label" parent="MarginContainer/MainRack" unique_id=2076374647]
 layout_mode = 2
 text = "Speed: 20"
 
-[node name="HealthLabel" type="Label" parent="MarginContainer/MainRack"]
+[node name="HealthLabel" type="Label" parent="MarginContainer/MainRack" unique_id=1896789581]
 layout_mode = 2
 text = "Health: 20"
 
-[node name="CostLabel" type="Label" parent="MarginContainer/MainRack"]
+[node name="CostLabel" type="Label" parent="MarginContainer/MainRack" unique_id=1151307190]
 layout_mode = 2
 text = "Cost: 10 points"

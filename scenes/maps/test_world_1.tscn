@@ -44,6 +44,7 @@ script = ExtResource("3_kp86q")
 
 [node name="MainMap" parent="." unique_id=596477394 instance=ExtResource("3_hjgmh")]
 visible = true
+navigation_visibility_mode = 1
 
 [node name="SpawnerA" parent="MainMap" unique_id=168378332 groups=["team_0_fobs"] instance=ExtResource("2_ptgwm")]
 position = Vector2(303, -1577)

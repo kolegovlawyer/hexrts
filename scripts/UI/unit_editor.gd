@@ -42,6 +42,7 @@ const STAT_UI: Array[Dictionary] = [
 @onready var unit_type_list: OptionButton = $MarginContainer/MainContainer/UnitTypeList
 @onready var reset_button: Button = $MarginContainer/MainContainer/HeaderRack/ResetButton
 @onready var save_button: Button = $MarginContainer/MainContainer/HeaderRack/SaveButton
+@onready var delete_button: Button = $MarginContainer/MainContainer/HeaderRack/DeleteButton
 @onready var command_button: Button = $MarginContainer/MainContainer/HeaderRack/ComandButton
 @onready var name_field: LineEdit = $MarginContainer/MainContainer/HeaderRack/NameLabel
 @onready var cost_label: Label = $MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard/CostLabel
@@ -72,6 +73,7 @@ func _configure_progress_bars() -> void:
 func _connect_ui() -> void:
 	reset_button.pressed.connect(_on_reset_pressed)
 	save_button.pressed.connect(_on_save_pressed)
+	delete_button.pressed.connect(_on_delete_pressed)
 	command_button.pressed.connect(_on_command_pressed)
 	close_button.pressed.connect(_on_close_pressed)
 	save_presets_button.pressed.connect(_on_save_presets_pressed)
@@ -159,6 +161,24 @@ func _on_save_pressed() -> void:
 	UnitPresetManager.export_presets_to_disk(_get_player_id())
 
 
+func _on_delete_pressed() -> void:
+	if _working_preset == null or _working_preset.preset_id == "":
+		return
+	var preset_id := _working_preset.preset_id
+	if not UnitPresetManager.delete_preset(_get_player_id(), preset_id):
+		return
+	UnitPresetManager.export_presets_to_disk(_get_player_id())
+	_load_presets_into_list()
+	var presets := UnitPresetManager.get_presets(_get_player_id())
+	if presets.is_empty():
+		_select_preset_index(0)
+		return
+	_suppress_list_signal = true
+	unit_type_list.select(0)
+	_suppress_list_signal = false
+	_select_preset_index(0)
+
+
 func _on_close_pressed() -> void:
 	queue_free()
 
@@ -196,6 +216,8 @@ func _change_stat(stat_key: String, delta: int) -> void:
 	_sync_name_from_field()
 	var stats := _working_preset.get_stats_dict()
 	var current := int(stats.get(stat_key, UnitPresetBalance.DEFAULT_STAT))
+	if delta > 0 and not UnitPresetBalance.can_increase_stat(stats, stat_key):
+		return
 	stats[stat_key] = UnitPresetBalance.clamp_stat(current + delta)
 	_working_preset.apply_stats_dict(stats)
 	_refresh_ui()
@@ -214,6 +236,7 @@ func _refresh_ui() -> void:
 	if name_field.text != _working_preset.preset_name:
 		name_field.text = _working_preset.preset_name
 	command_button.modulate = Color(1.0, 0.85, 0.35) if _working_preset.is_command else Color.WHITE
+	delete_button.disabled = _working_preset.preset_id == ""
 
 	var stats := _working_preset.get_stats_dict()
 	for entry in STAT_UI:

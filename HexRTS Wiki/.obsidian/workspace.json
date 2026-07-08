@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Concept.md",
+                "file": "от Барта.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Concept"
+              "title": "от Барта"
             }
           }
         ],
@@ -93,7 +93,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "right": {
     "id": "8849242ce7c09878",
@@ -186,11 +187,18 @@
   },
   "active": "3a5a8cfc688ea0cc",
   "lastOpenFiles": [
+    "Pasted image 20260708170825.png.import",
+    "Pasted image 20260708170835.png.import",
+    "Pasted image 20260708170841.png.import",
+    "Pasted image 20260708170841.png",
+    "Pasted image 20260708170835.png",
+    "Pasted image 20260708170825.png",
+    "Welcome.md",
+    "от Барта.md",
+    "README.md",
+    "PROFILING_GUIDE.md",
     "Pasted image 20260703145652.png.import",
     "Pasted image 20260703145652.png",
-    "PROFILING_GUIDE.md",
-    "Concept.md",
-    "README.md",
-    "Welcome.md"
+    "Concept.md"
   ]
 }

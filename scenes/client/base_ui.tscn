@@ -1,5 +1,6 @@
 [gd_scene format=3 uid="uid://ba0l1pr5dv2bx"]
 
+[ext_resource type="Theme" uid="uid://cs6k2aheouulp" path="res://prefabs/themes/main_theme.tres" id="1_7lyqf"]
 [ext_resource type="Script" uid="uid://4d6x1qmqxrcy" path="res://scripts/UI/base_ui.gd" id="1_euhh7"]
 [ext_resource type="Texture2D" uid="uid://bwtna2m5tej4e" path="res://assets/icons/icon-close.png" id="2_swtpc"]
 [ext_resource type="Texture2D" uid="uid://ck28vrccyxat3" path="res://assets/icons/icon-hex.png" id="3_djfhl"]
@@ -91,6 +92,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 1
+theme = ExtResource("1_7lyqf")
 script = ExtResource("1_euhh7")
 
 [node name="MarginContainer" type="MarginContainer" parent="." unique_id=947141843]

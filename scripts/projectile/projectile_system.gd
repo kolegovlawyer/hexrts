@@ -30,7 +30,14 @@ func _exit_tree() -> void:
 
 ## СЕРВЕРНЫЕ ФУНКЦИИ
 @rpc("any_peer", "call_local", "reliable")
-func create_projectile(owner_uid: String, target_uid: String, damage: int, explosion_radius: float = 50.0) -> void:
+func create_projectile(
+		owner_uid: String,
+		target_uid: String,
+		damage: int,
+		explosion_radius: float = 50.0,
+		aim_offset_x: float = 0.0,
+		aim_offset_y: float = 0.0
+	) -> void:
 	"""
 	Главная функция создания снарядов - вызывается клиентами через RPC
 	
@@ -78,6 +85,8 @@ func create_projectile(owner_uid: String, target_uid: String, damage: int, explo
 		# Цель исчезла или умерла - стреляем в направлении по умолчанию
 		target_position = owner_unit.global_position + Vector2(100, 0)
 		# print("⚠️ Цель не найдена, стреляем в направлении по умолчанию")  # DEBUG
+	
+	target_position += Vector2(aim_offset_x, aim_offset_y)
 	
 	# Создаем серверный снаряд с полной логикой (урон, коллизии, взрывы)
 	var projectile = preload("res://scripts/projectile/projectile.gd").new()

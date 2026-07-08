@@ -50,7 +50,7 @@ position = Vector2(303, -1577)
 collision_layer = 3
 
 [node name="SpawnerB" parent="MainMap" unique_id=1226671335 groups=["team_1_fobs"] instance=ExtResource("2_ptgwm")]
-position = Vector2(-1922, -655)
+position = Vector2(-555, -1355)
 collision_layer = 3
 team = 1
 

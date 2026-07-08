@@ -45,6 +45,9 @@ var points_timer: Timer
 
 var battle_log: Node = null
 
+# player_id -> включена ли атака на ходу (HUD ToggleMovementAttack)
+var movement_attack_by_player: Dictionary = {}
+
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -674,6 +677,23 @@ func get_bot_team_by_id(player_id: int) -> int:
 		if bot.bot_id == player_id:
 			return int(bot.bot_team)
 	return -1
+
+
+@rpc("any_peer", "reliable")
+func set_movement_attack_enabled(enabled: bool) -> void:
+	if not is_multiplayer_authority():
+		return
+	var player_id: int = multiplayer.get_remote_sender_id()
+	if player_id == 0:
+		player_id = multiplayer.get_unique_id()
+	movement_attack_by_player[player_id] = enabled
+
+
+func is_movement_attack_enabled(player_id: int) -> bool:
+	if get_bot_team_by_id(player_id) != -1:
+		return false
+	return movement_attack_by_player.get(player_id, false)
+
 
 func register_bot(bot: Bot) -> void:
 	"""

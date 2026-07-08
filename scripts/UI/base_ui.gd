@@ -25,6 +25,9 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 @onready var spread_button = get_node(
 	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/SpreadButton"
 )
+@onready var movement_attack_toggle = get_node(
+	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/ToggleMovementAttack"
+)
 
 var unit_editor: UnitEditor = null
 
@@ -191,6 +194,10 @@ func _ready() -> void:
 	unit_editor_button.pressed.connect(open_unit_editor)
 	if spread_button:
 		spread_button.pressed.connect(_on_spread_pressed)
+	if movement_attack_toggle:
+		movement_attack_toggle.toggle_mode = true
+		movement_attack_toggle.toggled.connect(_on_movement_attack_toggled)
+		_update_movement_attack_toggle_visual(movement_attack_toggle.button_pressed)
 	_initialize_points_display()
 	_initialize_battle_log()
 
@@ -210,6 +217,15 @@ func _on_spread_pressed() -> void:
 	for i in range(selected.size()):
 		var dest: Vector2 = targets[i] if i < targets.size() else positions[i]
 		selected[i].rpc_id(1, "add_order", dest, true)
+
+func _on_movement_attack_toggled(pressed: bool) -> void:
+	_update_movement_attack_toggle_visual(pressed)
+	if Handlers.GameHandler:
+		Handlers.GameHandler.rpc("set_movement_attack_enabled", pressed)
+
+func _update_movement_attack_toggle_visual(pressed: bool) -> void:
+	if movement_attack_toggle:
+		movement_attack_toggle.modulate = Color(1.2, 1.2, 1.0) if pressed else Color.WHITE
 
 func register_unit_preview(uid: String, preview: UnitPreview) -> void:
 	if uid == "" or preview == null or preview.is_queued_for_deletion():

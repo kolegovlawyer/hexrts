@@ -161,6 +161,8 @@ const CROWD_CACHE_FRAMES: int = 12
 const CROWD_REACH_DIST: float = 40.0
 const CROWD_PRIORITY_IDLE: float = 1.0
 const CROWD_PRIORITY_MOVING: float = 0.2
+const MOVING_ATTACK_MIN_SPEED: float = 8.0
+const MOVING_SHOOT_MAX_SPREAD: float = 70.0
 const LATERAL_PUSH_RADIUS: float = 70.0
 const LATERAL_PUSH_STRENGTH: float = 0.55
 
@@ -292,23 +294,26 @@ func _physics_process(delta: float) -> void:
 		# ⚡ КРИТИЧЕСКИ ВАЖНО: Обработка приказов ТОЛЬКО ИГРОКОВ мгновенно!
 		var _is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
 		if not _is_bot and orders.size() > 0:
-			var order = orders[0]
-			match order.type:
-				"move":
-					_process_move_order_immediate(order, delta, _is_bot)
-				"attack":
-					_process_attack_order_immediate(order)
-				"attack_fob":
-					_process_attack_fob_order_immediate(order)
+			var move_order: Dictionary = _find_first_order(["move"])
+			var attack_order: Dictionary = _find_first_order(["attack"])
+			var fob_order: Dictionary = _find_first_order(["attack_fob"])
+			if not move_order.is_empty():
+				_process_move_order_immediate(move_order, delta, _is_bot)
+			if not attack_order.is_empty():
+				_process_attack_order_immediate(attack_order)
+			elif not fob_order.is_empty():
+				_process_attack_fob_order_immediate(fob_order)
 		
 		# ИСПРАВЛЕНИЕ: Обработка приказов атаки в состоянии AUTO_ATTACKING (автоатака ИИ)
 		# Для автоатаки нужно обрабатывать приказы в каждом фрейме для отзывчивости
 		if unit_state == UNIT_STATES.AUTO_ATTACKING and orders.size() > 0:
-			var attack_order = orders[0]
-			if attack_order.type == "attack":
-				_process_attack_order_immediate(attack_order)
-			elif attack_order.type == "attack_fob":
-				_process_attack_fob_order_immediate(attack_order)
+			var auto_attack_order: Dictionary = _find_first_order(["attack"])
+			if not auto_attack_order.is_empty():
+				_process_attack_order_immediate(auto_attack_order)
+			else:
+				var auto_fob_order: Dictionary = _find_first_order(["attack_fob"])
+				if not auto_fob_order.is_empty():
+					_process_attack_fob_order_immediate(auto_fob_order)
 		
 		# RVO: moving — full avoidance; idle — LOCKED (set_velocity ZERO, no move_and_slide).
 		# Locked stationary agents stay in the RVO sim as obstacles without being dragged.
@@ -331,6 +336,9 @@ func _physics_process(delta: float) -> void:
 			navagent.set_velocity(Vector2.ZERO)
 			_static_block_frames = 0
 			_unit_block_frames = 0
+		
+		if not _is_bot:
+			_try_opportunistic_attack_while_moving()
 		
 		# === ТЯЖЕЛЫЕ ВЫЧИСЛЕНИЯ (РАСПРЕДЕЛЕННЫЕ ПО ФРЕЙМАМ - АВТОМАТИКА) ===
 		if is_time_to_heavy_calculations():
@@ -396,33 +404,39 @@ func _process_move_order_immediate(order: Dictionary, delta: float, is_bot: bool
 
 func _process_attack_order_immediate(order: Dictionary) -> void:
 	"""МГНОВЕННАЯ обработка приказов атаки для отзывчивости игрока"""
-	if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
-		unit_state = UNIT_STATES.ATTACKING
+	if not _should_preserve_moving_state():
+		if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
+			unit_state = UNIT_STATES.ATTACKING
 	
 	if not is_instance_valid(order.target):
-		_pop_current_order()
-		unit_state = UNIT_STATES.IDLE
+		_pop_order_by_type("attack")
+		if not _should_preserve_moving_state():
+			unit_state = UNIT_STATES.IDLE
 	else:
 		var target: BaseUnitServer = order.target
 		if not can_see_target(target):
-			_pop_current_order()
-			unit_state = UNIT_STATES.IDLE
+			_pop_order_by_type("attack")
+			if not _should_preserve_moving_state():
+				unit_state = UNIT_STATES.IDLE
 		else:
 			attack(target)
 
 func _process_attack_fob_order_immediate(order: Dictionary) -> void:
-	if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
-		unit_state = UNIT_STATES.ATTACKING
+	if not _should_preserve_moving_state():
+		if unit_state != UNIT_STATES.ATTACKING and unit_state != UNIT_STATES.AUTO_ATTACKING:
+			unit_state = UNIT_STATES.ATTACKING
 	
 	if not is_instance_valid(order.target) or not order.target is fob:
-		_pop_current_order()
-		unit_state = UNIT_STATES.IDLE
+		_pop_order_by_type("attack_fob")
+		if not _should_preserve_moving_state():
+			unit_state = UNIT_STATES.IDLE
 		return
 	
 	var target_fob: fob = order.target
 	if not can_see_fob(target_fob):
-		_pop_current_order()
-		unit_state = UNIT_STATES.IDLE
+		_pop_order_by_type("attack_fob")
+		if not _should_preserve_moving_state():
+			unit_state = UNIT_STATES.IDLE
 	else:
 		attack_fob(target_fob)
 
@@ -651,6 +665,73 @@ func _pop_current_order() -> void:
 	orders.pop_front()
 	_sync_order_queue_to_owner()
 
+
+func _pop_order_by_type(order_type: String) -> void:
+	for i in range(orders.size()):
+		if orders[i].get("type", "") == order_type:
+			orders.remove_at(i)
+			_sync_order_queue_to_owner()
+			return
+
+
+func _find_first_order(types: Array) -> Dictionary:
+	for order in orders:
+		if order.has("type") and order.type in types:
+			return order
+	return {}
+
+
+func _has_order_type(order_type: String) -> bool:
+	return not _find_first_order([order_type]).is_empty()
+
+
+func _should_preserve_moving_state() -> bool:
+	if not _find_first_order(["move", "move_capture"]).is_empty():
+		return true
+	return not navagent.is_navigation_finished()
+
+
+func _is_movement_attack_enabled() -> bool:
+	if not Handlers.GameHandler:
+		return false
+	return Handlers.GameHandler.is_movement_attack_enabled(owner_id)
+
+
+func _get_move_speed_ratio() -> float:
+	if speed <= 0:
+		return 0.0
+	return clampf(velocity.length() / float(speed), 0.0, 1.0)
+
+
+func _compute_projectile_spread_offset() -> Vector2:
+	var ratio: float = _get_move_speed_ratio()
+	if ratio <= 0.0:
+		return Vector2.ZERO
+	var spread_radius: float = ratio * MOVING_SHOOT_MAX_SPREAD
+	return Vector2.from_angle(randf() * TAU) * spread_radius
+
+
+func _try_opportunistic_attack_while_moving() -> void:
+	if not _is_movement_attack_enabled():
+		return
+	if velocity.length() < MOVING_ATTACK_MIN_SPEED:
+		return
+	if reload_timer.time_left > 0:
+		return
+	if _has_order_type("attack") or _has_order_type("attack_fob"):
+		return
+	
+	var visible_enemies: Array[BaseUnitServer] = _get_visible_enemies()
+	if not visible_enemies.is_empty():
+		var target_enemy: BaseUnitServer = _select_best_target(visible_enemies)
+		if is_valid_unit(target_enemy):
+			attack(target_enemy)
+			return
+	
+	var target_fob: fob = _get_best_enemy_fob_target()
+	if target_fob:
+		attack_fob(target_fob)
+
 @rpc("any_peer", "reliable")
 func get_unit_info() -> void:
 	"""Возвращает информацию о юните через RPC"""
@@ -807,8 +888,8 @@ func attack(target: BaseUnitServer) -> void:
 	# Проверка видимости цели
 	if not can_see_target(target):
 		# Удаляем приказ атаки, так как цель невидима
-		if orders.size() > 0 and orders[0].type == "attack":
-			_pop_current_order()
+		if _has_order_type("attack"):
+			_pop_order_by_type("attack")
 		if DEBUG_COMBAT:
 			Handlers.dprint("👁️ ATTACK BLOCKED (no vision): %s -> %s" % [name, target.name])
 		_profile_function_end("attack")
@@ -838,9 +919,12 @@ func attack(target: BaseUnitServer) -> void:
 	# Делегируем создание снаряда централизованной системе ProjectileSystem
 	if Handlers.ProjectileHandler:
 		var explosion_radius = 50.0  # Радиус взрыва (можно сделать настраиваемым параметром юнита)
+		var spread_offset: Vector2 = _compute_projectile_spread_offset()
 		if DEBUG_COMBAT:
 			Handlers.dprint("🚀 PROJECTILE: %s -> %s dmg=%d" % [name, target.name, damage])
-		Handlers.ProjectileHandler.rpc("create_projectile", UID, target.UID, damage, explosion_radius)
+		Handlers.ProjectileHandler.rpc(
+			"create_projectile", UID, target.UID, damage, explosion_radius, spread_offset.x, spread_offset.y
+		)
 	else:
 		if DEBUG_COMBAT:
 			Handlers.dprint("⚠️ PROJECTILE HANDLER MISSING: %s" % name)
@@ -857,8 +941,8 @@ func attack_fob(target_fob: fob) -> void:
 		_profile_function_end("attack_fob")
 		return
 	if not can_see_fob(target_fob):
-		if orders.size() > 0 and orders[0].type == "attack_fob":
-			_pop_current_order()
+		if _has_order_type("attack_fob"):
+			_pop_order_by_type("attack_fob")
 		_profile_function_end("attack_fob")
 		return
 	if reload_timer.time_left > 0:
@@ -866,7 +950,10 @@ func attack_fob(target_fob: fob) -> void:
 		return
 	if Handlers.ProjectileHandler:
 		var explosion_radius = 50.0
-		Handlers.ProjectileHandler.rpc("create_projectile", UID, target_fob.UID, damage, explosion_radius)
+		var spread_offset: Vector2 = _compute_projectile_spread_offset()
+		Handlers.ProjectileHandler.rpc(
+			"create_projectile", UID, target_fob.UID, damage, explosion_radius, spread_offset.x, spread_offset.y
+		)
 	reload_timer.wait_time = reload_time
 	reload_timer.start()
 	_profile_function_end("attack_fob")

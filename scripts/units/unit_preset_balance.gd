@@ -22,13 +22,13 @@ const SPEED_PER_STAT := 30
 const DAMAGE_PER_STAT := 1
 const VISION_RADIUS_PER_STAT := 40
 
-## Множители кривой speed: stat=1 → +200% (×3), stat=20 → −20% от линейной базы.
+## Множители кривой speed: stat=1 → +200% (×3), stat=20 → mult 0.64 (−20% к прошлому максу).
 const SPEED_MULT_AT_MIN := 3.0
-const SPEED_MULT_AT_MAX := 0.8
+const SPEED_MULT_AT_MAX := 0.64
 
-## Множители кривой обзора: stat=1 → +200% (×3), stat=20 → −10% от линейной базы.
+## Множители кривой обзора: stat=1 → +200% (×3), stat=20 → mult 0.81 (−10% к прошлому максу).
 const VISION_MULT_AT_MIN := 3.0
-const VISION_MULT_AT_MAX := 0.9
+const VISION_MULT_AT_MAX := 0.81
 
 ## Визуальный масштаб иконки по сумме статов (5 → 0.5×, 40 → 1.5×).
 const SCALE_STAT_SUM_MIN := 5

@@ -177,6 +177,12 @@ var _route_patrol_direction: int = 1
 const MOVING_SHOOT_MAX_SPREAD: float = 70.0
 const LATERAL_PUSH_RADIUS: float = 70.0
 const LATERAL_PUSH_STRENGTH: float = 0.55
+# Дёрганье на месте в коллизии гексов (дешёвая проверка displacement + slide)
+const JITTER_BOX_RADIUS_SQ: float = 196.0  # 14px радиус
+const JITTER_STUCK_SECONDS: float = 3.0
+var _jitter_anchor_pos: Vector2 = Vector2.ZERO
+var _jitter_stuck_timer: float = 0.0
+var _jitter_tracking_active: bool = false
 
 func generate_numeric_id(length: int) -> String:
 	var id := ""
@@ -288,6 +294,8 @@ func on_velocity_computed(safe_velocity: Vector2) -> void:
 	else:
 		velocity = safe_velocity
 	move_and_slide()
+	if _is_actively_moving:
+		_update_jitter_stuck_detection(get_physics_process_delta_time())
 
 func is_time_to_heavy_calculations() -> bool:
 	if not Handlers.FrameGroupHandler or Handlers.FrameGroupHandler.num_groups <= 0:
@@ -355,6 +363,7 @@ func _physics_process(delta: float) -> void:
 			navagent.set_velocity(Vector2.ZERO)
 			_static_block_frames = 0
 			_unit_block_frames = 0
+			_reset_jitter_stuck_tracking()
 		
 		if not _is_bot:
 			_try_opportunistic_attack_while_moving()
@@ -956,6 +965,7 @@ func clear_orders() -> void:
 		unit_state = UNIT_STATES.IDLE
 		_clear_active_route_wp()
 		_reset_route_patrol()
+		_reset_jitter_stuck_tracking()
 		navagent.target_position = global_position
 		_sync_order_queue_to_owner()
 
@@ -1671,6 +1681,59 @@ func _reset_move_progress_tracking(goal: Vector2) -> void:
 	_progress_best_dist = global_position.distance_to(goal)
 	stuck_timer = 0.0
 	_route_abort_unstuck_used = false
+	_reset_jitter_stuck_tracking()
+
+
+func _reset_jitter_stuck_tracking() -> void:
+	_jitter_anchor_pos = Vector2.ZERO
+	_jitter_stuck_timer = 0.0
+	_jitter_tracking_active = false
+
+
+func _has_geometry_slide_collision() -> bool:
+	"""Контакт со статикой/картой, но не с другим юнитом."""
+	for i in range(get_slide_collision_count()):
+		var col := get_slide_collision(i)
+		if col == null:
+			continue
+		var collider = col.get_collider()
+		if collider is BaseUnitServer:
+			continue
+		return true
+	return false
+
+
+func _update_jitter_stuck_detection(delta: float) -> void:
+	"""
+	Дешёвая детекция застревания в геометрии: долго остаёмся в малом радиусе
+	при контакте со slide-коллизией → отход к FOB.
+	"""
+	if unit_state != UNIT_STATES.MOVING or orders.is_empty():
+		_reset_jitter_stuck_tracking()
+		return
+	if _find_first_order(["move", "move_capture"]).is_empty():
+		_reset_jitter_stuck_tracking()
+		return
+	if not _has_geometry_slide_collision():
+		_jitter_stuck_timer = maxf(0.0, _jitter_stuck_timer - delta * 2.0)
+		if _jitter_stuck_timer <= 0.0:
+			_jitter_anchor_pos = global_position
+			_jitter_tracking_active = false
+		return
+	if not _jitter_tracking_active:
+		_jitter_anchor_pos = global_position
+		_jitter_stuck_timer = 0.0
+		_jitter_tracking_active = true
+		return
+	if global_position.distance_squared_to(_jitter_anchor_pos) > JITTER_BOX_RADIUS_SQ:
+		_jitter_anchor_pos = global_position
+		_jitter_stuck_timer = 0.0
+		return
+	_jitter_stuck_timer += delta
+	if _jitter_stuck_timer < JITTER_STUCK_SECONDS:
+		return
+	_reset_jitter_stuck_tracking()
+	_abort_move_due_to_stuck()
 
 
 func _update_move_progress_or_abort(goal: Vector2, delta: float) -> void:
@@ -1713,6 +1776,7 @@ func _abort_move_due_to_stuck() -> void:
 	_route_abort_unstuck_used = false
 	_desired_velocity = Vector2.ZERO
 	velocity = Vector2.ZERO
+	_reset_jitter_stuck_tracking()
 	orders.clear()
 	var target_fob: fob = _find_nearest_own_fob()
 	if target_fob != null and target_fob.is_alive():

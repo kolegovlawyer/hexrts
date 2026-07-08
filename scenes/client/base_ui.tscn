@@ -2,11 +2,13 @@
 
 [ext_resource type="Script" uid="uid://4d6x1qmqxrcy" path="res://scripts/UI/base_ui.gd" id="1_euhh7"]
 [ext_resource type="Texture2D" uid="uid://bwtna2m5tej4e" path="res://assets/icons/icon-close.png" id="2_swtpc"]
+[ext_resource type="Texture2D" uid="uid://ck28vrccyxat3" path="res://assets/icons/icon-hex.png" id="3_djfhl"]
 [ext_resource type="Texture2D" uid="uid://cq61e37bfqme1" path="res://assets/icons/icon-list.png" id="3_swdpp"]
 [ext_resource type="Texture2D" uid="uid://c472xcde4vt32" path="res://assets/icons/icon-home.png" id="4_ycjsq"]
 [ext_resource type="Texture2D" uid="uid://cjp1165phcj2a" path="res://assets/icons/icon-settings.png" id="5_k0xlx"]
 [ext_resource type="Texture2D" uid="uid://b3yvdstkhg07o" path="res://assets/icons/icon-help.png" id="6_djfhl"]
 [ext_resource type="Texture2D" uid="uid://gphdppkmj22m" path="res://assets/icons/icon-mark.png" id="7_7lyqf"]
+[ext_resource type="Texture2D" uid="uid://0ccs840sbmpw" path="res://assets/icons/icon-hexcontrol.png" id="7_qqbvp"]
 [ext_resource type="Texture2D" uid="uid://cgdq7csii7ckg" path="res://assets/icons/icon-attack.png" id="8_wce3n"]
 [ext_resource type="Texture2D" uid="uid://d3mrjbxipipx2" path="res://assets/icons/icon-target.png" id="8_ycjsq"]
 [ext_resource type="Texture2D" uid="uid://c640ibyul2b0f" path="res://assets/icons/icon-moveshoot.png" id="9_k0xlx"]
@@ -19,7 +21,7 @@
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_3coue"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_27yfh"]
-bg_color = Color(0.08627451, 0.08235294, 0.10980392, 1)
+bg_color = Color(0.13333334, 0.13333334, 0.18039216, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_swdpp"]
 bg_color = Color(0.6, 0.6, 0.6, 0)
@@ -46,7 +48,7 @@ corner_radius_top_right = 15
 anti_aliasing = false
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_mn1js"]
-bg_color = Color(0.584314, 0.584314, 0.733333, 1)
+bg_color = Color(0.20784314, 0.20784314, 0.26666668, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wce3n"]
 bg_color = Color(0.6, 0.6, 0.6, 0)
@@ -56,9 +58,6 @@ bg_color = Color(0.5137255, 0.46666667, 0.23137255, 0.9647059)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_swtpc"]
 bg_color = Color(0.5647059, 0.078431375, 0.16078432, 0.9647059)
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_qo58m"]
-bg_color = Color(0.133333, 0.133333, 0.180392, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_syol4"]
 bg_color = Color(0.6, 0.6, 0.6, 0)
@@ -221,9 +220,9 @@ z_index = 1
 layout_mode = 2
 theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 16
-columns = 3
+columns = 4
 
-[node name="HomeButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=999765790]
+[node name="MenuButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=999765790]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -232,7 +231,27 @@ texture_normal = ExtResource("2_swtpc")
 texture_pressed = ExtResource("2_swtpc")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton" unique_id=82408664]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/MenuButton" unique_id=82408664]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="HexInfoButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=1647698551]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("3_djfhl")
+texture_pressed = ExtResource("3_djfhl")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HexInfoButton" unique_id=480600954]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -263,7 +282,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton3" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=743558357]
+[node name="HomeButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=743558357]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -272,7 +291,7 @@ texture_normal = ExtResource("4_ycjsq")
 texture_pressed = ExtResource("4_ycjsq")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton3" unique_id=1154945328]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton" unique_id=1154945328]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -283,7 +302,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton4" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=2097098467]
+[node name="PlaceHolderButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=2097098467]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -292,7 +311,7 @@ texture_normal = ExtResource("5_k0xlx")
 texture_pressed = ExtResource("5_k0xlx")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton4" unique_id=1751304040]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/PlaceHolderButton" unique_id=1751304040]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -303,7 +322,27 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton5" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=1845159962]
+[node name="PlaceHolderButton2" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=1363493818]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("7_qqbvp")
+texture_pressed = ExtResource("7_qqbvp")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/PlaceHolderButton2" unique_id=564729278]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="PlaceHolderButton3" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=1845159962]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -312,7 +351,7 @@ texture_normal = ExtResource("6_djfhl")
 texture_pressed = ExtResource("6_djfhl")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton5" unique_id=1190437928]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/PlaceHolderButton3" unique_id=1190437928]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -323,7 +362,7 @@ grow_vertical = 2
 mouse_filter = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
 
-[node name="HomeButton6" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=278296984]
+[node name="PlaceHolderButton4" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer" unique_id=278296984]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
@@ -332,7 +371,7 @@ texture_normal = ExtResource("7_7lyqf")
 texture_pressed = ExtResource("7_7lyqf")
 stretch_mode = 0
 
-[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton6" unique_id=1466345680]
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/PlaceHolderButton4" unique_id=1466345680]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15
@@ -407,7 +446,7 @@ mouse_filter = 1
 layout_mode = 2
 size_flags_horizontal = 8
 size_flags_vertical = 8
-theme_override_styles/panel = SubResource("StyleBoxFlat_qo58m")
+theme_override_styles/panel = SubResource("StyleBoxFlat_27yfh")
 
 [node name="StylizedPanel_1" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer" unique_id=1994135392]
 visible = false

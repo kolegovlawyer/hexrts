@@ -52,6 +52,9 @@ signal unit_died(dead_unit: BaseUnit)
 # Флаг командного юнита (для захвата гексов)
 var is_command_unit_flag: bool = false
 
+# Автоогонь: по умолчанию включён для всех юнитов
+var auto_attack_enabled: bool = true
+
 # Базовые методы, которые должны быть реализованы в наследниках
 func _ready() -> void:
 	add_to_group("units")
@@ -156,30 +159,14 @@ func get_unit_info() -> void:
 	"""Возвращает информацию о юните"""
 	pass
 
-@rpc("authority", "call_remote", "reliable")
-func sync_vitals(
-		new_health_value: int,
-		new_shield_value: int,
-		new_max_health: int = -1,
-		new_max_shield: int = -1
+func apply_vitals_from_network(
+		_new_health_value: int,
+		_new_shield_value: int,
+		_new_max_health: int = -1,
+		_new_max_shield: int = -1
 	) -> void:
-	"""Мгновенная синхронизация HP/щита (+ caps). Не через MultiplayerSynchronizer."""
-	if new_max_health > 0:
-		max_health = new_max_health
-	if new_max_shield > 0:
-		max_shield = new_max_shield
-	health = clampi(new_health_value, 0, maxi(1, max_health))
-	shield = clampi(new_shield_value, 0, maxi(0, max_shield))
-	update_health_bar()
-	update_shield_bar()
-
-@rpc("authority", "call_remote", "reliable")
-func sync_health(new_health_value: int) -> void:
-	sync_vitals(new_health_value, shield, max_health, max_shield)
-
-@rpc("authority", "call_remote", "reliable")
-func sync_shield(new_shield_value: int) -> void:
-	sync_vitals(health, new_shield_value, max_health, max_shield)
+	"""Переопределяется в BaseUnitClient. Доставка через GameManager.deliver_unit_vitals."""
+	pass
 
 @rpc("any_peer", "reliable")
 func set_unit_info(_profile_path: String) -> void:
@@ -202,6 +189,19 @@ func sync_preset_stats(
 
 func apply_preset_snapshot(_snapshot: Dictionary) -> void:
 	pass
+
+@rpc("any_peer", "reliable")
+func toggle_auto_attack() -> void:
+	"""Stub: переключение автоогня на сервере (BaseUnitServer)."""
+	pass
+
+@rpc("authority", "call_remote", "reliable")
+func sync_auto_attack_enabled(enabled: bool) -> void:
+	auto_attack_enabled = enabled
+	if Handlers.UIHandler == null or Handlers.UnitSelectionHandler == null:
+		return
+	if self in Handlers.UnitSelectionHandler.selected_units:
+		Handlers.UIHandler.call_deferred("_update_auto_attack_button_visual")
 
 @rpc("authority", "call_local", "reliable")
 func sync_unit_appearance(display_name: String, instance_number: int, icon_path: String) -> void:

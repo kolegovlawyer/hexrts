@@ -546,6 +546,41 @@ func rpc_battle_log_event(
 			event_type, hex_tile, match_seconds, actor_name
 		)
 
+
+@rpc("authority", "call_remote", "reliable")
+func deliver_unit_vitals(
+		unit_uid: String,
+		health_value: int,
+		shield_value: int,
+		max_health_value: int,
+		max_shield_value: int
+	) -> void:
+	if multiplayer.is_server():
+		return
+	_deliver_unit_vitals_local(
+		unit_uid, health_value, shield_value, max_health_value, max_shield_value
+	)
+
+
+func _deliver_unit_vitals_local(
+		unit_uid: String,
+		health_value: int,
+		shield_value: int,
+		max_health_value: int,
+		max_shield_value: int
+	) -> void:
+	for node in get_tree().get_nodes_in_group("units"):
+		if not node is BaseUnit:
+			continue
+		var unit := node as BaseUnit
+		if unit.UID != unit_uid:
+			continue
+		if unit.has_method("apply_vitals_from_network"):
+			unit.apply_vitals_from_network(
+				health_value, shield_value, max_health_value, max_shield_value
+			)
+		return
+
 func register_fob(fob_node: fob) -> void:
 	if not is_multiplayer_authority() or fob_node.UID == "":
 		return

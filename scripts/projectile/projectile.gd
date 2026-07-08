@@ -30,6 +30,7 @@ var target_position: Vector2           # Целевая позиция поле�
 var damage: int = 5                    # Количество урона
 var speed: float = 700.0               # Скорость полета в пикселях/сек
 var explosion_radius: float = 50.0     # Радиус взрыва в пикселях
+const INTERCEPT_RADIUS: float = 18.0   # Радиус перехвата юнита на траектории
 
 # Состояние и визуализация
 var is_active: bool = true             # Флаг активности снаряда
@@ -120,7 +121,14 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var direction: Vector2 = to_target / distance_to_target
-	global_position += direction * step
+	var next_pos: Vector2 = global_position + direction * step
+	var intercept_unit: BaseUnit = _find_unit_on_segment(global_position, next_pos)
+	if intercept_unit:
+		global_position = intercept_unit.global_position
+		_explode()
+		return
+	
+	global_position = next_pos
 
 	_update_trail()
 
@@ -161,30 +169,21 @@ func _explode() -> void:
 		# print("⚠️ Владелец снаряда стал невалидным, но взрыв продолжается")  # DEBUG
 		pass
 	
-	# Создаем красивую анимацию взрыва для всех игроков
-	_create_explosion_animation()
+	# Создаем визуальную анимацию взрыва на клиентах
+	if Handlers.ProjectileHandler:
+		Handlers.ProjectileHandler.rpc("show_explosion_at", global_position, explosion_radius)
 	
-	# Собираем всех юнитов, которые попали под взрыв
+	# Собираем всех юнитов, которые попали под взрыв (friendly fire включён)
 	var units_in_explosion = []
 	var all_units = get_tree().get_nodes_in_group("units")
 	
 	# Проверяем каждый юнит на карте
 	for unit in all_units:
-		# Проверяем, что объект является валидным юнитом
-		# ВАЖНО: is_instance_valid проверяет, что объект не был освобожден
 		if not unit or not is_instance_valid(unit) or not (unit is BaseUnit):
 			continue
-			
-		# Исключаем владельца снаряда (не стреляем в себя)
 		if unit == projectile_owner:
 			continue
 		
-		# Исключаем союзников (дружественный огонь отключен)
-		# Но только если владелец снаряда еще валиден
-		if is_instance_valid(projectile_owner) and not _is_enemy_unit(unit):
-			continue
-			
-		# Проверяем расстояние до взрыва
 		var distance = global_position.distance_to(unit.global_position)
 		if distance <= explosion_radius:
 			# Дополнительная проверка валидности прямо перед нанесением урона
@@ -221,45 +220,33 @@ func _explode() -> void:
 	emit_signal("hit", null)  # Уведомляем о попадании
 	_destroy()  # Уничтожаем снаряд
 
-func _create_explosion_animation() -> void:
-	"""Создает простую анимацию взрыва"""
-	# Создаем круг взрыва
-	var explosion_circle = Sprite2D.new()
-	var explosion_image = Image.create(int(explosion_radius * 2), int(explosion_radius * 2), false, Image.FORMAT_RGBA8)
-	
-	# Рисуем градиентный круг
-	for x in range(explosion_image.get_width()):
-		for y in range(explosion_image.get_height()):
-			var center = Vector2(explosion_radius, explosion_radius)
-			var pixel_pos = Vector2(x, y)
-			var distance = center.distance_to(pixel_pos)
-			
-			if distance <= explosion_radius:
-				var intensity = 1.0 - (distance / explosion_radius)
-				var color = Color(1.0, 0.5 + intensity * 0.5, 0.0, intensity * 0.8)
-				explosion_image.set_pixel(x, y, color)
-	
-	var explosion_texture = ImageTexture.new()
-	explosion_texture.set_image(explosion_image)
-	explosion_circle.texture = explosion_texture
-	explosion_circle.global_position = global_position
-	explosion_circle.modulate.a = 0.8
-	
-	# Добавляем к родительской сцене
-	get_parent().add_child(explosion_circle)
-	
-	# Создаем таймер для удаления анимации взрыва
-	var cleanup_timer = Timer.new()
-	cleanup_timer.wait_time = 0.6
-	cleanup_timer.one_shot = true
-	cleanup_timer.timeout.connect(explosion_circle.queue_free)
-	explosion_circle.add_child(cleanup_timer)
-	cleanup_timer.start()
-	
-	# Анимация исчезновения (создаем tween от explosion_circle)
-	var tween = explosion_circle.create_tween()
-	tween.parallel().tween_property(explosion_circle, "modulate:a", 0.0, 0.5)
-	tween.parallel().tween_property(explosion_circle, "scale", Vector2(1.5, 1.5), 0.5)
+
+func _find_unit_on_segment(segment_start: Vector2, segment_end: Vector2) -> BaseUnit:
+	var best_unit: BaseUnit = null
+	var best_dist: float = INF
+	for node in get_tree().get_nodes_in_group("units"):
+		if not node is BaseUnit:
+			continue
+		var unit := node as BaseUnit
+		if not is_instance_valid(unit):
+			continue
+		if unit == projectile_owner:
+			continue
+		var dist: float = _point_to_segment_distance(unit.global_position, segment_start, segment_end)
+		if dist <= INTERCEPT_RADIUS and dist < best_dist:
+			best_dist = dist
+			best_unit = unit
+	return best_unit
+
+
+func _point_to_segment_distance(point: Vector2, seg_a: Vector2, seg_b: Vector2) -> float:
+	var ab: Vector2 = seg_b - seg_a
+	var len_sq: float = ab.length_squared()
+	if len_sq < 0.001:
+		return point.distance_to(seg_a)
+	var t: float = clampf((point - seg_a).dot(ab) / len_sq, 0.0, 1.0)
+	return point.distance_to(seg_a + ab * t)
+
 
 func _destroy() -> void:
 	is_active = false

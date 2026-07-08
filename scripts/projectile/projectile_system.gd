@@ -19,6 +19,8 @@ class_name ProjectileSystem
 # Список активных снарядов (только на сервере)
 var projectiles: Array[Projectile] = []
 
+const _ExplosionVfxScript := preload("res://scripts/projectile/explosion_vfx.gd")
+
 func _ready() -> void:
 	# Регистрируем систему в глобальных обработчиках
 	Handlers.ProjectileHandler = self
@@ -128,6 +130,21 @@ func create_visual_projectile(start_pos: Vector2, target_pos: Vector2, explosion
 	var visual_projectile = preload("res://scripts/projectile/visual_projectile.gd").new()
 	visual_projectile.init_visual(start_pos, target_pos, explosion_radius)
 	add_child(visual_projectile)
+
+## ВИЗУАЛЬНЫЙ ВЗРЫВ (клиенты)
+@rpc("authority", "call_local", "reliable")
+func show_explosion_at(pos: Vector2, radius: float) -> void:
+	if multiplayer.is_server():
+		return
+	_spawn_explosion_at(pos, radius)
+
+
+static func spawn_explosion_at(parent: Node, pos: Vector2, radius: float) -> void:
+	_ExplosionVfxScript.spawn_at(parent, pos, radius)
+
+
+func _spawn_explosion_at(pos: Vector2, radius: float) -> void:
+	_ExplosionVfxScript.spawn_at(self, pos, radius)
 
 ## УПРАВЛЕНИЕ ЖИЗНЕННЫМ ЦИКЛОМ
 func _on_projectile_destroyed(projectile: Projectile) -> void:

@@ -577,6 +577,8 @@ func _process_attack_fob_order_heavy_bot(order: Dictionary) -> void:
 
 func _process_auto_attack_heavy() -> void:
 	"""Тяжелый поиск целей для автоатаки"""
+	if not auto_attack_enabled:
+		return
 	# Нет приказов - переходим в состояние ожидания для автоатаки
 	if unit_state != UNIT_STATES.IDLE and unit_state != UNIT_STATES.AUTO_ATTACKING:
 		unit_state = UNIT_STATES.IDLE
@@ -597,6 +599,17 @@ func _process_auto_attack_heavy() -> void:
 			if target_fob:
 				orders.append({"type": "attack_fob", "target": target_fob})
 				unit_state = UNIT_STATES.AUTO_ATTACKING
+
+@rpc("any_peer", "reliable")
+func toggle_auto_attack() -> void:
+	if not is_multiplayer_authority():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if owner_id != sender_id:
+		return
+	auto_attack_enabled = not auto_attack_enabled
+	if owner_id != multiplayer.get_unique_id():
+		rpc_id(owner_id, "sync_auto_attack_enabled", auto_attack_enabled)
 
 @rpc("any_peer", "reliable")
 func add_order(order_obj, clear_queue: bool = false, capture_at_destination: bool = false) -> void:
@@ -1013,53 +1026,54 @@ func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 	if _health <= 0:
 		die()
 
-@rpc("authority", "call_remote", "reliable")
-func sync_vitals(
-		new_health_value: int,
-		new_shield_value: int,
-		new_max_health: int = -1,
-		new_max_shield: int = -1
-	) -> void:
-	# call_remote: на authority выполняется только _push_vitals_*.
-	# Клиенты применяют значения в BaseUnitClient.sync_vitals.
-	if new_max_health > 0:
-		max_health = new_max_health
-	if new_max_shield > 0:
-		max_shield = new_max_shield
-	_health = clampi(new_health_value, 0, maxi(1, max_health))
-	_shield = clampi(new_shield_value, 0, maxi(0, max_shield))
-	health = _health
-	shield = _shield
-	update_health_bar()
-	update_shield_bar()
-
-@rpc("authority", "call_remote", "reliable")
-func sync_health(new_health_value: int) -> void:
-	sync_vitals(new_health_value, _shield, max_health, max_shield)
-
-@rpc("authority", "call_remote", "reliable")
-func sync_shield(new_shield_value: int) -> void:
-	sync_vitals(_health, new_shield_value, max_health, max_shield)
-
 func _push_vitals_to_clients() -> void:
-	"""
-	Мгновенная доставка HP/щита.
-	Godot сам фильтрует RPC по MultiplayerSynchronizer visibility —
-	союзники и враги, видящие юнит (FoW), получают пакет; остальные — нет.
-	"""
+	"""Доставка HP/щита через GameManager (обходит RPC-фильтр на узле юнита)."""
 	if not is_multiplayer_authority():
 		return
 	health = _health
 	shield = _shield
-	rpc("sync_vitals", _health, _shield, max_health, max_shield)
+	update_health_bar()
+	update_shield_bar()
+	if UID == "" or Handlers.GameHandler == null:
+		return
+	var game_handler := Handlers.GameHandler
+	for peer_id in multiplayer.get_peers():
+		if peer_id == multiplayer.get_unique_id():
+			continue
+		if _peer_should_get_vitals(peer_id):
+			game_handler.rpc_id(
+				peer_id,
+				"deliver_unit_vitals",
+				UID,
+				_health,
+				_shield,
+				max_health,
+				max_shield
+			)
+
+func _peer_should_get_vitals(peer_id: int) -> bool:
+	if bool(_peer_visibility.get(peer_id, false)):
+		return true
+	var unit_team = _get_cached_team()
+	if unit_team == null:
+		return false
+	var team_players = Handlers.TeamHandler.get_team_players(unit_team)
+	if team_players:
+		for player in team_players:
+			if player.PlayerId == peer_id:
+				return true
+	return false
 
 func _push_vitals_to_peer(peer_id: int) -> void:
 	if not is_multiplayer_authority():
 		return
 	if peer_id == multiplayer.get_unique_id():
 		return
-	# Явный push при reveal: visibility только что стала true для peer.
-	rpc_id(peer_id, "sync_vitals", _health, _shield, max_health, max_shield)
+	if UID == "" or Handlers.GameHandler == null:
+		return
+	Handlers.GameHandler.rpc_id(
+		peer_id, "deliver_unit_vitals", UID, _health, _shield, max_health, max_shield
+	)
 
 func _set_peer_visible(peer_id: int, is_visible_flag: bool) -> void:
 	_peer_visibility[peer_id] = is_visible_flag
@@ -1870,39 +1884,40 @@ func get_target_position() -> Vector2:
 		return global_position
 
 # Переопределяем визуальные методы из базового класса (заглушки для сервера)
+const _VitalsBarStyle := preload("res://scripts/UI/unit_vitals_bar_style.gd")
+
+var _vitals_bars_styled: bool = false
+
 func update_visual() -> void:
 	"""Серверная версия - не обновляет визуал"""
 	pass
 
+func _ensure_vitals_bar_styles() -> void:
+	if _vitals_bars_styled:
+		return
+	var health_bar: ProgressBar = get_node_or_null("%HealthBar") as ProgressBar
+	var shield_bar: ProgressBar = get_node_or_null("%ShiledBar") as ProgressBar
+	_VitalsBarStyle.apply_health_bar(health_bar)
+	_VitalsBarStyle.apply_shield_bar(shield_bar)
+	_vitals_bars_styled = true
+
 func update_health_bar() -> void:
 	# Listen-server тоже рисует сцену юнита (BaseUnitServer), поэтому бары нужны и здесь.
+	_ensure_vitals_bar_styles()
 	var health_bar: ProgressBar = get_node_or_null("%HealthBar") as ProgressBar
 	if health_bar == null:
 		return
 	health_bar.max_value = max_health
 	health_bar.value = _health
-	var health_percent := float(_health) / float(maxi(1, max_health))
-	if health_percent > 0.7:
-		health_bar.modulate = Color.GREEN
-	elif health_percent > 0.3:
-		health_bar.modulate = Color.YELLOW
-	else:
-		health_bar.modulate = Color.RED
 
 func update_shield_bar() -> void:
+	_ensure_vitals_bar_styles()
 	var shield_bar: ProgressBar = get_node_or_null("%ShiledBar") as ProgressBar
 	if shield_bar == null:
 		return
 	shield_bar.max_value = max_shield
 	shield_bar.value = _shield
 	shield_bar.visible = _shield > 0
-	var shield_percent := float(_shield) / float(maxi(1, max_shield))
-	if shield_percent > 0.5:
-		shield_bar.modulate = Color.CYAN
-	elif shield_percent > 0.0:
-		shield_bar.modulate = Color.ORANGE
-	else:
-		shield_bar.modulate = Color.TRANSPARENT
 
 func apply_preset_snapshot(snapshot: Dictionary) -> void:
 	if not is_multiplayer_authority():

@@ -22,6 +22,9 @@ var _hit_flash_tween: Tween = null
 var _is_hit_flashing: bool = false
 
 const HIT_FLASH_DURATION: float = 0.2
+const _VitalsBarStyle := preload("res://scripts/UI/unit_vitals_bar_style.gd")
+
+var _vitals_bars_styled: bool = false
 
 # Методы для работы с состоянием выделения
 func set_preselected(value: bool) -> void:
@@ -112,6 +115,13 @@ func handle_input(_viewport, _event, _shape_idx):
 
 ## HEALTH BAR FUNCTIONS ##
 
+func _ensure_vitals_bar_styles() -> void:
+	if _vitals_bars_styled:
+		return
+	_VitalsBarStyle.apply_health_bar(health_bar)
+	_VitalsBarStyle.apply_shield_bar(shield_bar)
+	_vitals_bars_styled = true
+
 func init_health_bar() -> void:
 	"""Инициализирует health bar с правильными значениями"""
 	# Инициализируем здоровье и щит, если еще не инициализированы
@@ -121,6 +131,7 @@ func init_health_bar() -> void:
 		_shield = max_shield
 
 	if health_bar:
+		_ensure_vitals_bar_styles()
 		health_bar.max_value = max_health
 		health_bar.value = _health
 		update_health_bar()  # Обновляем отображение с правильными цветами
@@ -129,18 +140,6 @@ func update_health_bar() -> void:
 	"""Обновляет отображение health bar при изменении здоровья"""
 	if health_bar:
 		health_bar.value = _health
-
-		# Меняем цвет в зависимости от процента здоровья
-		var health_percent = float(_health) / float(max_health)
-		if health_percent > 0.7:
-			# Зеленый цвет для здорового состояния
-			health_bar.modulate = Color.GREEN
-		elif health_percent > 0.3:
-			# Желтый цвет для поврежденного состояния
-			health_bar.modulate = Color.YELLOW
-		else:
-			# Красный цвет для критического состояния
-			health_bar.modulate = Color.RED
 
 func update_visual():
 	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
@@ -350,6 +349,7 @@ func init_shield_bar() -> void:
 		_shield = max_shield
 
 	if shield_bar:
+		_ensure_vitals_bar_styles()
 		shield_bar.max_value = max_shield
 		shield_bar.value = _shield
 		update_shield_bar()  # Обновляем отображение с правильными цветами
@@ -358,24 +358,17 @@ func update_shield_bar() -> void:
 	"""Обновляет отображение shield bar при изменении щита"""
 	if shield_bar:
 		shield_bar.value = _shield
+		shield_bar.visible = _shield > 0
 
-		# Меняем цвет в зависимости от процента щита
-		var shield_percent = float(_shield) / float(max_shield)
-		if shield_percent > 0.7:
-			# Синий цвет для полного щита
-			shield_bar.modulate = Color.CYAN
-		elif shield_percent > 0.3:
-			# Фиолетовый цвет для поврежденного щита
-			shield_bar.modulate = Color.MAGENTA
-		elif shield_percent > 0:
-			# Красный цвет для критического щита
-			shield_bar.modulate = Color.ORANGE
-		else:
-			# Скрываем bar когда щита нет
-			shield_bar.modulate = Color.TRANSPARENT
+func apply_vitals_from_network(
+		new_health_value: int,
+		new_shield_value: int,
+		new_max_health: int = -1,
+		new_max_shield: int = -1
+	) -> void:
+	_apply_synced_vitals(new_health_value, new_shield_value, new_max_health, new_max_shield)
 
-@rpc("authority", "call_remote", "reliable")
-func sync_vitals(
+func _apply_synced_vitals(
 		new_health_value: int,
 		new_shield_value: int,
 		new_max_health: int = -1,
@@ -399,14 +392,6 @@ func sync_vitals(
 	_sync_preview_vitals()
 	if took_damage:
 		_play_hit_flash()
-
-@rpc("authority", "call_remote", "reliable")
-func sync_health(new_health_value: int) -> void:
-	sync_vitals(new_health_value, _shield, max_health, max_shield)
-
-@rpc("authority", "call_remote", "reliable")
-func sync_shield(new_shield_value: int) -> void:
-	sync_vitals(_health, new_shield_value, max_health, max_shield)
 
 @rpc("authority", "call_local", "reliable")
 func sync_preset_stats(

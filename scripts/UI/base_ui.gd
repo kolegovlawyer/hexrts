@@ -28,6 +28,11 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 @onready var movement_attack_toggle = get_node(
 	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/ToggleMovementAttack"
 )
+@onready var auto_attack_button = get_node(
+	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/ToggleAutoAttackButton"
+)
+
+var _auto_attack_button_bg: Panel = null
 
 var unit_editor: UnitEditor = null
 
@@ -198,6 +203,10 @@ func _ready() -> void:
 		movement_attack_toggle.toggle_mode = true
 		movement_attack_toggle.toggled.connect(_on_movement_attack_toggled)
 		_update_movement_attack_toggle_visual(movement_attack_toggle.button_pressed)
+	if auto_attack_button:
+		_auto_attack_button_bg = auto_attack_button.get_node_or_null("BGPanel") as Panel
+		auto_attack_button.pressed.connect(_on_auto_attack_pressed)
+		_update_auto_attack_button_visual()
 	_initialize_points_display()
 	_initialize_battle_log()
 
@@ -227,6 +236,47 @@ func _update_movement_attack_toggle_visual(pressed: bool) -> void:
 	if movement_attack_toggle:
 		movement_attack_toggle.modulate = Color(1.2, 1.2, 1.0) if pressed else Color.WHITE
 
+func _on_auto_attack_pressed() -> void:
+	if Handlers.UnitSelectionHandler == null:
+		return
+	var my_id: int = multiplayer.get_unique_id()
+	for unit in Handlers.UnitSelectionHandler.selected_units:
+		if not is_instance_valid(unit):
+			continue
+		if unit.owner_id != my_id:
+			continue
+		unit.rpc_id(1, "toggle_auto_attack")
+	call_deferred("_update_auto_attack_button_visual")
+
+func _update_auto_attack_button_visual() -> void:
+	if _auto_attack_button_bg == null:
+		return
+	var style := StyleBoxFlat.new()
+	var color: Color
+	if Handlers.UnitSelectionHandler == null \
+			or Handlers.UnitSelectionHandler.selected_units.is_empty():
+		color = Color(0.2, 0.7, 0.3)
+	else:
+		var my_id: int = multiplayer.get_unique_id()
+		var enabled_count: int = 0
+		var own_count: int = 0
+		for unit in Handlers.UnitSelectionHandler.selected_units:
+			if not is_instance_valid(unit) or unit.owner_id != my_id:
+				continue
+			own_count += 1
+			if unit.auto_attack_enabled:
+				enabled_count += 1
+		if own_count == 0:
+			color = Color(0.2, 0.7, 0.3)
+		elif enabled_count == own_count:
+			color = Color(0.2, 0.7, 0.3)
+		elif enabled_count == 0:
+			color = Color(0.75, 0.2, 0.2)
+		else:
+			color = Color(0.85, 0.65, 0.15)
+	style.bg_color = color
+	_auto_attack_button_bg.add_theme_stylebox_override("panel", style)
+
 func register_unit_preview(uid: String, preview: UnitPreview) -> void:
 	if uid == "" or preview == null or preview.is_queued_for_deletion():
 		return
@@ -246,6 +296,7 @@ func sync_unit_rack_selection() -> void:
 			continue
 		var is_selected := is_instance_valid(preview.unit) and preview.unit in selected_units
 		preview.set_rack_selected(is_selected)
+	_update_auto_attack_button_visual()
 
 func get_unit_preview(uid: String) -> UnitPreview:
 	return _unit_previews.get(uid, null)

@@ -12,6 +12,9 @@
 [ext_resource type="Texture2D" uid="uid://bhrjs6tixjhej" path="res://assets/icons/icon-path.png" id="10_swdpp"]
 [ext_resource type="Texture2D" uid="uid://dsgnvbrceotps" path="res://assets/icons/icon-loop.png" id="11_ycjsq"]
 [ext_resource type="Texture2D" uid="uid://cs1se2d3w5hsj" path="res://assets/icons/icon-follow.png" id="12_k0xlx"]
+[ext_resource type="Texture2D" uid="uid://bgwf8quu5yd3a" path="res://assets/icons/icon-spread.png" id="13_swtpc"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_3coue"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_27yfh"]
 bg_color = Color(0.08627451, 0.08235294, 0.10980392, 1)
@@ -112,6 +115,7 @@ custom_minimum_size = Vector2(280, 120)
 custom_maximum_size = Vector2(300, 300)
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxEmpty_3coue")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/MainRack/TopBoard/BattleLogContainer" unique_id=1987729101]
 layout_mode = 2
@@ -433,7 +437,7 @@ z_index = 1
 layout_mode = 2
 theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 16
-columns = 3
+columns = 4
 
 [node name="AutoCapture" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=272547014]
 unique_name_in_owner = true
@@ -547,6 +551,46 @@ texture_pressed = ExtResource("12_k0xlx")
 stretch_mode = 0
 
 [node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton6" unique_id=94687147]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="HomeButton7" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=216823348]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("12_k0xlx")
+texture_pressed = ExtResource("12_k0xlx")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/HomeButton7" unique_id=1154210659]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="SpreadButton" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=666121250]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("13_swtpc")
+texture_pressed = ExtResource("13_swtpc")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/SpreadButton" unique_id=1985433059]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15

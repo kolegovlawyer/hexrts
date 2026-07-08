@@ -122,11 +122,9 @@ func _notification(notification):
 		#has_focus = false
 		print('Window lost focus - camera movement disabled')
 	
-func _input(event):
-	var mouse_position = get_viewport().get_mouse_position()
-	var pre_zoom_value = zoom
-
-	# Серверный режим наблюдения: ПКМ — переместить камеру к курсору
+func _unhandled_input(event: InputEvent) -> void:
+	# Зум через _unhandled_input: колёсико над UI (журнал боя и др.) уже
+	# «съедено» Control.accept_event() и сюда не доходит.
 	if observer_mode and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed:
 		if TOP_CORNER != null and BOTTOM_CORNER != null and check_maps_bound(get_global_mouse_position()):
 			position = get_global_mouse_position()
@@ -135,27 +133,24 @@ func _input(event):
 				camera_moved.emit()
 		return
 
-	if event is InputEventMouseButton and event.button_index == 5 and event.pressed == true:
-		if zoom_x > 0.2:
-			zoom_x -= 0.1
-			zoom_y -= 0.1
-			var new_zoom = Vector2(zoom_x, zoom_y)
-			zoom = new_zoom
-			
-			# ОПТИМИЗАЦИЯ: Отправляем сигнал изменения зума
-			if new_zoom != _last_zoom:
-				_last_zoom = new_zoom
-				camera_zoomed.emit()
-			#position += (mouse_position - position) * (Vector2(1,1) - pre_zoom_value / zoom)
-	elif event is InputEventMouseButton and event.button_index == 4 and event.pressed==true:
-		if zoom_x < 0.8:
-			zoom_x += 0.1
-			zoom_y += 0.1
-			var new_zoom = Vector2(zoom_x, zoom_y)
-			zoom = new_zoom
-			
-			# ОПТИМИЗАЦИЯ: Отправляем сигнал изменения зума
-			if new_zoom != _last_zoom:
-				_last_zoom = new_zoom
-				camera_zoomed.emit()
-			#position += (mouse_position - position) * (Vector2(1,1) - pre_zoom_value / zoom)
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			if zoom_x > 0.2:
+				zoom_x -= 0.1
+				zoom_y -= 0.1
+				var new_zoom := Vector2(zoom_x, zoom_y)
+				zoom = new_zoom
+				if new_zoom != _last_zoom:
+					_last_zoom = new_zoom
+					camera_zoomed.emit()
+				get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			if zoom_x < 0.8:
+				zoom_x += 0.1
+				zoom_y += 0.1
+				var new_zoom_up := Vector2(zoom_x, zoom_y)
+				zoom = new_zoom_up
+				if new_zoom_up != _last_zoom:
+					_last_zoom = new_zoom_up
+					camera_zoomed.emit()
+				get_viewport().set_input_as_handled()

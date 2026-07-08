@@ -50,7 +50,6 @@ shape = SubResource("CircleShape2D_lxa7t")
 [node name="UnitSelectionRing" type="Sprite2D" parent="." unique_id=1707632715]
 unique_name_in_owner = true
 visible = false
-scale = Vector2(1.25, 1.25)
 texture = ExtResource("2_o02ba")
 
 [node name="ArrowSprite" type="Sprite2D" parent="." unique_id=211000463]
@@ -61,13 +60,20 @@ texture = ExtResource("3_o3c7t")
 [node name="UnitSelfSprite" type="Sprite2D" parent="." unique_id=74194529]
 unique_name_in_owner = true
 material = SubResource("CanvasItemMaterial_uoolu")
-scale = Vector2(1.25, 1.25)
 texture = ExtResource("4_3coue")
 
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=1413350339]
-path_desired_distance = 5.0
-simplify_path = true
+path_desired_distance = 8.0
+target_desired_distance = 14.0
+path_max_distance = 500.0
+simplify_path = false
 avoidance_enabled = true
+radius = 20.0
+neighbor_distance = 140.0
+max_neighbors = 16
+time_horizon_agents = 1.0
+time_horizon_obstacles = 0.35
+max_speed = 300.0
 debug_enabled = true
 debug_use_custom = true
 debug_path_custom_color = Color(0.843137, 0.109804, 0.109804, 1)
@@ -121,7 +127,7 @@ step = 1.0
 value = 90.0
 show_percentage = false
 
-[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1372604252]
+[node name="RankSprite" type="Sprite2D" parent="." unique_id=1372604252]
 material = SubResource("CanvasItemMaterial_uoolu")
 position = Vector2(49, -40)
 texture = ExtResource("6_3coue")

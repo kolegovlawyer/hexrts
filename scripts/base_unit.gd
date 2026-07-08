@@ -44,6 +44,7 @@ var unit_profile = null
 var preset_display_name: String = ""
 var preset_instance_number: int = 0
 var preset_icon_path: String = ""
+var preset_cost: int = 0
 
 # Сигнал смерти (общий для client/server)
 signal unit_died(dead_unit: BaseUnit)
@@ -191,10 +192,12 @@ func sync_preset_stats(
 		new_max_shield: int,
 		_new_speed: int,
 		_new_damage: int,
-		new_vision_radius: float
+		new_vision_radius: float,
+		new_preset_cost: int = 0
 	) -> void:
 	max_health = new_max_health
 	max_shield = new_max_shield
+	preset_cost = new_preset_cost
 	set_vision_radius(new_vision_radius)
 
 func apply_preset_snapshot(_snapshot: Dictionary) -> void:
@@ -228,3 +231,12 @@ func get_target_position() -> Vector2:
 func is_command_unit() -> bool:
 	"""Проверяет, является ли юнит командным (для совместимости с bot.gd)"""
 	return is_command_unit_flag
+
+func get_display_name() -> String:
+	"""Имя для UI/battle log. Переопределяется на клиенте при необходимости."""
+	if preset_display_name != "" and preset_instance_number > 0:
+		return "%s #%d" % [preset_display_name, preset_instance_number]
+	var base_name := "Командир" if is_command_unit() else "Боец"
+	if UID.length() >= 4:
+		return "%s %s" % [base_name, UID.right(4)]
+	return base_name

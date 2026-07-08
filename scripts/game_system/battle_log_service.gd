@@ -10,6 +10,7 @@ enum Event {
 	OWN_HEX_LOST,
 	FOB_ATTACKED,
 	FOB_DESTROYED,
+	OWN_UNIT_STUCK,
 }
 
 const ENGAGEMENT_TIMEOUT := 8.0
@@ -35,7 +36,12 @@ func on_unit_damaged(victim: BaseUnitServer, attacker: BaseUnitServer) -> void:
 		return
 
 	var hex_tile := _world_to_hex_tile(victim.global_position)
-	_send_to_player(victim.owner_id, Event.OWN_UNIT_ATTACKED, hex_tile)
+	_send_to_player(
+		victim.owner_id,
+		Event.OWN_UNIT_ATTACKED,
+		hex_tile,
+		_unit_display_name(victim)
+	)
 
 
 func on_unit_died(victim: BaseUnitServer) -> void:
@@ -47,7 +53,12 @@ func on_unit_died(victim: BaseUnitServer) -> void:
 		return
 
 	var hex_tile := _world_to_hex_tile(victim.global_position)
-	_send_to_player(victim.owner_id, Event.OWN_UNIT_DESTROYED, hex_tile)
+	_send_to_player(
+		victim.owner_id,
+		Event.OWN_UNIT_DESTROYED,
+		hex_tile,
+		_unit_display_name(victim)
+	)
 
 
 func on_fob_damaged(fob_node: fob, attacker: BaseUnitServer) -> void:
@@ -63,7 +74,7 @@ func on_fob_damaged(fob_node: fob, attacker: BaseUnitServer) -> void:
 		return
 
 	var hex_tile := _world_to_hex_tile(fob_node.global_position)
-	_send_to_player(fob_node.owner_id, Event.FOB_ATTACKED, hex_tile)
+	_send_to_player(fob_node.owner_id, Event.FOB_ATTACKED, hex_tile, "")
 
 
 func on_fob_destroyed(fob_node: fob) -> void:
@@ -75,7 +86,24 @@ func on_fob_destroyed(fob_node: fob) -> void:
 		return
 
 	var hex_tile := _world_to_hex_tile(fob_node.global_position)
-	_send_to_player(fob_node.owner_id, Event.FOB_DESTROYED, hex_tile)
+	_send_to_player(fob_node.owner_id, Event.FOB_DESTROYED, hex_tile, "")
+
+
+func on_unit_stuck(unit: BaseUnitServer) -> void:
+	"""Юнит бросил move после долгого застревания без прогресса к цели."""
+	if _game == null or unit == null:
+		return
+	if not _game.is_multiplayer_authority():
+		return
+	if _game._is_player_bot(unit.owner_id):
+		return
+	var hex_tile := _world_to_hex_tile(unit.global_position)
+	_send_to_player(
+		unit.owner_id,
+		Event.OWN_UNIT_STUCK,
+		hex_tile,
+		_unit_display_name(unit)
+	)
 
 
 func on_hex_captured(
@@ -89,15 +117,30 @@ func on_hex_captured(
 	if not _game.is_multiplayer_authority():
 		return
 
+	var capturer_name := _unit_display_name(capturer) if capturer != null and is_instance_valid(capturer) else ""
+
 	if capturer != null and is_instance_valid(capturer):
 		if old_owner == -1 and not _game._is_player_bot(capturer.owner_id):
-			_send_to_player(capturer.owner_id, Event.NEUTRAL_HEX_CAPTURED, hex_tile)
+			_send_to_player(
+				capturer.owner_id,
+				Event.NEUTRAL_HEX_CAPTURED,
+				hex_tile,
+				capturer_name
+			)
 
 	if old_owner >= 0 and new_owner >= 0 and old_owner != new_owner:
 		for player_id in _game._get_human_players_on_team(old_owner):
 			if not _player_has_vision_at(player_id, hex_tile):
 				continue
-			_send_to_player(player_id, Event.OWN_HEX_LOST, hex_tile)
+			_send_to_player(player_id, Event.OWN_HEX_LOST, hex_tile, "")
+
+
+func _unit_display_name(unit: BaseUnit) -> String:
+	if unit == null or not is_instance_valid(unit):
+		return "юнит"
+	if unit.has_method("get_display_name"):
+		return unit.get_display_name()
+	return "юнит"
 
 
 func _engagement_key(attacker_uid: String, victim_uid: String) -> String:
@@ -155,14 +198,21 @@ func _player_has_vision_at(player_id: int, hex_tile: Vector2i) -> bool:
 	return false
 
 
-func _send_to_player(player_id: int, event_type: int, hex_tile: Vector2i) -> void:
+func _send_to_player(
+		player_id: int,
+		event_type: int,
+		hex_tile: Vector2i,
+		actor_name: String = ""
+	) -> void:
 	if _game == null or _game._is_player_bot(player_id):
 		return
 
 	if _game._is_local_human_player(player_id):
 		if Handlers.UIHandler:
-			Handlers.UIHandler.append_battle_log_event(event_type, hex_tile, _game.match_elapsed_seconds)
+			Handlers.UIHandler.append_battle_log_event(
+				event_type, hex_tile, _game.match_elapsed_seconds, actor_name
+			)
 	elif _game._is_connected_remote_peer(player_id):
 		_game.rpc_battle_log_event.rpc_id(
-			player_id, event_type, hex_tile, _game.match_elapsed_seconds
+			player_id, event_type, hex_tile, _game.match_elapsed_seconds, actor_name
 		)

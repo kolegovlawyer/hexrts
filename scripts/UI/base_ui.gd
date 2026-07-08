@@ -2,6 +2,7 @@ class_name GameUI extends Node
 
 const _WaypointMarkerManagerScript := preload("res://scripts/UI/waypoint_marker_manager.gd")
 const _BattleLogUIScript := preload("res://scripts/UI/battle_log_ui.gd")
+const _FormationHelperScript := preload("res://scripts/game_system/formation_helper.gd")
 
 @onready var window_size = Vector2(ProjectSettings.get_setting("display/window/size/viewport_width"),
 ProjectSettings.get_setting("display/window/size/viewport_height"))
@@ -20,6 +21,9 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 )
 @onready var unit_editor_button = get_node(
 	"MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/UnitEditorButton"
+)
+@onready var spread_button = get_node(
+	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/SpreadButton"
 )
 
 var unit_editor: UnitEditor = null
@@ -129,21 +133,32 @@ func _gui_input(event: InputEvent) -> void:
 		
 		INPUT_STATES.UNITS_CONTROL:
 			
-			# Right click
+			# Right click — 1 юнит ВСЕГДА точно в клик; группа (>=2 уникальных) — разброс
 			if event is InputEventMouseButton and event.button_index == 2:
 				if event.pressed == false:
 					if Handlers.UnitSelectionHandler.selected_units != null:
 						var clear_queue := not Input.is_key_pressed(KEY_SHIFT)
+						var selected: Array = []
 						for n in Handlers.UnitSelectionHandler.selected_units:
-							if is_instance_valid(n):
-								var target_position = camera.get_global_mouse_position()
-								var capture_at_destination := not clear_queue and n.is_command_unit()
+							if is_instance_valid(n) and n not in selected:
+								selected.append(n)
+						if selected.is_empty():
+							return
+						var mouse_pos: Vector2 = camera.get_global_mouse_position()
+						# Одиночный приказ — всегда точная точка клика, без scatter/jitter
+						if selected.size() == 1:
+							var solo = selected[0]
+							var capture_solo: bool = (not clear_queue) and solo.is_command_unit()
+							solo.rpc_id(1, "add_order", mouse_pos, clear_queue, capture_solo)
+						else:
+							var targets: Array[Vector2] = _FormationHelperScript.scatter_around(
+								mouse_pos, selected.size()
+							)
+							for i in range(selected.size()):
+								var n = selected[i]
+								var target_position: Vector2 = targets[i] if i < targets.size() else mouse_pos
+								var capture_at_destination: bool = (not clear_queue) and n.is_command_unit()
 								n.rpc_id(1, "add_order", target_position, clear_queue, capture_at_destination)
-							#{"order": GameTypes.OrderTypes.MOVE_FORWARD,
-						#"target":cursor_pos}
-							
-				## Vot eto polni pizdec
-			# Create bound box for selection
 			elif event is InputEventMouseButton and event.button_index == 1 and event.pressed == true:
 				start_draw_selection_box(camera.get_global_mouse_position())
 			
@@ -174,8 +189,27 @@ func _ready() -> void:
 	hud_board.connect('mouse_exited', continue_camera_move)
 	#home_button.connect('pressed', move_camera_to_fob)
 	unit_editor_button.pressed.connect(open_unit_editor)
+	if spread_button:
+		spread_button.pressed.connect(_on_spread_pressed)
 	_initialize_points_display()
 	_initialize_battle_log()
+
+func _on_spread_pressed() -> void:
+	"""Рассредоточить выбранных юнитов от центроида группы."""
+	if Handlers.UnitSelectionHandler == null:
+		return
+	var selected: Array = []
+	var positions: Array[Vector2] = []
+	for n in Handlers.UnitSelectionHandler.selected_units:
+		if is_instance_valid(n):
+			selected.append(n)
+			positions.append(n.global_position)
+	if selected.is_empty():
+		return
+	var targets: Array[Vector2] = _FormationHelperScript.spread_from_positions(positions)
+	for i in range(selected.size()):
+		var dest: Vector2 = targets[i] if i < targets.size() else positions[i]
+		selected[i].rpc_id(1, "add_order", dest, true)
 
 func register_unit_preview(uid: String, preview: UnitPreview) -> void:
 	if uid == "" or preview == null or preview.is_queued_for_deletion():
@@ -454,9 +488,21 @@ func _initialize_battle_log() -> void:
 	battle_log_richtext.bbcode_enabled = true
 	battle_log_richtext.scroll_active = true
 	battle_log_richtext.scroll_following = true
+	battle_log_richtext.mouse_filter = Control.MOUSE_FILTER_STOP
 	battle_log_richtext.text = ""
 	_battle_log_line_count = 0
 	_battle_log_follow_scroll = true
+
+	var log_container := get_node_or_null(
+		"MarginContainer/MainRack/TopBoard/BattleLogContainer"
+	) as Control
+	if log_container:
+		log_container.mouse_filter = Control.MOUSE_FILTER_STOP
+		if not log_container.gui_input.is_connected(_on_battle_log_gui_input):
+			log_container.gui_input.connect(_on_battle_log_gui_input)
+
+	if not battle_log_richtext.gui_input.is_connected(_on_battle_log_gui_input):
+		battle_log_richtext.gui_input.connect(_on_battle_log_gui_input)
 
 	var scroll_bar := battle_log_richtext.get_v_scroll_bar()
 	if scroll_bar:
@@ -466,11 +512,24 @@ func _initialize_battle_log() -> void:
 		battle_log_clear_button.pressed.connect(clear_battle_log)
 
 
-func append_battle_log_event(event_type: int, hex_tile: Vector2i, match_seconds: float) -> void:
+func _on_battle_log_gui_input(event: InputEvent) -> void:
+	# Не даём колёсику уйти в камеру — только скролл журнала.
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			get_viewport().set_input_as_handled()
+
+
+func append_battle_log_event(
+		event_type: int,
+		hex_tile: Vector2i,
+		match_seconds: float,
+		actor_name: String = ""
+	) -> void:
 	if battle_log_richtext == null:
 		return
 
-	var line := _BattleLogUIScript.format_event(event_type, hex_tile, match_seconds)
+	var line := _BattleLogUIScript.format_event(event_type, hex_tile, match_seconds, actor_name)
 	if _battle_log_line_count > 0:
 		battle_log_richtext.append_text("\n")
 	battle_log_richtext.append_text(line)

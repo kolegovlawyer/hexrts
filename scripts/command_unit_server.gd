@@ -263,33 +263,49 @@ func _process_move_capture_order_immediate(order: Dictionary, delta: float, is_b
 	if phase == "moving":
 		if unit_state != UNIT_STATES.MOVING:
 			unit_state = UNIT_STATES.MOVING
+			_set_navigation_avoidance(true)
+			_reset_move_progress_tracking(order.position)
 		
 		var pos: Vector2 = order.position
-		navagent.target_position = pos
+		navagent.target_position = _route_smart_target(pos)
 		
 		if not navagent.is_target_reachable():
 			var alternative_target = _find_alternative_path_target(pos)
-			navagent.target_position = alternative_target
+			navagent.target_position = _route_smart_target(alternative_target)
 		
 		var distance_to_target = global_position.distance_to(pos)
-		var close_enough_threshold = 24.0 if is_bot else 12.0
+		var close_enough_threshold = 28.0 if is_bot else 16.0
 		var close_enough = distance_to_target < close_enough_threshold
 		var nav_done = navagent.is_navigation_finished()
 		var moved = global_position.distance_to(last_move_position) > 1.5
 		
 		if close_enough or nav_done:
-			order["phase"] = "capturing"
-			unit_state = UNIT_STATES.IDLE
-			stuck_timer = 0.0
-			check_current_hex()
-			_evaluate_waypoint_capture(order)
+			if global_position.distance_to(pos) > close_enough_threshold:
+				var next_wp: Vector2 = _route_smart_target(pos)
+				if next_wp.distance_to(global_position) <= close_enough_threshold:
+					_release_route_wp_keep_side()
+					next_wp = pos
+				navagent.target_position = next_wp
+				stuck_timer = 0.0
+				_update_move_progress_or_abort(pos, delta)
+			else:
+				order["phase"] = "capturing"
+				unit_state = UNIT_STATES.IDLE
+				_clear_active_route_wp(true)
+				stuck_timer = 0.0
+				no_progress_timer = 0.0
+				_progress_best_dist = INF
+				check_current_hex()
+				_evaluate_waypoint_capture(order)
 		elif not moved:
 			stuck_timer += delta
 			if stuck_timer > 2.5:
 				_execute_smart_unstuck_maneuver(pos)
 				stuck_timer = 0.0
+			_update_move_progress_or_abort(pos, delta)
 		else:
 			stuck_timer = 0.0
+			_update_move_progress_or_abort(pos, delta)
 		last_move_position = global_position
 	elif phase == "capturing":
 		unit_state = UNIT_STATES.IDLE

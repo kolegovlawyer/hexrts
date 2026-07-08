@@ -532,9 +532,16 @@ func show_game_over(is_winner: bool, reason: String, is_draw: bool) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func rpc_battle_log_event(event_type: int, hex_tile: Vector2i, match_seconds: float) -> void:
+func rpc_battle_log_event(
+		event_type: int,
+		hex_tile: Vector2i,
+		match_seconds: float,
+		actor_name: String = ""
+	) -> void:
 	if Handlers.UIHandler:
-		Handlers.UIHandler.append_battle_log_event(event_type, hex_tile, match_seconds)
+		Handlers.UIHandler.append_battle_log_event(
+			event_type, hex_tile, match_seconds, actor_name
+		)
 
 func register_fob(fob_node: fob) -> void:
 	if not is_multiplayer_authority() or fob_node.UID == "":

@@ -76,6 +76,16 @@ func update_visual() -> void:
 		if unit_sprite and unit_sprite.texture:
 			sprite.texture = unit_sprite.texture
 
+	var preview_cost: int = unit.preset_cost
+	if preview_cost <= 0:
+		preview_cost = UnitPresetBalance.calculate_cost(
+			UnitPresetBalance.default_stats(), unit.is_command_unit()
+		)
+	var icon_scale: float = UnitPresetBalance.visual_scale_for_cost(
+		preview_cost, unit.is_command_unit()
+	)
+	sprite.scale = Vector2(icon_scale, icon_scale)
+
 	if client_unit.has_method("get_display_name"):
 		name_label.text = client_unit.get_display_name()
 	else:

@@ -94,16 +94,18 @@ layout_mode = 2
 text = "СБРОС"
 
 [node name="HelpButton" type="Button" parent="MarginContainer/MainContainer/HeaderRack" unique_id=286420659]
+visible = false
 layout_mode = 2
 text = "?"
 
 [node name="SaveButton" type="Button" parent="MarginContainer/MainContainer/HeaderRack" unique_id=249019042]
 layout_mode = 2
-text = "S"
+text = "Save
+"
 
 [node name="ComandButton" type="Button" parent="MarginContainer/MainContainer/HeaderRack" unique_id=1494386578]
 layout_mode = 2
-text = "C"
+text = "Command"
 
 [node name="NameLabel" type="LineEdit" parent="MarginContainer/MainContainer/HeaderRack" unique_id=1176937960]
 layout_mode = 2

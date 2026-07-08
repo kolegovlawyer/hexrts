@@ -90,7 +90,12 @@ func handle_input(_viewport, _event, _shape_idx):
 	if self in get_tree().get_nodes_in_group("own_units"):
 		if _event is InputEventMouseButton and _event.button_index == 1:
 			if _event.pressed == false:
-				Handlers.UnitSelectionHandler.add_selected(self)
+				# Без Shift — одиночный выбор (как в rack); иначе группа "липнет" и снова даёт scatter
+				if Input.is_key_pressed(KEY_SHIFT):
+					Handlers.UnitSelectionHandler.add_selected(self)
+				else:
+					Handlers.UnitSelectionHandler.clear_selection()
+					Handlers.UnitSelectionHandler.add_selected(self)
 				get_viewport().set_input_as_handled()
 	else:
 		# Атака по правому клику на вражеском юните
@@ -158,6 +163,7 @@ func update_visual():
 		apply_unit_icon()
 		set_own_unit_group()
 		_ensure_own_preview()
+		apply_visual_scale()
 		_apply_sprite_tint()
 		_update_unit_name_label()
 		update_health_bar()
@@ -166,9 +172,11 @@ func update_visual():
 		return
 	elif Handlers.TeamHandler.find_player_by_id(owner_id).team == Handlers.TeamHandler.my_profile.team:
 		apply_unit_icon()
+		apply_visual_scale()
 		update_sprite_color()
 	else:
 		apply_unit_icon()
+		apply_visual_scale()
 		update_sprite_color()
 	_update_unit_name_label()
 	update_health_bar()
@@ -203,6 +211,36 @@ func apply_unit_icon() -> void:
 	var icon_texture: Texture2D = load(preset_icon_path) as Texture2D
 	if icon_texture and sprite:
 		sprite.texture = icon_texture
+
+
+func apply_visual_scale() -> void:
+	var cost: int = preset_cost
+	if cost <= 0:
+		cost = UnitPresetBalance.calculate_cost(
+			UnitPresetBalance.default_stats(), is_command_unit()
+		)
+	var s: float = UnitPresetBalance.visual_scale_for_cost(cost, is_command_unit())
+	var v := Vector2(s, s)
+	if sprite:
+		sprite.scale = v
+	if selection_ring:
+		selection_ring.scale = v
+	# ProgressBar scale идёт от pivot (по умолчанию левый верх) — центрируем относительно юнита.
+	_center_bar_pivot_and_scale(health_bar, v)
+	_center_bar_pivot_and_scale(shield_bar, v)
+
+
+func _center_bar_pivot_and_scale(bar: Control, scale_v: Vector2) -> void:
+	if bar == null:
+		return
+	var bar_size: Vector2 = bar.size
+	if bar_size.x <= 0.0 or bar_size.y <= 0.0:
+		bar_size = Vector2(
+			absf(bar.offset_right - bar.offset_left),
+			absf(bar.offset_bottom - bar.offset_top)
+		)
+	bar.pivot_offset = bar_size * 0.5
+	bar.scale = scale_v
 
 
 func _ensure_own_preview() -> void:
@@ -376,12 +414,14 @@ func sync_preset_stats(
 		new_max_shield: int,
 		_new_speed: int,
 		_new_damage: int,
-		new_vision_radius: float
+		new_vision_radius: float,
+		new_preset_cost: int = 0
 	) -> void:
 	# Только caps/vision. Текущие HP/щит приходят через sync_vitals,
 	# иначе при позднем reveal враг видит «полный» бар после урона.
 	max_health = new_max_health
 	max_shield = new_max_shield
+	preset_cost = new_preset_cost
 	set_vision_radius(new_vision_radius)
 	if health_bar:
 		health_bar.max_value = max_health
@@ -389,11 +429,15 @@ func sync_preset_stats(
 		shield_bar.max_value = max_shield
 	update_health_bar()
 	update_shield_bar()
+	apply_visual_scale()
+	if preview and is_instance_valid(preview):
+		preview.update_visual()
 
 @rpc("authority", "call_local", "reliable")
 func sync_unit_appearance(display_name: String, instance_number: int, icon_path: String) -> void:
 	super.sync_unit_appearance(display_name, instance_number, icon_path)
 	apply_unit_icon()
+	apply_visual_scale()
 	_update_unit_name_label()
 	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
 		if owner_id == Handlers.TeamHandler.my_profile.PlayerId:

@@ -21,6 +21,17 @@ const SPEED_PER_STAT := 30
 const DAMAGE_PER_STAT := 1
 const VISION_RADIUS_PER_STAT := 40
 
+## Визуальный масштаб по стоимости пресета.
+const NORMAL_COST_MIN := 5
+const NORMAL_COST_MAX := 100
+const NORMAL_SCALE_MIN := 0.5
+const NORMAL_SCALE_MAX := 1.5
+
+const COMMAND_COST_MIN := 10
+const COMMAND_COST_MAX := 200
+const COMMAND_SCALE_MIN := 1.0
+const COMMAND_SCALE_MAX := 2.0
+
 
 static func default_stats() -> Dictionary:
 	return {
@@ -106,3 +117,14 @@ static func is_valid_preset_stats(stats: Dictionary, is_command: bool) -> bool:
 	if not are_raw_stats_within_limits(stats):
 		return false
 	return calculate_cost(stats, is_command) <= get_max_cost(is_command)
+
+
+static func visual_scale_for_cost(cost: int, is_command: bool) -> float:
+	var c_min: int = COMMAND_COST_MIN if is_command else NORMAL_COST_MIN
+	var c_max: int = COMMAND_COST_MAX if is_command else NORMAL_COST_MAX
+	var s_min: float = COMMAND_SCALE_MIN if is_command else NORMAL_SCALE_MIN
+	var s_max: float = COMMAND_SCALE_MAX if is_command else NORMAL_SCALE_MAX
+	var t := 0.0
+	if c_max > c_min:
+		t = clampf(float(cost - c_min) / float(c_max - c_min), 0.0, 1.0)
+	return lerpf(s_min, s_max, t)

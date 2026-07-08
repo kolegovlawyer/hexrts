@@ -42,15 +42,26 @@ func edit_unit_state(unit:Node):
 
 func add_selected(unit:Node):
 	_prune_selected_units()
-	if is_instance_valid(unit):
-		selected_units.append(unit)
+	if not is_instance_valid(unit):
+		return
+	# Не дублируем один и тот же юнит в выделении (ломало size==1 → scatter)
+	if unit in selected_units:
 		if unit.has_method("set_selected"):
 			unit.set_selected(true)
 		else:
 			unit.selected = true
 		Handlers.UIHandler.input_state = 1
-		if unit.has_method("rpc_id") and _is_own_unit(unit):
-			unit.rpc_id(1, "request_order_queue")
+		_refresh_waypoint_markers()
+		_sync_unit_rack_selection()
+		return
+	selected_units.append(unit)
+	if unit.has_method("set_selected"):
+		unit.set_selected(true)
+	else:
+		unit.selected = true
+	Handlers.UIHandler.input_state = 1
+	if unit.has_method("rpc_id") and _is_own_unit(unit):
+		unit.rpc_id(1, "request_order_queue")
 	_refresh_waypoint_markers()
 	_sync_unit_rack_selection()
 

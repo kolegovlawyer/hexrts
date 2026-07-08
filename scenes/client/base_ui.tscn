@@ -108,14 +108,34 @@ size_flags_vertical = 3
 alignment = 1
 
 [node name="BattleLogContainer" type="PanelContainer" parent="MarginContainer/MainRack/TopBoard" unique_id=1138732950]
+custom_minimum_size = Vector2(280, 120)
 custom_maximum_size = Vector2(300, 300)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="BattleLogRichText" type="RichTextLabel" parent="MarginContainer/MainRack/TopBoard/BattleLogContainer" unique_id=2042216487]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/MainRack/TopBoard/BattleLogContainer" unique_id=1987729101]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="BattleLogHeader" type="HBoxContainer" parent="MarginContainer/MainRack/TopBoard/BattleLogContainer/VBoxContainer" unique_id=1987729102]
+layout_mode = 2
+
+[node name="BattleLogTitle" type="Label" parent="MarginContainer/MainRack/TopBoard/BattleLogContainer/VBoxContainer/BattleLogHeader" unique_id=1987729103]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Журнал боя"
+
+[node name="BattleLogClearButton" type="Button" parent="MarginContainer/MainRack/TopBoard/BattleLogContainer/VBoxContainer/BattleLogHeader" unique_id=1987729104]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Test text!"
+text = "Очистить"
+
+[node name="BattleLogRichText" type="RichTextLabel" parent="MarginContainer/MainRack/TopBoard/BattleLogContainer/VBoxContainer" unique_id=2042216487]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+scroll_following = true
 
 [node name="UnitPoints" type="Label" parent="MarginContainer/MainRack/TopBoard" unique_id=1211895036]
 unique_name_in_owner = true
@@ -128,6 +148,7 @@ horizontal_alignment = 1
 [node name="Control" type="Control" parent="MarginContainer/MainRack/TopBoard" unique_id=1523959581]
 layout_mode = 2
 size_flags_horizontal = 3
+mouse_filter = 1
 
 [node name="DebugBoard" type="HBoxContainer" parent="MarginContainer/MainRack" unique_id=1801813924]
 visible = false

@@ -10,6 +10,7 @@
 [ext_resource type="Script" uid="uid://cn01mbav3n71p" path="res://scripts/map_fog_initializer.gd" id="8_35fhk"]
 [ext_resource type="Shader" uid="uid://boaah0tust4ye" path="res://shaders/fog_of_war.gdshader" id="9_awewe"]
 [ext_resource type="Script" uid="uid://ce0gqxjh8krt6" path="res://scripts/UI/FogOfWarOverlay.gd" id="10_hjgmh"]
+[ext_resource type="Script" uid="uid://cmb6yjhcegjv1" path="res://scripts/map/hex_label_layer.gd" id="11_hexlbl"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_qfklk"]
 texture = ExtResource("5_u0t51")
@@ -59,6 +60,10 @@ visibility_layer = 2
 z_index = 1
 z_as_relative = false
 tile_set = SubResource("TileSet_35fhk")
+
+[node name="HexLabelLayer" type="Node2D" parent="." unique_id=1847729105]
+z_index = 2
+script = ExtResource("11_hexlbl")
 
 [node name="CameraCornerBottomRight" type="Node2D" parent="." unique_id=1043491106]
 unique_name_in_owner = true

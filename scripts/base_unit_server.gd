@@ -38,6 +38,8 @@ var _can_see_target_uid: String = ""
 var _can_see_result: bool = false
 var _can_see_frame: int = -100
 var _enemies_in_vision: Array[BaseUnitServer] = []
+# peer_id -> видит ли этот peer юнит сейчас (для мгновенного push vitals при reveal)
+var _peer_visibility: Dictionary = {}
 
 # Флаг для отложенной инициализации команды (когда setter вызван до добавления в дерево)
 var _pending_team_initialization: bool = false
@@ -776,10 +778,6 @@ func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 	- amount: Количество урона
 	- from: Источник урона (может быть null если источник был уничтожен)
 	"""
-	# Испускаем сигнал для системы ботов о том, что юнит подвергается атаке
-	if from and is_instance_valid(from):
-		under_attack.emit(from, self)
-	
 	if DEBUG_COMBAT:
 		var instigator_name = from.name if from and is_instance_valid(from) else "null"
 		Handlers.dprint("💥 APPLY DAMAGE: %s <= %d from=%s" % [name, amount, instigator_name])
@@ -788,26 +786,32 @@ func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 	
 	# Сначала урон поглощается щитом
 	if _shield > 0:
-		var shield_damage: int = min(_shield, remaining_damage)
-		# ВАЖНО: обновляем бэкинг-поле напрямую на сервере
-		_shield = max(_shield - shield_damage, 0)
+		var shield_damage: int = mini(_shield, remaining_damage)
+		_shield = maxi(_shield - shield_damage, 0)
 		remaining_damage -= shield_damage
 		
 		# Останавливаем восстановление щита и сбрасываем таймер
 		if is_multiplayer_authority() and shield_regeneration_timer:
 			shield_regeneration_timer.stop()
-			# Перезапускаем таймер задержки восстановления
 			shield_regeneration_timer.wait_time = shield_regen_delay
 			shield_regeneration_timer.start()
 	
 	# Оставшийся урон наносится здоровью
 	if remaining_damage > 0:
-		# ВАЖНО: обновляем бэкинг-поле напрямую на сервере
-		_health = max(_health - remaining_damage, 0)
+		_health = maxi(_health - remaining_damage, 0)
+
+	health = _health
+	shield = _shield
+	update_health_bar()
+	update_shield_bar()
 	
-	# Синхронизируем клиентам актуальные значения через RPC (для обновления баров)
-	rpc("sync_health", _health)
-	rpc("sync_shield", _shield)
+	# После реального урона — сигналы бота/журнал
+	if from and is_instance_valid(from):
+		under_attack.emit(from, self)
+		if Handlers.GameHandler and Handlers.GameHandler.battle_log:
+			Handlers.GameHandler.battle_log.on_unit_damaged(self, from)
+	
+	_push_vitals_to_clients()
 	
 	if DEBUG_COMBAT:
 		Handlers.dprint("🧮 AFTER DAMAGE: %s hp=%d/%d sh=%d/%d" % [name, _health, max_health, _shield, max_shield])
@@ -816,17 +820,60 @@ func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 	if _health <= 0:
 		die()
 
-@rpc("any_peer", "call_local", "reliable")
-func sync_health(new_health_value: int) -> void:
-	if not is_multiplayer_authority():
-		_health = new_health_value
+@rpc("authority", "call_remote", "reliable")
+func sync_vitals(
+		new_health_value: int,
+		new_shield_value: int,
+		new_max_health: int = -1,
+		new_max_shield: int = -1
+	) -> void:
+	# call_remote: на authority выполняется только _push_vitals_*.
+	# Клиенты применяют значения в BaseUnitClient.sync_vitals.
+	if new_max_health > 0:
+		max_health = new_max_health
+	if new_max_shield > 0:
+		max_shield = new_max_shield
+	_health = clampi(new_health_value, 0, maxi(1, max_health))
+	_shield = clampi(new_shield_value, 0, maxi(0, max_shield))
+	health = _health
+	shield = _shield
+	update_health_bar()
+	update_shield_bar()
 
-@rpc("any_peer", "call_local", "reliable")
+@rpc("authority", "call_remote", "reliable")
+func sync_health(new_health_value: int) -> void:
+	sync_vitals(new_health_value, _shield, max_health, max_shield)
+
+@rpc("authority", "call_remote", "reliable")
 func sync_shield(new_shield_value: int) -> void:
+	sync_vitals(_health, new_shield_value, max_health, max_shield)
+
+func _push_vitals_to_clients() -> void:
+	"""
+	Мгновенная доставка HP/щита.
+	Godot сам фильтрует RPC по MultiplayerSynchronizer visibility —
+	союзники и враги, видящие юнит (FoW), получают пакет; остальные — нет.
+	"""
 	if not is_multiplayer_authority():
-		_shield = new_shield_value
+		return
+	health = _health
+	shield = _shield
+	rpc("sync_vitals", _health, _shield, max_health, max_shield)
+
+func _push_vitals_to_peer(peer_id: int) -> void:
+	if not is_multiplayer_authority():
+		return
+	if peer_id == multiplayer.get_unique_id():
+		return
+	# Явный push при reveal: visibility только что стала true для peer.
+	rpc_id(peer_id, "sync_vitals", _health, _shield, max_health, max_shield)
+
+func _set_peer_visible(peer_id: int, is_visible_flag: bool) -> void:
+	_peer_visibility[peer_id] = is_visible_flag
 
 func die() -> void:
+	if Handlers.GameHandler and Handlers.GameHandler.battle_log:
+		Handlers.GameHandler.battle_log.on_unit_died(self)
 	unit_died.emit(self)
 	
 	var observers: Array = []
@@ -885,7 +932,7 @@ func force_update_visibility() -> void:
 
 
 func update_visibility():
-	"""ОПТИМИЗИРОВАНО: Обновление видимости с кэшированием"""
+	"""Союзники всегда видят; враги — по FoW (_last_enemy_visibility)."""
 	if not is_multiplayer_authority():
 		return
 	
@@ -894,25 +941,28 @@ func update_visibility():
 		return
 	_last_visibility_update_frame = current_frame
 	
-	# Быстрое определение команды с кэшированием
 	var unit_team = _get_cached_team()
 	if unit_team == null:
 		return
 	
-	# ИСПРАВЛЕНИЕ: Получаем список активных peer'ов
 	var active_peers = multiplayer.get_peers()
-	
-	# Сначала скрываем юнит от ВСЕХ игроков (только активных)
-	for player_id in active_peers:
-		_safe_set_visibility(player_id, false)
-	
-	# Затем показываем только союзникам
+	var desired: Dictionary = {}
+
 	var team_players = Handlers.TeamHandler.get_team_players(unit_team)
 	if team_players:
 		for player in team_players:
-			# Проверяем что peer активен перед установкой видимости
 			if player.PlayerId in active_peers:
-				_safe_set_visibility(player.PlayerId, true)
+				desired[player.PlayerId] = true
+
+	if _last_enemy_visibility_valid and _last_enemy_visibility:
+		var enemy_players = Handlers.TeamHandler.get_enemy_team_players(unit_team)
+		if enemy_players:
+			for player in enemy_players:
+				if player.PlayerId in active_peers:
+					desired[player.PlayerId] = true
+
+	for peer_id in active_peers:
+		_safe_set_visibility(peer_id, desired.has(peer_id))
 
 func _get_cached_team():
 	"""ОПТИМИЗАЦИЯ: Кэшированное получение команды юнита"""
@@ -934,23 +984,25 @@ func _get_cached_team():
 			return null
 
 func _safe_set_visibility(peer_id: int, is_visible_flag: bool) -> void:
-	"""
-	Безопасно устанавливает видимость для peer'а с проверкой существования
-	"""
-	# Проверяем что peer существует и synchronizer валидный
 	if not is_instance_valid(synchronizer):
 		return
 	
-	# Дополнительная проверка существования peer'а
 	var active_peers = multiplayer.get_peers()
-	if peer_id not in active_peers and peer_id != 1:  # 1 - это сервер
+	if peer_id not in active_peers and peer_id != 1:
 		return
 	
-	# Устанавливаем видимость
+	var was_visible: bool = bool(_peer_visibility.get(peer_id, false))
+	if was_visible == is_visible_flag:
+		return
+
 	synchronizer.set_visibility_for(peer_id, is_visible_flag)
+	_set_peer_visible(peer_id, is_visible_flag)
+	# При появлении из тумана сразу шлём актуальные vitals + caps.
+	if is_visible_flag:
+		_push_vitals_to_peer(peer_id)
 			
 func set_visibility_for_enemy(is_visible_flag: bool) -> void:
-	"""ОПТИМИЗИРОВАНО: Установка видимости для врагов с кэшированием"""
+	"""Установка видимости для врагов с кэшированием + мгновенный push vitals."""
 	if not is_multiplayer_authority():
 		return
 	
@@ -959,18 +1011,15 @@ func set_visibility_for_enemy(is_visible_flag: bool) -> void:
 	_last_enemy_visibility = is_visible_flag
 	_last_enemy_visibility_valid = true
 	
-	# Быстрое определение команды с кэшированием
 	var unit_team = _get_cached_team()
 	if unit_team == null:
 		return
 	
-	# ИСПРАВЛЕНИЕ: Безопасное установление видимости для врагов
 	var enemy_players = Handlers.TeamHandler.get_enemy_team_players(unit_team)
 	var active_peers = multiplayer.get_peers()
 	
 	if enemy_players:
 		for player in enemy_players:
-			# Проверяем что enemy peer активен
 			if player.PlayerId in active_peers:
 				_safe_set_visibility(player.PlayerId, is_visible_flag)
 
@@ -1184,9 +1233,10 @@ func _on_shield_regeneration_timeout() -> void:
 	
 	# Восстанавливаем щит
 	var regen_amount = int(shield_regen_rate)  # Количество щита за тик
-	_shield = min(_shield + regen_amount, max_shield)
-	rpc("sync_health", _health)
-	rpc("sync_shield", _shield)
+	_shield = mini(_shield + regen_amount, max_shield)
+	shield = _shield
+	update_shield_bar()
+	_push_vitals_to_clients()
 
 	# Если щит не полный - продолжаем восстановление каждую секунду
 	if _shield < max_shield:
@@ -1268,12 +1318,34 @@ func update_visual() -> void:
 	pass
 
 func update_health_bar() -> void:
-	"""Серверная версия - не обновляет UI"""
-	pass
+	# Listen-server тоже рисует сцену юнита (BaseUnitServer), поэтому бары нужны и здесь.
+	var health_bar: ProgressBar = get_node_or_null("%HealthBar") as ProgressBar
+	if health_bar == null:
+		return
+	health_bar.max_value = max_health
+	health_bar.value = _health
+	var health_percent := float(_health) / float(maxi(1, max_health))
+	if health_percent > 0.7:
+		health_bar.modulate = Color.GREEN
+	elif health_percent > 0.3:
+		health_bar.modulate = Color.YELLOW
+	else:
+		health_bar.modulate = Color.RED
 
 func update_shield_bar() -> void:
-	"""Серверная версия - не обновляет UI"""
-	pass
+	var shield_bar: ProgressBar = get_node_or_null("%ShiledBar") as ProgressBar
+	if shield_bar == null:
+		return
+	shield_bar.max_value = max_shield
+	shield_bar.value = _shield
+	shield_bar.visible = _shield > 0
+	var shield_percent := float(_shield) / float(maxi(1, max_shield))
+	if shield_percent > 0.5:
+		shield_bar.modulate = Color.CYAN
+	elif shield_percent > 0.0:
+		shield_bar.modulate = Color.ORANGE
+	else:
+		shield_bar.modulate = Color.TRANSPARENT
 
 func apply_preset_snapshot(snapshot: Dictionary) -> void:
 	if not is_multiplayer_authority():
@@ -1310,8 +1382,7 @@ func apply_preset_snapshot(snapshot: Dictionary) -> void:
 		preset_instance_number,
 		preset_icon_path
 	)
-	rpc("sync_health", _health)
-	rpc("sync_shield", _shield)
+	_push_vitals_to_clients()
 
 
 func _deferred_sync_unit_appearance(display_name: String, instance_number: int, icon_path: String) -> void:

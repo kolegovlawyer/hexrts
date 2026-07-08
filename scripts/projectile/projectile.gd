@@ -108,20 +108,24 @@ func _physics_process(delta: float) -> void:
 		_destroy()
 		return
 
-	# Движение к целевой позиции
-	var direction: Vector2 = (target_position - global_position).normalized()
-	global_position += direction * speed * delta
+	var to_target: Vector2 = target_position - global_position
+	var distance_to_target: float = to_target.length()
+	var step: float = speed * delta
 
-	# Обновляем след
+	# При низком FPS шаг больше радиуса попадания — без этой проверки
+	# снаряд перелетает цель и умирает по lifetime без урона.
+	if distance_to_target <= maxf(step, 3.0):
+		global_position = target_position
+		_explode()
+		return
+
+	var direction: Vector2 = to_target / distance_to_target
+	global_position += direction * step
+
 	_update_trail()
-	
-	# Вращаем снаряд в сторону движения
+
 	if sprite:
 		sprite.rotation = direction.angle()
-
-	# Проверка достижения целевой позиции
-	if global_position.distance_to(target_position) < 3.0:
-		_explode()
 
 func _update_trail() -> void:
 	# Добавляем текущую позицию к следу

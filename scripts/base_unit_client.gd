@@ -9,10 +9,19 @@ class_name BaseUnitClient extends BaseUnit
 @onready var arrow = get_node("%ArrowSprite")
 @onready var health_bar = get_node("%HealthBar")
 @onready var shield_bar = get_node("%ShiledBar")
+@onready var unit_name_label: Label = get_node_or_null("%UnitName")
 
 ### Характеристики для отображения
 var _health = 30
 var _shield = 15
+
+var frame_group : int
+var preview: UnitPreview = null
+var _order_queue_snapshot: Array = []
+var _hit_flash_tween: Tween = null
+var _is_hit_flashing: bool = false
+
+const HIT_FLASH_DURATION: float = 0.2
 
 # Методы для работы с состоянием выделения
 func set_preselected(value: bool) -> void:
@@ -21,13 +30,12 @@ func set_preselected(value: bool) -> void:
 		selection_ring.show()
 	else:
 		selection_ring.hide()
+	_apply_sprite_tint()
 
 func set_selected(value: bool) -> void:
 	selected = value
-	if value == true:
-		$UnitSelfSprite.self_modulate = Color(0.37, 0.37, 0.37)
-	else:
-		$UnitSelfSprite.self_modulate = Color(1, 1, 1)
+	_update_unit_name_label()
+	_apply_sprite_tint()
 
 func set_health(value: int) -> void:
 	var old_health = _health
@@ -41,20 +49,20 @@ func set_shield(value: int) -> void:
 	if old_shield != _shield:
 		update_shield_bar()
 
-var frame_group : int
-var preview: UnitPreview = null
-var _order_queue_snapshot: Array = []
-
 func get_order_queue_snapshot() -> Array:
 	return _order_queue_snapshot
 
 func _ready() -> void:
 	super._ready()
-	
+
 	# Инициализируем health bar и shield bar
 	init_health_bar()
 	init_shield_bar()
-	
+
+	if unit_name_label:
+		unit_name_label.hide()
+		unit_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
 	if not is_multiplayer_authority():
 		connect("input_event", handle_input)
 		connect("mouse_entered", preseclect)
@@ -63,6 +71,7 @@ func _ready() -> void:
 	call_deferred("update_visual")
 
 func _exit_tree() -> void:
+	_kill_hit_flash()
 	if Handlers.UIHandler and UID != "":
 		Handlers.UIHandler.unregister_unit_preview(UID)
 	if preview and is_instance_valid(preview):
@@ -73,15 +82,14 @@ func _exit_tree() -> void:
 
 func preseclect():
 	set_preselected(true)
-	
+
 func depreselect():
 	set_preselected(false)
-	
+
 func handle_input(_viewport, _event, _shape_idx):
 	if self in get_tree().get_nodes_in_group("own_units"):
 		if _event is InputEventMouseButton and _event.button_index == 1:
 			if _event.pressed == false:
-				selected = true
 				Handlers.UnitSelectionHandler.add_selected(self)
 				get_viewport().set_input_as_handled()
 	else:
@@ -106,7 +114,7 @@ func init_health_bar() -> void:
 		_health = max_health
 	if _shield <= 0:
 		_shield = max_shield
-	
+
 	if health_bar:
 		health_bar.max_value = max_health
 		health_bar.value = _health
@@ -116,7 +124,7 @@ func update_health_bar() -> void:
 	"""Обновляет отображение health bar при изменении здоровья"""
 	if health_bar:
 		health_bar.value = _health
-		
+
 		# Меняем цвет в зависимости от процента здоровья
 		var health_percent = float(_health) / float(max_health)
 		if health_percent > 0.7:
@@ -134,7 +142,7 @@ func update_visual():
 		return
 	if owner_id == 1:
 		return
-	
+
 	# Сначала проверяем является ли это ботом
 	var bot_team = Handlers.GameHandler.get_bot_team_by_id(owner_id) if Handlers.GameHandler else -1
 	if bot_team != -1:
@@ -150,6 +158,8 @@ func update_visual():
 		apply_unit_icon()
 		set_own_unit_group()
 		_ensure_own_preview()
+		_apply_sprite_tint()
+		_update_unit_name_label()
 		update_health_bar()
 		update_shield_bar()
 		_sync_preview_vitals()
@@ -160,19 +170,32 @@ func update_visual():
 	else:
 		apply_unit_icon()
 		update_sprite_color()
+	_update_unit_name_label()
 	update_health_bar()
 	update_shield_bar()
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РЕФАКТОРИНГА ===
 
 func get_display_name() -> String:
+	var base := ""
 	if preset_display_name != "" and preset_instance_number > 0:
-		return "%s #%d" % [preset_display_name, preset_instance_number]
-	var base_name := "Командир" if is_command_unit() else "Боец"
-	if UID.length() >= 4:
-		return "%s %s" % [base_name, UID.right(4)]
-	return base_name
+		base = "%s #%d" % [preset_display_name, preset_instance_number]
+	else:
+		base = "Командир" if is_command_unit() else "Боец"
+		if UID.length() >= 4:
+			base = "%s %s" % [base, UID.right(4)]
+	if is_command_unit():
+		return "%s Командирский" % base
+	return base
 
+func _update_unit_name_label() -> void:
+	if unit_name_label == null:
+		return
+	if selected:
+		unit_name_label.text = get_display_name()
+		unit_name_label.show()
+	else:
+		unit_name_label.hide()
 
 func apply_unit_icon() -> void:
 	if preset_icon_path == "":
@@ -216,15 +239,69 @@ func set_enemy_unit_group():
 		add_to_group("enemy_units")
 
 func update_sprite_color():
-	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
-		sprite.self_modulate = Color(1, 1, 1)
-	elif owner_team == Handlers.TeamHandler.my_profile.team:
-		sprite.self_modulate = Color(0, 0, 1)
-	else:
-		sprite.self_modulate = Color(1, 0, 0)
+	_apply_sprite_tint()
+
+func _is_own_unit_for_tint() -> bool:
+	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
+		return false
+	return owner_id == Handlers.TeamHandler.my_profile.PlayerId
+
+func _is_enemy_unit_for_tint() -> bool:
+	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
+		return false
+	if _is_own_unit_for_tint():
+		return false
+	if owner_team == null:
+		return true
+	return owner_team != Handlers.TeamHandler.my_profile.team
+
+func _apply_sprite_tint() -> void:
+	if sprite == null or _is_hit_flashing:
+		return
+	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
+		return
+
+	var tint: Color = GameTypes.own_color
+	if _is_own_unit_for_tint():
+		if selected:
+			tint = GameTypes.own_selected_color
+		elif preselected:
+			tint = GameTypes.own_hover_color
+		else:
+			tint = GameTypes.own_color
+	elif _is_enemy_unit_for_tint():
 		if sprite:
 			sprite.light_mask = 2
 			sprite.visibility_layer = 2
+		if preselected:
+			tint = GameTypes.enemy_hover_color
+		else:
+			tint = GameTypes.enemy_color
+	else:
+		# Союзник (не свой пир): own-like green
+		tint = GameTypes.own_color
+
+	sprite.self_modulate = tint
+
+func _kill_hit_flash() -> void:
+	if _hit_flash_tween and is_instance_valid(_hit_flash_tween):
+		_hit_flash_tween.kill()
+	_hit_flash_tween = null
+	_is_hit_flashing = false
+
+func _play_hit_flash() -> void:
+	if sprite == null:
+		return
+	_kill_hit_flash()
+	_is_hit_flashing = true
+	sprite.self_modulate = GameTypes.hit_flash_color
+	_hit_flash_tween = create_tween()
+	_hit_flash_tween.tween_interval(HIT_FLASH_DURATION)
+	_hit_flash_tween.tween_callback(func() -> void:
+		_is_hit_flashing = false
+		_hit_flash_tween = null
+		_apply_sprite_tint()
+	)
 
 ## SHIELD BAR FUNCTIONS ##
 
@@ -233,7 +310,7 @@ func init_shield_bar() -> void:
 	# Инициализируем щит, если еще не инициализирован
 	if _shield <= 0:
 		_shield = max_shield
-	
+
 	if shield_bar:
 		shield_bar.max_value = max_shield
 		shield_bar.value = _shield
@@ -243,7 +320,7 @@ func update_shield_bar() -> void:
 	"""Обновляет отображение shield bar при изменении щита"""
 	if shield_bar:
 		shield_bar.value = _shield
-		
+
 		# Меняем цвет в зависимости от процента щита
 		var shield_percent = float(_shield) / float(max_shield)
 		if shield_percent > 0.7:
@@ -259,23 +336,39 @@ func update_shield_bar() -> void:
 			# Скрываем bar когда щита нет
 			shield_bar.modulate = Color.TRANSPARENT
 
-@rpc("any_peer", "call_local", "reliable")
-func sync_health(new_health_value: int) -> void:
-	"""
-	Клиентская реализация: сохраняет бэкинг-поле и обновляет бар
-	"""
-	_health = clamp(new_health_value, 0, max_health)
+@rpc("authority", "call_remote", "reliable")
+func sync_vitals(
+		new_health_value: int,
+		new_shield_value: int,
+		new_max_health: int = -1,
+		new_max_shield: int = -1
+	) -> void:
+	if new_max_health > 0:
+		max_health = new_max_health
+	if new_max_shield > 0:
+		max_shield = new_max_shield
+	var took_damage: bool = new_health_value < _health or new_shield_value < _shield
+	_health = clampi(new_health_value, 0, maxi(1, max_health))
+	_shield = clampi(new_shield_value, 0, maxi(0, max_shield))
+	health = _health
+	shield = _shield
+	if health_bar:
+		health_bar.max_value = max_health
+	if shield_bar:
+		shield_bar.max_value = max_shield
 	update_health_bar()
-	_sync_preview_vitals()
-
-@rpc("any_peer", "call_local", "reliable")
-func sync_shield(new_shield_value: int) -> void:
-	"""
-	Клиентская реализация: сохраняет бэкинг-поле и обновляет бар
-	"""
-	_shield = clamp(new_shield_value, 0, max_shield)
 	update_shield_bar()
 	_sync_preview_vitals()
+	if took_damage:
+		_play_hit_flash()
+
+@rpc("authority", "call_remote", "reliable")
+func sync_health(new_health_value: int) -> void:
+	sync_vitals(new_health_value, _shield, max_health, max_shield)
+
+@rpc("authority", "call_remote", "reliable")
+func sync_shield(new_shield_value: int) -> void:
+	sync_vitals(_health, new_shield_value, max_health, max_shield)
 
 @rpc("authority", "call_local", "reliable")
 func sync_preset_stats(
@@ -285,19 +378,23 @@ func sync_preset_stats(
 		_new_damage: int,
 		new_vision_radius: float
 	) -> void:
+	# Только caps/vision. Текущие HP/щит приходят через sync_vitals,
+	# иначе при позднем reveal враг видит «полный» бар после урона.
 	max_health = new_max_health
 	max_shield = new_max_shield
-	_health = max_health
-	_shield = max_shield
 	set_vision_radius(new_vision_radius)
-
-	init_health_bar()
-	init_shield_bar()
+	if health_bar:
+		health_bar.max_value = max_health
+	if shield_bar:
+		shield_bar.max_value = max_shield
+	update_health_bar()
+	update_shield_bar()
 
 @rpc("authority", "call_local", "reliable")
 func sync_unit_appearance(display_name: String, instance_number: int, icon_path: String) -> void:
 	super.sync_unit_appearance(display_name, instance_number, icon_path)
 	apply_unit_icon()
+	_update_unit_name_label()
 	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
 		if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
 			_ensure_own_preview()

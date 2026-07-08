@@ -30,6 +30,7 @@ func clear_selection():
 				unit.selected = false
 	selected_units.clear()
 	_refresh_waypoint_markers()
+	_sync_unit_rack_selection()
 	
 func edit_unit_state(unit:Node):
 	if not is_instance_valid(unit):
@@ -51,6 +52,7 @@ func add_selected(unit:Node):
 		if unit.has_method("rpc_id") and _is_own_unit(unit):
 			unit.rpc_id(1, "request_order_queue")
 	_refresh_waypoint_markers()
+	_sync_unit_rack_selection()
 
 func remove_selected(unit:Node):
 	if is_instance_valid(unit):
@@ -61,6 +63,7 @@ func remove_selected(unit:Node):
 		else:
 			unit.selected = false
 	_refresh_waypoint_markers()
+	_sync_unit_rack_selection()
 
 func _is_own_unit(unit: Node) -> bool:
 	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
@@ -70,6 +73,10 @@ func _is_own_unit(unit: Node) -> bool:
 func _refresh_waypoint_markers() -> void:
 	if Handlers.UIHandler and Handlers.UIHandler.has_method("refresh_waypoint_markers"):
 		Handlers.UIHandler.refresh_waypoint_markers()
+
+func _sync_unit_rack_selection() -> void:
+	if Handlers.UIHandler and Handlers.UIHandler.has_method("sync_unit_rack_selection"):
+		Handlers.UIHandler.sync_unit_rack_selection()
 
 func set_selected(unit:Node):
 	clear_selection()
@@ -86,3 +93,4 @@ func remove_unit_from_selection(unit: BaseUnit):
 			if Handlers.UIHandler:
 				Handlers.UIHandler.input_state = 0
 	_refresh_waypoint_markers()
+	_sync_unit_rack_selection()

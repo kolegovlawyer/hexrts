@@ -30,4 +30,3 @@ func select_units():
 		if body in get_tree().get_nodes_in_group("own_units"):
 			if body not in Handlers.UnitSelectionHandler.selected_units:
 				Handlers.UnitSelectionHandler.add_selected(body)
-				body.selected = true

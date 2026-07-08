@@ -155,17 +155,30 @@ func get_unit_info() -> void:
 	"""Возвращает информацию о юните"""
 	pass
 
-@rpc("any_peer", "call_local", "reliable")
-func sync_health(new_health_value: int) -> void:
-	"""Синхронизирует значение здоровья (обновляет локальное отображение)"""
-	health = clamp(new_health_value, 0, max_health)
+@rpc("authority", "call_remote", "reliable")
+func sync_vitals(
+		new_health_value: int,
+		new_shield_value: int,
+		new_max_health: int = -1,
+		new_max_shield: int = -1
+	) -> void:
+	"""Мгновенная синхронизация HP/щита (+ caps). Не через MultiplayerSynchronizer."""
+	if new_max_health > 0:
+		max_health = new_max_health
+	if new_max_shield > 0:
+		max_shield = new_max_shield
+	health = clampi(new_health_value, 0, maxi(1, max_health))
+	shield = clampi(new_shield_value, 0, maxi(0, max_shield))
 	update_health_bar()
-
-@rpc("any_peer", "call_local", "reliable")
-func sync_shield(new_shield_value: int) -> void:
-	"""Синхронизирует значение щита (обновляет локальное отображение)"""
-	shield = clamp(new_shield_value, 0, max_shield)
 	update_shield_bar()
+
+@rpc("authority", "call_remote", "reliable")
+func sync_health(new_health_value: int) -> void:
+	sync_vitals(new_health_value, shield, max_health, max_shield)
+
+@rpc("authority", "call_remote", "reliable")
+func sync_shield(new_shield_value: int) -> void:
+	sync_vitals(health, new_shield_value, max_health, max_shield)
 
 @rpc("any_peer", "reliable")
 func set_unit_info(_profile_path: String) -> void:

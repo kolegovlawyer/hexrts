@@ -105,10 +105,10 @@ text = "S"
 layout_mode = 2
 text = "C"
 
-[node name="NameLabel" type="TextEdit" parent="MarginContainer/MainContainer/HeaderRack" unique_id=1176937960]
+[node name="NameLabel" type="LineEdit" parent="MarginContainer/MainContainer/HeaderRack" unique_id=1176937960]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "МК-1 "
+text = "МК-1"
 
 [node name="VariableRack" type="HBoxContainer" parent="MarginContainer/MainContainer" unique_id=341490299]
 layout_mode = 2

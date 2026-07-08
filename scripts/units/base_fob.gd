@@ -176,6 +176,9 @@ func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 	if not is_multiplayer_authority() or is_destroyed:
 		return
 
+	if from and is_instance_valid(from) and Handlers.GameHandler and Handlers.GameHandler.battle_log:
+		Handlers.GameHandler.battle_log.on_fob_damaged(self, from)
+
 	var remaining_damage := amount
 	if _shield > 0:
 		var shield_damage: int = min(_shield, remaining_damage)
@@ -189,21 +192,30 @@ func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 	if remaining_damage > 0:
 		_health = max(_health - remaining_damage, 0)
 
-	rpc("sync_health", _health)
-	rpc("sync_shield", _shield)
+	health = _health
+	shield = _shield
+	_update_vitals_bars()
+
+	rpc("sync_vitals", _health, _shield)
 
 	if _health <= 0:
 		_destroy_fob(from)
 
-@rpc("authority", "call_local", "reliable")
-func sync_health(new_health_value: int) -> void:
-	health = clamp(new_health_value, 0, max_health)
+@rpc("authority", "call_remote", "reliable")
+func sync_vitals(new_health_value: int, new_shield_value: int) -> void:
+	health = clampi(new_health_value, 0, max_health)
+	shield = clampi(new_shield_value, 0, max_shield)
+	_health = health
+	_shield = shield
 	_update_vitals_bars()
 
-@rpc("authority", "call_local", "reliable")
+@rpc("authority", "call_remote", "reliable")
+func sync_health(new_health_value: int) -> void:
+	sync_vitals(new_health_value, shield)
+
+@rpc("authority", "call_remote", "reliable")
 func sync_shield(new_shield_value: int) -> void:
-	shield = clamp(new_shield_value, 0, max_shield)
-	_update_vitals_bars()
+	sync_vitals(health, new_shield_value)
 
 func _setup_shield_regeneration_timer() -> void:
 	shield_regeneration_timer = Timer.new()
@@ -215,7 +227,8 @@ func _on_shield_regen_timeout() -> void:
 	if not is_multiplayer_authority() or is_destroyed or _shield >= max_shield:
 		return
 	_shield = min(_shield + int(SHIELD_REGEN_RATE * SHIELD_REGEN_DELAY), max_shield)
-	rpc("sync_shield", _shield)
+	shield = _shield
+	rpc("sync_vitals", _health, _shield)
 	if _shield < max_shield:
 		shield_regeneration_timer.start()
 
@@ -224,6 +237,8 @@ func _destroy_fob(_from: BaseUnitServer = null) -> void:
 		return
 	is_destroyed = true
 	_clear_vision_links()
+	if Handlers.GameHandler and Handlers.GameHandler.battle_log:
+		Handlers.GameHandler.battle_log.on_fob_destroyed(self)
 	fob_destroyed.emit(self, owner_id)
 	if Handlers.GameHandler and Handlers.GameHandler.has_method("handle_fob_destroyed"):
 		Handlers.GameHandler.handle_fob_destroyed(owner_id)

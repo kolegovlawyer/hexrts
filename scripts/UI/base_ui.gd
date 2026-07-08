@@ -1,6 +1,7 @@
 class_name GameUI extends Node
 
 const _WaypointMarkerManagerScript := preload("res://scripts/UI/waypoint_marker_manager.gd")
+const _BattleLogUIScript := preload("res://scripts/UI/battle_log_ui.gd")
 
 @onready var window_size = Vector2(ProjectSettings.get_setting("display/window/size/viewport_width"),
 ProjectSettings.get_setting("display/window/size/viewport_height"))
@@ -24,6 +25,14 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 var unit_editor: UnitEditor = null
 
 @onready var unit_container = get_node("%UnitContainer")
+
+@onready var battle_log_richtext: RichTextLabel = get_node("%BattleLogRichText")
+@onready var battle_log_clear_button: Button = get_node("%BattleLogClearButton")
+
+const BATTLE_LOG_MAX_LINES := 50
+
+var _battle_log_line_count: int = 0
+var _battle_log_follow_scroll: bool = true
 
 var _unit_previews: Dictionary = {}
 
@@ -166,6 +175,7 @@ func _ready() -> void:
 	#home_button.connect('pressed', move_camera_to_fob)
 	unit_editor_button.pressed.connect(open_unit_editor)
 	_initialize_points_display()
+	_initialize_battle_log()
 
 func register_unit_preview(uid: String, preview: UnitPreview) -> void:
 	if uid == "" or preview == null or preview.is_queued_for_deletion():
@@ -175,6 +185,17 @@ func register_unit_preview(uid: String, preview: UnitPreview) -> void:
 
 func unregister_unit_preview(uid: String) -> void:
 	_unit_previews.erase(uid)
+
+func sync_unit_rack_selection() -> void:
+	if not Handlers.UnitSelectionHandler:
+		return
+	var selected_units: Array = Handlers.UnitSelectionHandler.selected_units
+	for child in unit_container.get_children():
+		var preview := child as UnitPreview
+		if preview == null or not is_instance_valid(preview):
+			continue
+		var is_selected := is_instance_valid(preview.unit) and preview.unit in selected_units
+		preview.set_rack_selected(is_selected)
 
 func get_unit_preview(uid: String) -> UnitPreview:
 	return _unit_previews.get(uid, null)
@@ -423,6 +444,75 @@ func open_unit_editor() -> void:
 	unit_editor.tree_exited.connect(func() -> void:
 		unit_editor = null
 	)
+
+
+### BATTLE LOG ###
+
+func _initialize_battle_log() -> void:
+	if battle_log_richtext == null:
+		return
+	battle_log_richtext.bbcode_enabled = true
+	battle_log_richtext.scroll_active = true
+	battle_log_richtext.scroll_following = true
+	battle_log_richtext.text = ""
+	_battle_log_line_count = 0
+	_battle_log_follow_scroll = true
+
+	var scroll_bar := battle_log_richtext.get_v_scroll_bar()
+	if scroll_bar:
+		scroll_bar.changed.connect(_on_battle_log_scroll_changed)
+
+	if battle_log_clear_button:
+		battle_log_clear_button.pressed.connect(clear_battle_log)
+
+
+func append_battle_log_event(event_type: int, hex_tile: Vector2i, match_seconds: float) -> void:
+	if battle_log_richtext == null:
+		return
+
+	var line := _BattleLogUIScript.format_event(event_type, hex_tile, match_seconds)
+	if _battle_log_line_count > 0:
+		battle_log_richtext.append_text("\n")
+	battle_log_richtext.append_text(line)
+	_battle_log_line_count += 1
+	_trim_battle_log_lines()
+
+	battle_log_richtext.scroll_following = _battle_log_follow_scroll
+
+
+func clear_battle_log() -> void:
+	if battle_log_richtext == null:
+		return
+	battle_log_richtext.text = ""
+	_battle_log_line_count = 0
+	_battle_log_follow_scroll = true
+	battle_log_richtext.scroll_following = true
+
+
+func _trim_battle_log_lines() -> void:
+	if _battle_log_line_count <= BATTLE_LOG_MAX_LINES:
+		return
+	var overflow := _battle_log_line_count - BATTLE_LOG_MAX_LINES
+	var text := battle_log_richtext.text
+	for _i in overflow:
+		var newline_index := text.find("\n")
+		if newline_index == -1:
+			text = ""
+			break
+		text = text.substr(newline_index + 1)
+	battle_log_richtext.text = text
+	_battle_log_line_count = BATTLE_LOG_MAX_LINES
+
+
+func _on_battle_log_scroll_changed() -> void:
+	if battle_log_richtext == null:
+		return
+	var scroll_bar := battle_log_richtext.get_v_scroll_bar()
+	if scroll_bar == null:
+		return
+	var at_bottom := scroll_bar.value >= scroll_bar.max_value - 8.0
+	_battle_log_follow_scroll = at_bottom
+	battle_log_richtext.scroll_following = _battle_log_follow_scroll
 
 
 ### DEBUG SECTION

@@ -11,7 +11,18 @@ var unit : BaseUnit:
 @onready var shield_bar = get_node("MainRack/StatusBoard/Control/BarsDeck/ShieldBar")
 @onready var name_label = get_node("MainRack/NameLabel")
 
+var _style_normal: StyleBox
+var _style_selected: StyleBoxFlat
+var _rack_selected: bool = false
+
 func _ready() -> void:
+	_style_normal = get_theme_stylebox("panel")
+	if _style_normal == null:
+		_style_normal = StyleBoxEmpty.new()
+	_style_selected = StyleBoxFlat.new()
+	_style_selected.bg_color = Color(0, 0, 0, 0)
+	_style_selected.set_border_width_all(2)
+	_style_selected.border_color = GameTypes.own_color
 	connect("gui_input", handle_input)
 	call_deferred("update_visual")
 	call_deferred("_delete_if_unbound")
@@ -28,16 +39,23 @@ func handle_input(event):
 	if event is InputEventMouseButton and event.button_index == 1 and event.pressed == false:
 		if Input.is_key_pressed(KEY_SHIFT):
 			Handlers.UnitSelectionHandler.add_selected(unit)
-			unit.selected = true
 			get_viewport().set_input_as_handled()
 			return
 		Handlers.UIHandler.camera.position = unit.position
 		Handlers.UnitSelectionHandler.clear_selection()
 		Handlers.UnitSelectionHandler.add_selected(unit)
-		unit.selected = true
 		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and event.button_index == 1 and event.pressed == true:
 		get_viewport().set_input_as_handled()
+
+func set_rack_selected(is_selected: bool) -> void:
+	_rack_selected = is_selected
+	if not is_node_ready():
+		return
+	if is_selected:
+		add_theme_stylebox_override("panel", _style_selected)
+	else:
+		add_theme_stylebox_override("panel", _style_normal)
 
 func update_visual() -> void:
 	if not is_instance_valid(unit):
@@ -68,6 +86,7 @@ func update_visual() -> void:
 	shield_bar.visible = unit.max_shield > 0
 
 	update_vitals()
+	set_rack_selected(_rack_selected)
 	visible = true
 
 func update_vitals() -> void:

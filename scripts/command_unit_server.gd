@@ -219,6 +219,7 @@ func _physics_process(delta: float) -> void:
 		# Обновляем прогресс захвата если юнит захватывает гекс - НЕ во время отступления
 		if not is_retreating and is_capturing and current_hex and current_hex.capturing_team == owner_team:
 			var capture_speed = 1.0 / CAPTURE_TIME  # Скорость захвата
+			var old_owner: int = current_hex.team_owner
 			var capture_completed = current_hex.update_capture_progress(delta, capture_speed)
 			
 			# Отправляем обновление прогресса клиентам
@@ -229,6 +230,14 @@ func _physics_process(delta: float) -> void:
 				# Завершаем захват без спама логов
 				is_capturing = false
 				rpc("client_stop_capture_visual")
+
+				if Handlers.GameHandler and Handlers.GameHandler.battle_log:
+					Handlers.GameHandler.battle_log.on_hex_captured(
+						current_hex.position,
+						old_owner,
+						current_hex.team_owner,
+						self
+					)
 				
 				# Обновляем визуал гекса в OverlayMap
 				Handlers.GameHandler.update_hex_overlay(current_hex.position, current_hex.team_owner)

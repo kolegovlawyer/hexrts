@@ -69,6 +69,7 @@ var unit_editor: UnitEditor = null
 @onready var battle_log_scroll: ScrollContainer = get_node("%BattleLogScroll")
 @onready var battle_log_list: VBoxContainer = get_node("%BattleLogList")
 @onready var battle_log_clear_button: Button = get_node("%BattleLogClearButton")
+@onready var minimap: MiniMap = get_node("%MiniMapContainer")
 
 const BATTLE_LOG_MAX_LINES := 50
 
@@ -231,6 +232,7 @@ func _ready() -> void:
 	_setup_hud_order_buttons()
 	_initialize_points_display()
 	_initialize_battle_log()
+	_setup_minimap_mouse_block()
 
 func _setup_hud_order_buttons() -> void:
 	_register_hud_mode_button(point_attack_button)
@@ -608,6 +610,8 @@ func _clear_unit_container_placeholders() -> void:
 func bind_map_world() -> void:
 	var map_root: Node = get_parent().get_parent().get_node("%Map")
 	world = map_root.get_node_or_null("TestMapWorld")
+	if world == null and map_root.get_child_count() > 0:
+		world = map_root.get_child(0) as Node2D
 	if world == null:
 		return
 	if not is_multiplayer_authority() and Handlers.UIHandler and Handlers.UIHandler.camera:
@@ -615,6 +619,8 @@ func bind_map_world() -> void:
 	_ensure_waypoint_marker_manager()
 	if _hex_info_enabled:
 		_apply_hex_info_overlay(true)
+	if minimap:
+		minimap.setup(world, camera)
 	_try_center_camera_on_own_fob()
 
 
@@ -776,6 +782,13 @@ func _setup_hud_mouse_block() -> void:
 	_set_hud_buttons_mouse_filter_stop(hud_board)
 
 
+func _setup_minimap_mouse_block() -> void:
+	if minimap == null:
+		return
+	minimap.mouse_entered.connect(stop_camera_move)
+	minimap.mouse_exited.connect(continue_camera_move)
+
+
 func _set_hud_buttons_mouse_filter_stop(node: Node) -> void:
 	if node is BaseButton:
 		(node as BaseButton).mouse_filter = Control.MOUSE_FILTER_STOP
@@ -789,6 +802,9 @@ func _is_pointer_over_hud() -> bool:
 	var hovered: Control = get_viewport().gui_get_hovered_control()
 	if hovered == null:
 		return false
+	if minimap and is_instance_valid(minimap):
+		if hovered == minimap or minimap.is_ancestor_of(hovered):
+			return true
 	return hovered == hud_board or hud_board.is_ancestor_of(hovered)
 	
 func update_visible_units():

@@ -899,6 +899,9 @@ func initialize_hexes() -> void:
 	_HexCoordinatesScript.initialize_from_tile_bounds(used_cells)
 	# Метки гексов включаются кнопкой HexInfoButton в HUD, не при старте.
 
+	if Handlers.UIHandler and Handlers.UIHandler.minimap:
+		Handlers.UIHandler.minimap.notify_map_data_ready()
+
 	_try_autoload_unit_presets()
 
 
@@ -979,6 +982,8 @@ func sync_hex_capture(hex_position: Vector2i, new_owner_team: int) -> void:
 	
 	# Обновляем визуал OverlayMap для клиента
 	_update_overlay_visual(hex_position, new_owner_team, my_team)
+	if Handlers.UIHandler and Handlers.UIHandler.minimap:
+		Handlers.UIHandler.minimap.notify_map_data_ready()
 
 func _update_overlay_visual(hex_position: Vector2i, hex_owner_team: int, viewer_team: int) -> void:
 	"""

@@ -19,6 +19,7 @@
 [ext_resource type="Texture2D" uid="uid://dsgnvbrceotps" path="res://assets/icons/icon-loop.png" id="11_ycjsq"]
 [ext_resource type="Texture2D" uid="uid://cs1se2d3w5hsj" path="res://assets/icons/icon-follow.png" id="12_k0xlx"]
 [ext_resource type="Texture2D" uid="uid://bgwf8quu5yd3a" path="res://assets/icons/icon-spread.png" id="13_swtpc"]
+[ext_resource type="Script" uid="uid://nekxjfqi3n6o" path="res://scripts/UI/minimap.gd" id="14_minimap"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wce3n"]
 bg_color = Color(0.6, 0.6, 0.6, 0)
@@ -112,7 +113,7 @@ theme_override_constants/margin_right = 5
 
 [node name="MainRack" type="VBoxContainer" parent="MarginContainer" unique_id=1242998101]
 layout_mode = 2
-theme_override_constants/separation = 15
+theme_override_constants/separation = 1
 
 [node name="WinBar" type="ProgressBar" parent="MarginContainer/MainRack" unique_id=264985199]
 unique_name_in_owner = true
@@ -198,15 +199,28 @@ size_flags_horizontal = 3
 mouse_filter = 1
 
 [node name="MiniMapContainer" type="PanelContainer" parent="MarginContainer/MainRack/TopBoard" unique_id=298358568]
-custom_minimum_size = Vector2(256, 256)
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 0)
 layout_mode = 2
+size_flags_vertical = 0
+script = ExtResource("14_minimap")
 
-[node name="SubViewportContainer" type="SubViewportContainer" parent="MarginContainer/MainRack/TopBoard/MiniMapContainer" unique_id=1924088607]
+[node name="AspectRatio" type="AspectRatioContainer" parent="MarginContainer/MainRack/TopBoard/MiniMapContainer" unique_id=298358569]
 layout_mode = 2
+size_flags_horizontal = 3
+stretch_mode = 0
 
-[node name="SubViewport" type="SubViewport" parent="MarginContainer/MainRack/TopBoard/MiniMapContainer/SubViewportContainer" unique_id=556728904]
+[node name="SubViewportContainer" type="SubViewportContainer" parent="MarginContainer/MainRack/TopBoard/MiniMapContainer/AspectRatio" unique_id=1924088607]
+layout_mode = 2
+mouse_filter = 0
+stretch = true
 
-[node name="Camera2D" type="Camera2D" parent="MarginContainer/MainRack/TopBoard/MiniMapContainer/SubViewportContainer/SubViewport" unique_id=998843343]
+[node name="SubViewport" type="SubViewport" parent="MarginContainer/MainRack/TopBoard/MiniMapContainer/AspectRatio/SubViewportContainer" unique_id=556728904]
+handle_input_locally = false
+size = Vector2i(318, 318)
+render_target_update_mode = 4
+
+[node name="Camera2D" type="Camera2D" parent="MarginContainer/MainRack/TopBoard/MiniMapContainer/AspectRatio/SubViewportContainer/SubViewport" unique_id=998843343]
 
 [node name="DebugBoard" type="HBoxContainer" parent="MarginContainer/MainRack" unique_id=1801813924]
 visible = false

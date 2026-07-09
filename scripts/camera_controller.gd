@@ -51,6 +51,11 @@ func get_clamped_position(pos: Vector2) -> Vector2:
 	)
 
 
+func get_visible_world_rect() -> Rect2:
+	var half_size := get_viewport().get_visible_rect().size / (2.0 * zoom)
+	return Rect2(position - half_size, half_size * 2.0)
+
+
 func snap_to_world_position(world_pos: Vector2) -> void:
 	var target := world_pos
 	if TOP_CORNER != null and BOTTOM_CORNER != null:

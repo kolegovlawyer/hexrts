@@ -30,10 +30,12 @@ var target_position: Vector2           # Целевая позиция поле�
 var damage: int = 5                    # Количество урона
 var speed: float = 700.0               # Скорость полета в пикселях/сек
 var explosion_radius: float = 50.0     # Радиус взрыва в пикселях
+var visual_id: int = -1                # ID связанного клиентского визуала
 const INTERCEPT_RADIUS: float = 18.0   # Радиус перехвата юнита на траектории
 
 # Состояние и визуализация
 var is_active: bool = true             # Флаг активности снаряда
+var _visual_finished: bool = false     # Клиентский визуал уже остановлен
 var trail_points: Array[Vector2] = []  # Точки для отрисовки следа
 var max_trail_length: int = 15         # Максимальная длина следа
 
@@ -89,11 +91,18 @@ func _create_visual_components() -> void:
 	lifetime_timer.autostart = true
 	add_child(lifetime_timer)
 
-func init(_projectile_owner: BaseUnit, _target_pos: Vector2, _damage: int, _explosion_radius: float = 50.0) -> void:
+func init(
+		_projectile_owner: BaseUnit,
+		_target_pos: Vector2,
+		_damage: int,
+		_explosion_radius: float = 50.0,
+		_visual_id: int = -1
+	) -> void:
 	projectile_owner = _projectile_owner
 	target_position = _target_pos
 	damage = _damage
 	explosion_radius = _explosion_radius
+	visual_id = _visual_id
 	
 	# Создаем снаряд с небольшим смещением в сторону цели, чтобы избежать коллизии с владельцем
 	var direction = (target_position - projectile_owner.global_position).normalized()
@@ -169,6 +178,7 @@ func _explode() -> void:
 		# print("⚠️ Владелец снаряда стал невалидным, но взрыв продолжается")  # DEBUG
 		pass
 	
+	_finish_visual_on_clients()
 	# Создаем визуальную анимацию взрыва на клиентах
 	if Handlers.ProjectileHandler:
 		Handlers.ProjectileHandler.rpc("show_explosion_at", global_position, explosion_radius)
@@ -248,7 +258,17 @@ func _point_to_segment_distance(point: Vector2, seg_a: Vector2, seg_b: Vector2) 
 	return point.distance_to(seg_a + ab * t)
 
 
+func _finish_visual_on_clients() -> void:
+	if _visual_finished or visual_id < 0:
+		return
+	_visual_finished = true
+	if Handlers.ProjectileHandler:
+		Handlers.ProjectileHandler.rpc("finish_visual_projectile", visual_id, global_position)
+
+
 func _destroy() -> void:
+	if is_active and not _visual_finished:
+		_finish_visual_on_clients()
 	is_active = false
 	emit_signal("destroyed", self)  # Уведомляем ProjectileSystem
 	queue_free()

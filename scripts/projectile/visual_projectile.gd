@@ -22,8 +22,10 @@ var target_position: Vector2         # Конечная позиция (фикс
 var speed: float = 600.0             # Скорость анимации
 var progress: float = 0.0            # Прогресс полета (0.0 - 1.0)
 var explosion_radius: float = 50.0   # Радиус анимации взрыва
+var visual_id: int = -1
 
 var sprite: Sprite2D                 # Спрайт снаряда
+var _finished: bool = false
 var trail: Line2D                    # След полета
 var trail_points: Array[Vector2] = [] # Точки следа
 var max_trail_length: int = 15       # Максимальная длина следа
@@ -50,10 +52,16 @@ func _create_visual_components() -> void:
 	trail.default_color = Color(1, 1, 0, 0.5)
 	add_child(trail)
 
-func init_visual(_start_pos: Vector2, _target_pos: Vector2, _explosion_radius: float = 50.0) -> void:
+func init_visual(
+		_start_pos: Vector2,
+		_target_pos: Vector2,
+		_explosion_radius: float = 50.0,
+		_visual_id: int = -1
+	) -> void:
 	start_position = _start_pos
 	target_position = _target_pos
 	explosion_radius = _explosion_radius
+	visual_id = _visual_id
 	
 	# Добавляем то же смещение, что и для серверного снаряда
 	var direction = (target_position - start_position).normalized()
@@ -65,8 +73,14 @@ func init_visual(_start_pos: Vector2, _target_pos: Vector2, _explosion_radius: f
 		sprite.rotation = direction.angle()
 
 func _process(delta: float) -> void:
+	if _finished:
+		return
 	# Анимация полета к целевой позиции
-	progress += (speed / start_position.distance_to(target_position)) * delta
+	var total_distance: float = start_position.distance_to(target_position)
+	if total_distance < 0.001:
+		_finish_and_free()
+		return
+	progress += (speed / total_distance) * delta
 	progress = min(progress, 1.0)
 	
 	# Интерполяция позиции
@@ -77,7 +91,25 @@ func _process(delta: float) -> void:
 	
 	# Завершаем полет при достижении цели (взрыв показывает серверный RPC show_explosion_at)
 	if progress >= 1.0:
-		queue_free()
+		_finish_and_free()
+
+
+func finish_at(pos: Vector2) -> void:
+	if _finished:
+		return
+	_finished = true
+	set_process(false)
+	global_position = pos
+	queue_free()
+
+
+func _finish_and_free() -> void:
+	if _finished:
+		return
+	_finished = true
+	if visual_id >= 0 and Handlers.ProjectileHandler:
+		Handlers.ProjectileHandler.unregister_visual_projectile(visual_id)
+	queue_free()
 
 func _update_trail() -> void:
 	# Добавляем текущую позицию к следу

@@ -33,6 +33,21 @@ static func create_command_default() -> UnitPreset:
 	return preset
 
 
+static func create_artillery_default() -> UnitPreset:
+	var preset := UnitPreset.new()
+	preset.preset_id = "bot_artillery"
+	preset.preset_name = "Артиллерия"
+	preset.is_command = false
+	preset.apply_stats_dict({
+		"health": 5,
+		"speed": 5,
+		"damage": 5,
+		"shield": 5,
+		"range": 20,
+	})
+	return preset
+
+
 func duplicate_preset() -> UnitPreset:
 	var copy: UnitPreset = duplicate(true)
 	copy.preset_id = ""

@@ -170,3 +170,82 @@ static func find_retreat_position(from_pos: Vector2, threat_pos: Vector2, distan
 	if away.length_squared() < 0.01:
 		away = Vector2.LEFT
 	return from_pos + away * distance
+
+
+static func is_navigable_world_position(world_pos: Vector2) -> bool:
+	if not Handlers.GameHandler:
+		return false
+	return Handlers.GameHandler.get_hex_at_world_position(world_pos) != null
+
+
+static func find_nearest_navigable_world_position(
+		from_pos: Vector2,
+		preferred_pos: Vector2,
+		bot_team: GameTypes.Teams
+	) -> Vector2:
+	if is_navigable_world_position(preferred_pos):
+		return preferred_pos
+	if not Handlers.GameHandler:
+		return preferred_pos
+	var best_pos := from_pos
+	var best_dist := preferred_pos.distance_squared_to(from_pos)
+	var team_int := int(bot_team)
+	for hex_pos in Handlers.GameHandler.hexes_dict.keys():
+		var hex = Handlers.GameHandler.hexes_dict[hex_pos]
+		if hex.team_owner != team_int and hex.team_owner != -1:
+			continue
+		var hex_world := hex_to_world(hex_pos)
+		var dist := hex_world.distance_squared_to(preferred_pos)
+		if dist < best_dist:
+			best_dist = dist
+			best_pos = hex_world
+	return best_pos
+
+
+static func find_guard_patrol_position(
+		anchor_pos: Vector2,
+		slot: int,
+		bot_team: GameTypes.Teams,
+		max_hex_radius: int = 2
+	) -> Vector2:
+	var anchor_hex := world_to_hex(anchor_pos)
+	if anchor_hex == Vector2i.MAX:
+		return anchor_pos
+	var candidates: Array[Vector2i] = []
+	var team_int := int(bot_team)
+	for hex_pos in Handlers.GameHandler.hexes_dict.keys():
+		var hex = Handlers.GameHandler.hexes_dict[hex_pos]
+		if hex.team_owner != team_int:
+			continue
+		var dist: int = hex_distance(hex_pos, anchor_hex)
+		if dist == 0 or dist > max_hex_radius:
+			continue
+		candidates.append(hex_pos)
+	if candidates.is_empty():
+		return anchor_pos
+	candidates.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return hex_distance(a, anchor_hex) < hex_distance(b, anchor_hex)
+	)
+	return hex_to_world(candidates[slot % candidates.size()])
+
+
+static func find_artillery_deploy_position(
+		from_pos: Vector2,
+		alarm_pos: Vector2,
+		attack_range: float,
+		bot_team: GameTypes.Teams
+	) -> Vector2:
+	var friendly_anchor := find_nearest_friendly_hex(alarm_pos, bot_team)
+	var to_friendly := friendly_anchor - alarm_pos
+	if to_friendly.length_squared() < 1.0:
+		to_friendly = from_pos - alarm_pos
+	if to_friendly.length_squared() < 1.0:
+		to_friendly = Vector2.LEFT
+	var direction := to_friendly.normalized()
+	var deploy_distance := minf(attack_range, to_friendly.length())
+	if deploy_distance < 40.0:
+		deploy_distance = minf(attack_range, 120.0)
+	var deploy_pos := alarm_pos + direction * deploy_distance
+	if is_on_friendly_hex(deploy_pos, bot_team):
+		return deploy_pos
+	return find_nearest_friendly_hex(deploy_pos, bot_team)

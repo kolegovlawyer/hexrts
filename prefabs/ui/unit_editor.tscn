@@ -43,8 +43,8 @@ anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -202.0
 offset_top = -123.0
-offset_right = 202.0
-offset_bottom = 123.0
+offset_right = 119.0
+offset_bottom = 105.0
 grow_horizontal = 2
 grow_vertical = 2
 theme = ExtResource("1_i5vhy")
@@ -62,9 +62,9 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_re5vh")
 
 [node name="MarginContainer" type="MarginContainer" parent="." unique_id=1736325035]
 layout_mode = 2
-theme_override_constants/margin_left = 5
+theme_override_constants/margin_left = 10
 theme_override_constants/margin_top = 5
-theme_override_constants/margin_right = 5
+theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 5
 
 [node name="MainContainer" type="VBoxContainer" parent="MarginContainer" unique_id=2018049980]
@@ -77,6 +77,10 @@ size_flags_vertical = 3
 item_count = 2
 popup/item_0/id = 0
 popup/item_1/id = 1
+
+[node name="NameLabel" type="LineEdit" parent="MarginContainer/MainContainer" unique_id=1176937960]
+layout_mode = 2
+text = "МК-1"
 
 [node name="HeaderRack" type="HBoxContainer" parent="MarginContainer/MainContainer" unique_id=128649943]
 layout_mode = 2
@@ -103,11 +107,6 @@ text = "Удалить"
 [node name="ComandButton" type="Button" parent="MarginContainer/MainContainer/HeaderRack" unique_id=1494386578]
 layout_mode = 2
 text = "Command"
-
-[node name="NameLabel" type="LineEdit" parent="MarginContainer/MainContainer/HeaderRack" unique_id=1176937960]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "МК-1"
 
 [node name="VariableRack" type="HBoxContainer" parent="MarginContainer/MainContainer" unique_id=341490299]
 layout_mode = 2
@@ -292,6 +291,7 @@ text = "Результат"
 
 [node name="ResultIcon" type="TextureRect" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard" unique_id=1154748437]
 layout_mode = 2
+expand_mode = 5
 
 [node name="CostLabel" type="Label" parent="MarginContainer/MainContainer/VariableRack/EditorRack/CostBoard" unique_id=352626837]
 layout_mode = 2

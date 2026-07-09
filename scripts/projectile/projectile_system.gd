@@ -19,6 +19,9 @@ class_name ProjectileSystem
 # Список активных снарядов (только на сервере)
 var projectiles: Array[Projectile] = []
 
+var _next_visual_id: int = 0
+var _active_visuals: Dictionary = {} # visual_id -> VisualProjectile (только клиент)
+
 const _ExplosionVfxScript := preload("res://scripts/projectile/explosion_vfx.gd")
 
 func _ready() -> void:
@@ -91,8 +94,9 @@ func create_projectile(
 	target_position += Vector2(aim_offset_x, aim_offset_y)
 	
 	# Создаем серверный снаряд с полной логикой (урон, коллизии, взрывы)
+	var visual_id: int = _allocate_visual_id()
 	var projectile = preload("res://scripts/projectile/projectile.gd").new()
-	projectile.init(owner_unit, target_position, damage, explosion_radius)
+	projectile.init(owner_unit, target_position, damage, explosion_radius, visual_id)
 	add_child(projectile)
 	projectiles.append(projectile)
 	
@@ -104,7 +108,8 @@ func create_projectile(
 	rpc("create_visual_projectile", 
 		owner_unit.global_position,
 		target_position,
-		explosion_radius)
+		explosion_radius,
+		visual_id)
 
 @rpc("any_peer", "call_local", "reliable")
 func create_projectile_at_position(
@@ -121,8 +126,9 @@ func create_projectile_at_position(
 	if not owner_unit or not is_instance_valid(owner_unit):
 		return
 	var target_position: Vector2 = target_pos + Vector2(aim_offset_x, aim_offset_y)
+	var visual_id: int = _allocate_visual_id()
 	var projectile = preload("res://scripts/projectile/projectile.gd").new()
-	projectile.init(owner_unit, target_position, damage, explosion_radius)
+	projectile.init(owner_unit, target_position, damage, explosion_radius, visual_id)
 	add_child(projectile)
 	projectiles.append(projectile)
 	projectile.destroyed.connect(_on_projectile_destroyed)
@@ -130,12 +136,13 @@ func create_projectile_at_position(
 		"create_visual_projectile",
 		owner_unit.global_position,
 		target_position,
-		explosion_radius
+		explosion_radius,
+		visual_id
 	)
 
 ## КЛИЕНТСКИЕ ФУНКЦИИ
 @rpc("authority", "call_local", "reliable") 
-func create_visual_projectile(start_pos: Vector2, target_pos: Vector2, explosion_radius: float) -> void:
+func create_visual_projectile(start_pos: Vector2, target_pos: Vector2, explosion_radius: float, visual_id: int) -> void:
 	"""
 	Создает визуальный снаряд для клиентов (только анимация)
 	
@@ -155,8 +162,18 @@ func create_visual_projectile(start_pos: Vector2, target_pos: Vector2, explosion
 	
 	# Создаем визуальный снаряд только для отображения
 	var visual_projectile = preload("res://scripts/projectile/visual_projectile.gd").new()
-	visual_projectile.init_visual(start_pos, target_pos, explosion_radius)
+	visual_projectile.init_visual(start_pos, target_pos, explosion_radius, visual_id)
 	add_child(visual_projectile)
+	_active_visuals[visual_id] = visual_projectile
+
+@rpc("authority", "call_local", "reliable")
+func finish_visual_projectile(visual_id: int, pos: Vector2) -> void:
+	if multiplayer.is_server():
+		return
+	var visual: VisualProjectile = _active_visuals.get(visual_id)
+	if visual and is_instance_valid(visual):
+		visual.finish_at(pos)
+	_active_visuals.erase(visual_id)
 
 ## ВИЗУАЛЬНЫЙ ВЗРЫВ (клиенты)
 @rpc("authority", "call_local", "reliable")
@@ -172,6 +189,15 @@ static func spawn_explosion_at(parent: Node, pos: Vector2, radius: float) -> voi
 
 func _spawn_explosion_at(pos: Vector2, radius: float) -> void:
 	_ExplosionVfxScript.spawn_at(self, pos, radius)
+
+
+func _allocate_visual_id() -> int:
+	_next_visual_id += 1
+	return _next_visual_id
+
+
+func unregister_visual_projectile(visual_id: int) -> void:
+	_active_visuals.erase(visual_id)
 
 ## УПРАВЛЕНИЕ ЖИЗНЕННЫМ ЦИКЛОМ
 func _on_projectile_destroyed(projectile: Projectile) -> void:

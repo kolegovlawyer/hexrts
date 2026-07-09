@@ -3,7 +3,21 @@
 [ext_resource type="StyleBox" uid="uid://dcq4dpo68pfy8" path="res://prefabs/themes/HUD_style_box_flat.tres" id="1_eevtc"]
 [ext_resource type="FontFile" uid="uid://itslrqt02h67" path="res://assets/fonts/JetBrainsMonoNL-Regular.ttf" id="1_ekhwo"]
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_eevtc"]
+content_margin_left = 2.0
+content_margin_top = 2.0
+content_margin_right = 2.0
+content_margin_bottom = 2.0
+bg_color = Color(0.13333334, 0.13333334, 0.18039216, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.5882353, 0.5882353, 0.7372549, 1)
+expand_margin_left = 2.0
+
 [resource]
 default_font = ExtResource("1_ekhwo")
 default_font_size = 12
+Button/styles/normal = SubResource("StyleBoxFlat_eevtc")
 PanelContainer/styles/panel = ExtResource("1_eevtc")

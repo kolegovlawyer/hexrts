@@ -2,6 +2,7 @@ class_name GameUI extends Node
 
 const _WaypointMarkerManagerScript := preload("res://scripts/UI/waypoint_marker_manager.gd")
 const _BattleLogUIScript := preload("res://scripts/UI/battle_log_ui.gd")
+const _BattleLogEntryScene := preload("res://prefabs/ui/battle_log_entry.tscn")
 const _FormationHelperScript := preload("res://scripts/game_system/formation_helper.gd")
 const _HexBorderOverlayScript := preload("res://scripts/map/hex_border_overlay.gd")
 
@@ -65,7 +66,8 @@ var unit_editor: UnitEditor = null
 
 @onready var unit_container = get_node("%UnitContainer")
 
-@onready var battle_log_richtext: RichTextLabel = get_node("%BattleLogRichText")
+@onready var battle_log_scroll: ScrollContainer = get_node("%BattleLogScroll")
+@onready var battle_log_list: VBoxContainer = get_node("%BattleLogList")
 @onready var battle_log_clear_button: Button = get_node("%BattleLogClearButton")
 
 const BATTLE_LOG_MAX_LINES := 50
@@ -938,13 +940,8 @@ func open_unit_editor() -> void:
 ### BATTLE LOG ###
 
 func _initialize_battle_log() -> void:
-	if battle_log_richtext == null:
+	if battle_log_scroll == null or battle_log_list == null:
 		return
-	battle_log_richtext.bbcode_enabled = true
-	battle_log_richtext.scroll_active = true
-	battle_log_richtext.scroll_following = true
-	battle_log_richtext.mouse_filter = Control.MOUSE_FILTER_STOP
-	battle_log_richtext.text = ""
 	_battle_log_line_count = 0
 	_battle_log_follow_scroll = true
 
@@ -953,26 +950,15 @@ func _initialize_battle_log() -> void:
 	) as Control
 	if log_container:
 		log_container.mouse_filter = Control.MOUSE_FILTER_STOP
-		if not log_container.gui_input.is_connected(_on_battle_log_gui_input):
-			log_container.gui_input.connect(_on_battle_log_gui_input)
 
-	if not battle_log_richtext.gui_input.is_connected(_on_battle_log_gui_input):
-		battle_log_richtext.gui_input.connect(_on_battle_log_gui_input)
+	battle_log_scroll.mouse_filter = Control.MOUSE_FILTER_STOP
 
-	var scroll_bar := battle_log_richtext.get_v_scroll_bar()
+	var scroll_bar := battle_log_scroll.get_v_scroll_bar()
 	if scroll_bar:
 		scroll_bar.changed.connect(_on_battle_log_scroll_changed)
 
 	if battle_log_clear_button:
 		battle_log_clear_button.pressed.connect(clear_battle_log)
-
-
-func _on_battle_log_gui_input(event: InputEvent) -> void:
-	# Не даём колёсику уйти в камеру — только скролл журнала.
-	if event is InputEventMouseButton:
-		var mb := event as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			get_viewport().set_input_as_handled()
 
 
 func append_battle_log_event(
@@ -981,52 +967,81 @@ func append_battle_log_event(
 		match_seconds: float,
 		actor_name: String = ""
 	) -> void:
-	if battle_log_richtext == null:
+	if battle_log_list == null:
 		return
 
 	var line := _BattleLogUIScript.format_event(event_type, hex_tile, match_seconds, actor_name)
-	if _battle_log_line_count > 0:
-		battle_log_richtext.append_text("\n")
-	battle_log_richtext.append_text(line)
+	var entry = _BattleLogEntryScene.instantiate()
+	entry.setup(line, hex_tile)
+	entry.clicked.connect(_on_battle_log_entry_clicked)
+	battle_log_list.add_child(entry)
 	_battle_log_line_count += 1
 	_trim_battle_log_lines()
 
-	battle_log_richtext.scroll_following = _battle_log_follow_scroll
+	if _battle_log_follow_scroll:
+		call_deferred("_scroll_battle_log_to_bottom")
 
 
 func clear_battle_log() -> void:
-	if battle_log_richtext == null:
+	if battle_log_list == null:
 		return
-	battle_log_richtext.text = ""
+	for child in battle_log_list.get_children():
+		child.queue_free()
 	_battle_log_line_count = 0
 	_battle_log_follow_scroll = true
-	battle_log_richtext.scroll_following = true
+	call_deferred("_scroll_battle_log_to_bottom")
 
 
 func _trim_battle_log_lines() -> void:
-	if _battle_log_line_count <= BATTLE_LOG_MAX_LINES:
+	if battle_log_list == null or _battle_log_line_count <= BATTLE_LOG_MAX_LINES:
 		return
 	var overflow := _battle_log_line_count - BATTLE_LOG_MAX_LINES
-	var text := battle_log_richtext.text
 	for _i in overflow:
-		var newline_index := text.find("\n")
-		if newline_index == -1:
-			text = ""
+		var children := battle_log_list.get_children()
+		if children.is_empty():
 			break
-		text = text.substr(newline_index + 1)
-	battle_log_richtext.text = text
+		children[0].queue_free()
 	_battle_log_line_count = BATTLE_LOG_MAX_LINES
 
 
-func _on_battle_log_scroll_changed() -> void:
-	if battle_log_richtext == null:
+func _scroll_battle_log_to_bottom() -> void:
+	if battle_log_scroll == null:
 		return
-	var scroll_bar := battle_log_richtext.get_v_scroll_bar()
+	var scroll_bar := battle_log_scroll.get_v_scroll_bar()
+	if scroll_bar:
+		scroll_bar.value = scroll_bar.max_value
+
+
+func _on_battle_log_scroll_changed() -> void:
+	if battle_log_scroll == null:
+		return
+	var scroll_bar := battle_log_scroll.get_v_scroll_bar()
 	if scroll_bar == null:
 		return
-	var at_bottom := scroll_bar.value >= scroll_bar.max_value - 8.0
+	var at_bottom := scroll_bar.max_value <= 0.0 or scroll_bar.value >= scroll_bar.max_value - 8.0
 	_battle_log_follow_scroll = at_bottom
-	battle_log_richtext.scroll_following = _battle_log_follow_scroll
+
+
+func _hex_tile_to_world_center(hex_tile: Vector2i) -> Vector2:
+	if Handlers.GameHandler == null or Handlers.GameHandler.overlay_map == null:
+		return Vector2.ZERO
+	var overlay_map: TileMapLayer = Handlers.GameHandler.overlay_map
+	var half_size := Vector2(overlay_map.tile_set.tile_size) * 0.5
+	return overlay_map.to_global(overlay_map.map_to_local(hex_tile) + half_size)
+
+
+func _on_battle_log_entry_clicked(hex_tile: Vector2i) -> void:
+	if camera == null:
+		return
+	var world_pos := _hex_tile_to_world_center(hex_tile)
+	if world_pos == Vector2.ZERO:
+		return
+	if camera.has_method("set_bounds") and camera.TOP_CORNER == null:
+		camera.set_bounds()
+	if camera.has_method("snap_to_world_position"):
+		camera.snap_to_world_position(world_pos)
+	else:
+		camera.position = world_pos
 
 
 ### DEBUG SECTION

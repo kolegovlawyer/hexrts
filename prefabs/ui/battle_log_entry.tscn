@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://b345rbxbjjmfs"]
+
+[ext_resource type="Script" path="res://scripts/UI/battle_log_entry.gd" id="1_entry"]
+
+[node name="BattleLogEntry" type="PanelContainer"]
+offset_right = 260.0
+offset_bottom = 22.0
+mouse_filter = 0
+script = ExtResource("1_entry")
+
+[node name="RichTextLabel" type="RichTextLabel" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+autowrap_mode = 3

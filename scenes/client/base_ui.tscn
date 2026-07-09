@@ -171,12 +171,18 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Очистить"
 
-[node name="BattleLogRichText" type="RichTextLabel" parent="MarginContainer/MainRack/TopBoard/BattleLogContainer/VBoxContainer" unique_id=2042216487]
+[node name="BattleLogScroll" type="ScrollContainer" parent="MarginContainer/MainRack/TopBoard/BattleLogContainer/VBoxContainer" unique_id=2042216487]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 80)
 layout_mode = 2
 size_flags_vertical = 3
-bbcode_enabled = true
-scroll_following = true
+mouse_filter = 0
+
+[node name="BattleLogList" type="VBoxContainer" parent="MarginContainer/MainRack/TopBoard/BattleLogContainer/VBoxContainer/BattleLogScroll" unique_id=2042216488]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
 
 [node name="UnitPoints" type="Label" parent="MarginContainer/MainRack/TopBoard" unique_id=1211895036]
 unique_name_in_owner = true
@@ -190,6 +196,17 @@ horizontal_alignment = 1
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 1
+
+[node name="MiniMapContainer" type="PanelContainer" parent="MarginContainer/MainRack/TopBoard" unique_id=298358568]
+custom_minimum_size = Vector2(256, 256)
+layout_mode = 2
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="MarginContainer/MainRack/TopBoard/MiniMapContainer" unique_id=1924088607]
+layout_mode = 2
+
+[node name="SubViewport" type="SubViewport" parent="MarginContainer/MainRack/TopBoard/MiniMapContainer/SubViewportContainer" unique_id=556728904]
+
+[node name="Camera2D" type="Camera2D" parent="MarginContainer/MainRack/TopBoard/MiniMapContainer/SubViewportContainer/SubViewport" unique_id=998843343]
 
 [node name="DebugBoard" type="HBoxContainer" parent="MarginContainer/MainRack" unique_id=1801813924]
 visible = false
@@ -216,6 +233,7 @@ mouse_filter = 1
 [node name="HUDBoard" type="HBoxContainer" parent="MarginContainer/MainRack" unique_id=713593688]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_constants/separation = 0
 
 [node name="LeftButtonsContainer" type="PanelContainer" parent="MarginContainer/MainRack/HUDBoard" unique_id=567096121]
 layout_mode = 2

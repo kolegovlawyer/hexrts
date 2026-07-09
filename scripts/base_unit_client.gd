@@ -227,6 +227,7 @@ func apply_visual_scale() -> void:
 	# ProgressBar scale идёт от pivot (по умолчанию левый верх) — центрируем относительно юнита.
 	_center_bar_pivot_and_scale(health_bar, v)
 	_center_bar_pivot_and_scale(shield_bar, v)
+	_refresh_unit_tracks()
 
 
 func _center_bar_pivot_and_scale(bar: Control, scale_v: Vector2) -> void:

@@ -108,6 +108,11 @@ func update_visual() -> void:
 	"""Обновляет визуальное отображение юнита"""
 	pass
 
+func _refresh_unit_tracks() -> void:
+	var tracks: Node = get_node_or_null("UnitTracks")
+	if tracks and tracks.has_method("refresh_params"):
+		tracks.refresh_params()
+
 func update_health_bar() -> void:
 	"""Обновляет полосу здоровья"""
 	pass
@@ -212,6 +217,7 @@ func sync_preset_stats(
 	max_shield = new_max_shield
 	preset_cost = new_preset_cost
 	set_vision_radius(new_vision_radius)
+	_refresh_unit_tracks()
 
 func apply_preset_snapshot(_snapshot: Dictionary) -> void:
 	pass

@@ -2281,6 +2281,7 @@ func apply_preset_snapshot(snapshot: Dictionary) -> void:
 
 	var is_command := bool(snapshot.get("is_command", false)) or is_command_unit()
 	preset_cost = UnitPresetBalance.calculate_cost(snapshot, is_command)
+	_refresh_unit_tracks()
 
 	if preset_icon_path == "":
 		var preset_id := str(snapshot.get("preset_id", "default"))

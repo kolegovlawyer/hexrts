@@ -136,44 +136,75 @@ func _update_camera_data() -> void:
 
 
 
-func _collect_unit_data() -> void:
-	"""Собирает данные о юнитах для передачи в шейдер"""
-	_debug_units_processed = 0
-	_debug_units_culled = 0
-	_active_unit_count = 0
-	
-	# Определяем команду игрока напрямую из профиля (не через own_units)
-	# Это позволяет FOB давать обзор даже когда юнитов ещё нет
+func _get_ally_vision_sources() -> Array:
+	var sources: Array = []
 	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
-		return
+		return sources
 	var player_team = Handlers.TeamHandler.my_profile.team
 	if player_team == null:
-		return
-	
-	var visible_sources: Array = []
-	
-	# FOB обрабатываем ПЕРВЫМИ — дают обзор с самого старта игры
+		return sources
+
 	for fob_node in get_tree().get_nodes_in_group("fobs"):
-		if visible_sources.size() >= max_units_processed:
+		if sources.size() >= max_units_processed:
 			break
 		if not is_instance_valid(fob_node) or not fob_node is fob:
 			continue
 		if not _is_ally_fob(fob_node, player_team):
 			continue
-		visible_sources.append(fob_node)
-		_debug_units_processed += 1
-	
-	# Затем дружественные юниты
+		sources.append(fob_node)
+
 	for unit in get_tree().get_nodes_in_group("units"):
-		if visible_sources.size() >= max_units_processed:
+		if sources.size() >= max_units_processed:
 			break
 		if not is_instance_valid(unit) or not unit is BaseUnit:
 			continue
 		if not _is_ally_unit(unit, player_team):
 			continue
-		visible_sources.append(unit)
-		_debug_units_processed += 1
-	
+		sources.append(unit)
+
+	return sources
+
+
+func get_visibility_at_world(world_pos: Vector2) -> float:
+	if camera == null:
+		return 0.0
+	var sources := _get_ally_vision_sources()
+	if sources.is_empty():
+		return 0.0
+
+	var viewport_pos: Vector2 = camera.get_viewport().get_canvas_transform() * world_pos
+	var max_vis := 0.0
+	for source in sources:
+		if not is_instance_valid(source):
+			continue
+		var source_vp: Vector2 = camera.get_viewport().get_canvas_transform() * source.global_position
+		var radius: float = _get_source_vision_radius(source) * camera.zoom.x
+		var dist_sq: float = viewport_pos.distance_squared_to(source_vp)
+		if dist_sq > radius * radius:
+			continue
+		var distance: float = sqrt(dist_sq)
+		var edge_distance: float = radius - distance
+		var vis: float = smoothstep(0.0, fog_edge_softness, edge_distance)
+		max_vis = maxf(max_vis, vis)
+	return clampf(max_vis, 0.0, 1.0)
+
+
+func get_segment_visibility(from_world: Vector2, to_world: Vector2) -> float:
+	var mid: Vector2 = (from_world + to_world) * 0.5
+	return maxf(
+		get_visibility_at_world(from_world),
+		maxf(get_visibility_at_world(to_world), get_visibility_at_world(mid))
+	)
+
+
+func _collect_unit_data() -> void:
+	"""Собирает данные о юнитах для передачи в шейдер"""
+	_debug_units_processed = 0
+	_debug_units_culled = 0
+	_active_unit_count = 0
+
+	var visible_sources := _get_ally_vision_sources()
+	_debug_units_processed = visible_sources.size()
 	_active_unit_count = min(visible_sources.size(), max_units_processed)
 	
 	for i in range(_active_unit_count):

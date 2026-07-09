@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://dynrc5c1axyc6" path="res://scripts/game_start.gd" id="1_sntyr"]
 [ext_resource type="Script" uid="uid://cs2ih7gbhjo03" path="res://scripts/networking/spawner_synchronizer.gd" id="2_21aad"]
 [ext_resource type="Script" uid="uid://yb6ce36li42p" path="res://scripts/projectile/projectile_system.gd" id="3_projectile"]
+[ext_resource type="Script" path="res://scripts/units/unit_track_visual_service.gd" id="4_tracks"]
 
 [node name="Game" type="Node"]
 script = ExtResource("1_sntyr")
@@ -15,6 +16,9 @@ unique_name_in_owner = true
 
 [node name="ProjectileSystem" type="Node" parent="."]
 script = ExtResource("3_projectile")
+
+[node name="UnitTrackVisualService" type="Node" parent="."]
+script = ExtResource("4_tracks")
 
 [node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="."]
 spawn_path = NodePath("../Spawnables")

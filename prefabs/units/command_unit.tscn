@@ -8,6 +8,7 @@
 [ext_resource type="Texture2D" uid="uid://dwwvimsrx2f7h" path="res://assets/all_icons/rank-1.png" id="6_3coue"]
 [ext_resource type="Texture2D" uid="uid://ba30087ucun2e" path="res://assets/units/bars/capture_progress.png" id="7_t5cf2"]
 [ext_resource type="Theme" uid="uid://cs6k2aheouulp" path="res://prefabs/themes/main_theme.tres" id="8_xa2qg"]
+[ext_resource type="Script" path="res://scripts/units/unit_tracks.gd" id="9_tracks"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_lxa7t"]
 radius = 22.561
@@ -161,6 +162,19 @@ texture_progress = ExtResource("7_t5cf2")
 tint_under = Color(0.54902, 0.478431, 0.219608, 0.141176)
 tint_over = Color(1, 1, 1, 0)
 tint_progress = Color(0.613102, 0.53899, 3.85046e-07, 1)
+
+[node name="UnitTracks" type="Node" parent="."]
+script = ExtResource("9_tracks")
+sample_distance_px = 30.0
+track_color = Color(0.7, 0.7, 0.7, 0.4)
+dissolve_color = Color(1, 1, 1, 0)
+line_width = 4.0
+line_half_spacing = 6.0
+lifetime_base_sec = 5.0
+fade_window_sec = 1.5
+max_segments = 200
+use_cost_scaling = true
+command_width_multiplier = 1.4
 
 [node name="UnitName" type="Label" parent="." unique_id=1199256143]
 unique_name_in_owner = true

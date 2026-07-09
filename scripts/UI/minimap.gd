@@ -18,7 +18,6 @@ var _view_rect_overlay: _ViewRectOverlay = null
 var _map_bounds: Rect2 = Rect2()
 var _main_camera: Camera2D = null
 var _world: Node2D = null
-var _spawnables: Node = null
 
 var _mini_map_root: Node2D = null
 var _hex_layer: _MiniMapHexLayer = null
@@ -29,7 +28,6 @@ var _unit_marker_world_size: float = 48.0
 
 var _update_timer: float = 0.0
 var _camera_connected: bool = false
-var _spawnables_connected: bool = false
 
 
 func _ready() -> void:
@@ -56,16 +54,15 @@ func _setup_view_rect_overlay() -> void:
 func setup(world: Node2D, main_camera: Camera2D) -> void:
 	_world = world
 	_bind_main_camera(main_camera)
-	_bind_spawnables()
 	if _world == null:
 		return
 	_clear_mini_map_world()
 	if not _build_map_bounds():
 		return
 	_apply_aspect_ratio()
-	_configure_sub_viewport()
 	_build_mini_map_world()
 	_update_timer = 0.0
+	call_deferred("_configure_sub_viewport")
 	_refresh_unit_markers()
 	_refresh_hex_layer()
 	refresh_view_rect()
@@ -112,8 +109,6 @@ func minimap_to_world(minimap_pos: Vector2) -> Vector2:
 func _process(delta: float) -> void:
 	if _world == null:
 		return
-	if not _spawnables_connected:
-		_bind_spawnables()
 	_refresh_unit_markers()
 	_update_timer -= delta
 	if _update_timer <= 0.0:
@@ -128,8 +123,8 @@ func _process(delta: float) -> void:
 
 
 func _on_map_area_resized() -> void:
-	_configure_sub_viewport()
-	refresh_view_rect()
+	call_deferred("_configure_sub_viewport")
+	call_deferred("refresh_view_rect")
 
 
 func _bind_main_camera(main_camera: Camera2D) -> void:
@@ -147,28 +142,6 @@ func _bind_main_camera(main_camera: Camera2D) -> void:
 	if not _main_camera.camera_zoomed.is_connected(_on_main_camera_changed):
 		_main_camera.camera_zoomed.connect(_on_main_camera_changed)
 	_camera_connected = true
-
-
-func _bind_spawnables() -> void:
-	if _spawnables_connected:
-		return
-	if Handlers.GameHandler == null:
-		return
-	var spawn_parent: Node = Handlers.GameHandler.get_node_or_null("Spawnables") as Node
-	if spawn_parent == null:
-		return
-	_spawnables = spawn_parent
-	var on_changed := _on_spawnables_changed
-	if not spawn_parent.is_connected("child_entered", on_changed):
-		spawn_parent.connect("child_entered", on_changed)
-	if not spawn_parent.is_connected("child_exiting", on_changed):
-		spawn_parent.connect("child_exiting", on_changed)
-	_spawnables_connected = true
-
-
-func _on_spawnables_changed(_node: Node) -> void:
-	_update_timer = 0.0
-	_refresh_unit_markers()
 
 
 func _on_main_camera_changed() -> void:
@@ -196,11 +169,15 @@ func _apply_aspect_ratio() -> void:
 func _configure_sub_viewport() -> void:
 	if _sub_viewport == null or _mini_camera == null:
 		return
+	if _map_bounds.size.x <= 0.0 or _map_bounds.size.y <= 0.0:
+		return
 	var area := _get_map_area_size()
-	var vp_size := Vector2i(maxi(1, int(area.x)), maxi(1, int(area.y)))
-	_sub_viewport.size = vp_size
+	if area.x <= 1.0 or area.y <= 1.0:
+		return
 	_sub_viewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
 	var zoom_fit := minf(area.x / _map_bounds.size.x, area.y / _map_bounds.size.y)
+	if zoom_fit <= 0.0:
+		return
 	_mini_camera.position = _map_bounds.get_center()
 	_mini_camera.zoom = Vector2(zoom_fit, zoom_fit)
 	_mini_camera.position_smoothing_enabled = false

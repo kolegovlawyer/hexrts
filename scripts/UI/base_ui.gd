@@ -3,6 +3,7 @@ class_name GameUI extends Node
 const _WaypointMarkerManagerScript := preload("res://scripts/UI/waypoint_marker_manager.gd")
 const _BattleLogUIScript := preload("res://scripts/UI/battle_log_ui.gd")
 const _FormationHelperScript := preload("res://scripts/game_system/formation_helper.gd")
+const _HexBorderOverlayScript := preload("res://scripts/map/hex_border_overlay.gd")
 
 @onready var window_size = Vector2(ProjectSettings.get_setting("display/window/size/viewport_width"),
 ProjectSettings.get_setting("display/window/size/viewport_height"))
@@ -18,6 +19,9 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 @onready var hud_board = get_node("%HUDBoard")
 @onready var home_button = get_node(
 	"MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HomeButton"
+)
+@onready var hex_info_button = get_node(
+	"MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/HexInfoButton"
 )
 @onready var unit_editor_button = get_node(
 	"MarginContainer/MainRack/HUDBoard/LeftButtonsContainer/MarginContainer/GridContainer/UnitEditorButton"
@@ -86,6 +90,10 @@ var _victory_points_max: int = 1000
 var _last_points_revision: int = -1
 var _game_over_screen: Control = null
 var _waypoint_marker_manager: Node2D = null
+var _hex_info_enabled: bool = false
+var _hex_info_button_bg: Panel = null
+var _pending_camera_fob_center: bool = false
+var _camera_centered_on_fob: bool = false
 
 var input_state:int = INPUT_STATES.IDLE:
 	set(value):
@@ -142,6 +150,8 @@ func _input(event:InputEvent) -> void:
 func _gui_input(event: InputEvent) -> void:
 	if camera == null:
 		return
+	if event is InputEventMouseButton and _is_pointer_over_hud():
+		return
 	match input_state:
 		
 		INPUT_STATES.IDLE:
@@ -194,8 +204,15 @@ func _ready() -> void:
 	bind_map_world()
 	hud_board.connect('mouse_entered', stop_camera_move)
 	hud_board.connect('mouse_exited', continue_camera_move)
-	#home_button.connect('pressed', move_camera_to_fob)
+	if home_button:
+		home_button.pressed.connect(_on_home_button_pressed)
 	unit_editor_button.pressed.connect(open_unit_editor)
+	if hex_info_button:
+		hex_info_button.toggle_mode = true
+		_hex_info_button_bg = hex_info_button.get_node_or_null("BGPanel") as Panel
+		hex_info_button.toggled.connect(_on_hex_info_toggled)
+		_set_hex_info_visible(false)
+	_setup_hud_mouse_block()
 	if spread_button:
 		spread_button.pressed.connect(_on_spread_pressed)
 	if movement_attack_toggle:
@@ -594,6 +611,132 @@ func bind_map_world() -> void:
 	if not is_multiplayer_authority() and Handlers.UIHandler and Handlers.UIHandler.camera:
 		Handlers.UIHandler.camera.set_bounds()
 	_ensure_waypoint_marker_manager()
+	if _hex_info_enabled:
+		_apply_hex_info_overlay(true)
+	_try_center_camera_on_own_fob()
+
+
+func request_center_camera_on_own_fob() -> void:
+	if _camera_centered_on_fob:
+		return
+	_pending_camera_fob_center = true
+	call_deferred("_try_center_camera_on_own_fob")
+
+
+func _get_own_player_id() -> int:
+	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
+		return Handlers.TeamHandler.my_profile.PlayerId
+	if is_instance_valid(multiplayer):
+		return multiplayer.get_unique_id()
+	return 0
+
+
+func _get_own_fobs() -> Array:
+	var result: Array = []
+	var player_id := _get_own_player_id()
+	if player_id == 0:
+		return result
+	for node in get_tree().get_nodes_in_group("fobs"):
+		if not is_instance_valid(node) or not (node is fob):
+			continue
+		var fob_node: fob = node as fob
+		if fob_node.owner_id == player_id and fob_node.is_alive():
+			result.append(fob_node)
+	return result
+
+
+func _find_nearest_own_fob_to(world_pos: Vector2) -> fob:
+	var best: fob = null
+	var best_dist_sq := INF
+	for node in _get_own_fobs():
+		var fob_node: fob = node as fob
+		var dist_sq: float = world_pos.distance_squared_to(fob_node.global_position)
+		if dist_sq < best_dist_sq:
+			best_dist_sq = dist_sq
+			best = fob_node
+	return best
+
+
+func _move_camera_to_fob(fob_node: fob) -> void:
+	if camera == null or fob_node == null:
+		return
+	if camera.has_method("set_bounds") and camera.TOP_CORNER == null:
+		camera.set_bounds()
+	if camera.has_method("snap_to_world_position"):
+		camera.snap_to_world_position(fob_node.global_position)
+	else:
+		camera.position = fob_node.global_position
+
+
+func _try_center_camera_on_own_fob() -> void:
+	if not _pending_camera_fob_center or _camera_centered_on_fob:
+		return
+	if camera == null:
+		return
+	var own_fobs := _get_own_fobs()
+	if own_fobs.is_empty():
+		return
+	_move_camera_to_fob(own_fobs[0])
+	_camera_centered_on_fob = true
+	_pending_camera_fob_center = false
+
+
+func _on_home_button_pressed() -> void:
+	move_camera_to_nearest_own_fob()
+
+
+func move_camera_to_nearest_own_fob() -> void:
+	bind_map_world()
+	if camera == null:
+		return
+	var nearest_fob := _find_nearest_own_fob_to(camera.position)
+	if nearest_fob:
+		_move_camera_to_fob(nearest_fob)
+
+
+func _on_hex_info_toggled(pressed: bool) -> void:
+	_set_hex_info_visible(pressed)
+
+
+func _set_hex_info_visible(enabled: bool) -> void:
+	_hex_info_enabled = enabled
+	if hex_info_button and hex_info_button.button_pressed != enabled:
+		hex_info_button.set_pressed_no_signal(enabled)
+	_update_hex_info_button_visual(enabled)
+	_apply_hex_info_overlay(enabled)
+
+
+func _update_hex_info_button_visual(enabled: bool) -> void:
+	if _hex_info_button_bg == null:
+		return
+	if enabled:
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.2, 0.7, 0.3, 0.85)
+		_hex_info_button_bg.add_theme_stylebox_override("panel", style)
+	else:
+		_hex_info_button_bg.remove_theme_stylebox_override("panel")
+
+
+func _apply_hex_info_overlay(enabled: bool) -> void:
+	if world == null:
+		bind_map_world()
+	if world == null:
+		return
+	var label_layer: Node = world.get_node_or_null("HexLabelLayer")
+	var border_map: TileMapLayer = world.get_node_or_null("BorderOverlayMap") as TileMapLayer
+	var main_map: TileMapLayer = world.get_node_or_null("MainMap") as TileMapLayer
+	var overlay_map: TileMapLayer = null
+	if Handlers.GameHandler:
+		overlay_map = Handlers.GameHandler.overlay_map
+	if not enabled:
+		if label_layer and label_layer.has_method("clear_labels"):
+			label_layer.clear_labels()
+		_HexBorderOverlayScript.hide(border_map)
+		return
+	if label_layer and label_layer.has_method("build_labels") and overlay_map:
+		label_layer.build_labels(overlay_map)
+	if main_map:
+		_HexBorderOverlayScript.show_on_main_map(border_map, main_map)
 
 func _ensure_waypoint_marker_manager() -> void:
 	if world == null or _waypoint_marker_manager != null:
@@ -607,16 +750,44 @@ func refresh_waypoint_markers() -> void:
 	if _waypoint_marker_manager and is_instance_valid(_waypoint_marker_manager):
 		_waypoint_marker_manager.refresh_for_selection()
 
-func move_camera_to_fob():
-	print('КНОПКА НАЖАЛАСЬ')
+func move_camera_to_fob() -> void:
+	move_camera_to_nearest_own_fob()
 
-func stop_camera_move():
-	#camera.follow_mouse = false
-	pass
-	
-func continue_camera_move():
-	#camera.follow_mouse = true
-	pass
+
+func stop_camera_move() -> void:
+	if camera:
+		camera.follow_mouse = false
+
+
+func continue_camera_move() -> void:
+	if camera:
+		camera.follow_mouse = true
+
+
+func _setup_hud_mouse_block() -> void:
+	if hud_board == null:
+		return
+	for container_name in ["LeftButtonsContainer", "RightButtonsContainer"]:
+		var container := hud_board.get_node_or_null(container_name) as Control
+		if container:
+			container.mouse_filter = Control.MOUSE_FILTER_STOP
+	_set_hud_buttons_mouse_filter_stop(hud_board)
+
+
+func _set_hud_buttons_mouse_filter_stop(node: Node) -> void:
+	if node is BaseButton:
+		(node as BaseButton).mouse_filter = Control.MOUSE_FILTER_STOP
+	for child in node.get_children():
+		_set_hud_buttons_mouse_filter_stop(child)
+
+
+func _is_pointer_over_hud() -> bool:
+	if hud_board == null or not is_instance_valid(hud_board):
+		return false
+	var hovered: Control = get_viewport().gui_get_hovered_control()
+	if hovered == null:
+		return false
+	return hovered == hud_board or hud_board.is_ancestor_of(hovered)
 	
 func update_visible_units():
 	for n in Handlers.GameHandler.get_all_units():

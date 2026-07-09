@@ -19,6 +19,8 @@ var is_returning : bool = false  # Флаг, указывающий что ка�
 # Для оптимизации: отслеживаем предыдущую позицию и зум
 var _last_position: Vector2
 var _last_zoom: Vector2
+var _middle_mouse_dragging: bool = false
+var _middle_drag_last_pos: Vector2 = Vector2.ZERO
 
 func _ready():
 	# Инициализируем переменные отслеживания
@@ -48,6 +50,38 @@ func get_clamped_position(pos: Vector2) -> Vector2:
 		clamp(pos.y, BOTTOM_CORNER.y, TOP_CORNER.y)
 	)
 
+
+func snap_to_world_position(world_pos: Vector2) -> void:
+	var target := world_pos
+	if TOP_CORNER != null and BOTTOM_CORNER != null:
+		target = get_clamped_position(world_pos)
+	position = target
+	if position != _last_position:
+		_last_position = position
+		camera_moved.emit()
+
+
+func _is_pointer_over_blocking_ui() -> bool:
+	if Handlers.UIHandler and Handlers.UIHandler.has_method("_is_pointer_over_hud"):
+		return Handlers.UIHandler._is_pointer_over_hud()
+	return false
+
+
+func _apply_middle_mouse_drag(delta: Vector2) -> void:
+	var world_delta := -delta / zoom
+	var new_pos := position + world_delta
+	if TOP_CORNER != null and BOTTOM_CORNER != null:
+		new_pos = get_clamped_position(new_pos)
+	position = new_pos
+	if position != _last_position:
+		_last_position = position
+		camera_moved.emit()
+
+
+func _end_middle_mouse_drag() -> void:
+	_middle_mouse_dragging = false
+	follow_mouse = not _is_pointer_over_blocking_ui()
+
 func _process(delta: float) -> void:
 	if TOP_CORNER == null or BOTTOM_CORNER == null:
 		return
@@ -71,6 +105,9 @@ func _process(delta: float) -> void:
 	
 	if is_returning:
 		is_returning = false
+
+	if _middle_mouse_dragging and not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
+		_end_middle_mouse_drag()
 		
 	var move_vector = Vector2.ZERO
 	
@@ -123,6 +160,24 @@ func _notification(notification):
 		print('Window lost focus - camera movement disabled')
 	
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+		if event.pressed:
+			if not _is_pointer_over_blocking_ui():
+				_middle_mouse_dragging = true
+				_middle_drag_last_pos = event.position
+				follow_mouse = false
+		elif _middle_mouse_dragging:
+			_end_middle_mouse_drag()
+		get_viewport().set_input_as_handled()
+		return
+
+	if event is InputEventMouseMotion and _middle_mouse_dragging:
+		var delta: Vector2 = event.position - _middle_drag_last_pos
+		_middle_drag_last_pos = event.position
+		_apply_middle_mouse_drag(delta)
+		get_viewport().set_input_as_handled()
+		return
+
 	# Зум через _unhandled_input: колёсико над UI (журнал боя и др.) уже
 	# «съедено» Control.accept_event() и сюда не доходит.
 	if observer_mode and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed:

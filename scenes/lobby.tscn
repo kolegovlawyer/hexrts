@@ -1,8 +1,7 @@
 [gd_scene format=3 uid="uid://d0hrhio2t55dq"]
 
+[ext_resource type="Theme" uid="uid://cs6k2aheouulp" path="res://prefabs/themes/main_theme.tres" id="1_5gu6x"]
 [ext_resource type="Script" uid="uid://p1bk5hfu8a63" path="res://scripts/Lobby.gd" id="1_aocll"]
-
-[sub_resource type="Theme" id="Theme_pfk6x"]
 
 [node name="Lobby" type="Control" unique_id=1451817012]
 layout_mode = 3
@@ -11,7 +10,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme = SubResource("Theme_pfk6x")
+theme = ExtResource("1_5gu6x")
 script = ExtResource("1_aocll")
 
 [node name="Join-Tab" type="Control" parent="." unique_id=2037509048]

@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://ca77q4ydbl3cv" path="res://prefabs/maps/main_map_2.tscn" id="3_ojieb"]
 [ext_resource type="PackedScene" uid="uid://bmm7e27ic1c5u" path="res://prefabs/units/base_fob.tscn" id="4_peyd0"]
 [ext_resource type="Texture2D" uid="uid://rjusfrp6cg03" path="res://assets/tilemap/base_hexs.png" id="5_xa2i2"]
+[ext_resource type="Texture2D" uid="uid://xifrrypuoper" path="res://assets/tilemap/hex_border.png" id="5_border"]
 [ext_resource type="Texture2D" uid="uid://b2yssebpb1u5u" path="res://assets/BartSpriter/arrow.png" id="6_rxyc0"]
 [ext_resource type="Script" uid="uid://chlxpr2xjdegu" path="res://scripts/fog_of_war_manager.gd" id="7_lk57u"]
 [ext_resource type="Script" uid="uid://cn01mbav3n71p" path="res://scripts/map_fog_initializer.gd" id="8_e04e3"]
@@ -23,6 +24,16 @@ texture_region_size = Vector2i(256, 256)
 tile_shape = 3
 tile_size = Vector2i(256, 256)
 sources/0 = SubResource("TileSetAtlasSource_qfklk")
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_border"]
+texture = ExtResource("5_border")
+texture_region_size = Vector2i(256, 256)
+0:0/0 = 0
+
+[sub_resource type="TileSet" id="TileSet_border"]
+tile_shape = 3
+tile_size = Vector2i(256, 256)
+sources/0 = SubResource("TileSetAtlasSource_border")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_35fhk"]
 shader = ExtResource("9_s6wlc")
@@ -59,8 +70,15 @@ z_index = 1
 z_as_relative = false
 tile_set = SubResource("TileSet_35fhk")
 
-[node name="HexLabelLayer" type="Node2D" parent="." unique_id=1847729106]
+[node name="BorderOverlayMap" type="TileMapLayer" parent="." unique_id=226328246]
+light_mask = 2
+visibility_layer = 2
 z_index = 2
+z_as_relative = false
+tile_set = SubResource("TileSet_border")
+
+[node name="HexLabelLayer" type="Node2D" parent="." unique_id=1847729106]
+z_index = 3
 script = ExtResource("11_hexlbl")
 
 [node name="CameraCornerBottomRight" type="Node2D" parent="." unique_id=1043491106]

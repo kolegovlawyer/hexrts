@@ -82,6 +82,9 @@ func add_to_team(player, team: GameTypes.Teams): # player is int, PlayerProfile
 
 	if not is_multiplayer_authority() and multiplayer.get_unique_id() == assigned_player_id:
 		call_deferred("_refresh_client_world_visuals")
+	if Handlers.UIHandler and multiplayer.get_unique_id() == assigned_player_id \
+			and Handlers.UIHandler.has_method("request_center_camera_on_own_fob"):
+		Handlers.UIHandler.request_center_camera_on_own_fob()
 
 
 func _refresh_client_world_visuals() -> void:

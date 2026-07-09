@@ -247,6 +247,35 @@ func _physics_process(delta: float) -> void:
 						_pop_current_order()
 						_advance_queue_after_move_leg()
 
+func interrupt_capture_for_direct_order(prepare_move: bool = true) -> void:
+	"""Сбрасывает захват, чтобы КШМ мог немедленно выполнить прямой приказ движения."""
+	if is_capturing:
+		stop_capture("новый приказ")
+	if unit_state == UNIT_STATES.IDLE and orders.size() > 0:
+		var first_type: String = str(orders[0].get("type", ""))
+		if first_type == "move_capture":
+			orders[0]["phase"] = "moving"
+	if navagent:
+		navagent.target_position = global_position
+		navagent.set_velocity(Vector2.ZERO)
+	if prepare_move:
+		unit_state = UNIT_STATES.MOVING
+
+
+@rpc("any_peer", "reliable")
+func add_order(order_obj, clear_queue: bool = false, capture_at_destination: bool = false) -> void:
+	if is_multiplayer_authority() and clear_queue and typeof(order_obj) == TYPE_VECTOR2:
+		interrupt_capture_for_direct_order(true)
+	super.add_order(order_obj, clear_queue, capture_at_destination)
+
+
+@rpc("any_peer", "reliable")
+func clear_orders() -> void:
+	if is_multiplayer_authority():
+		interrupt_capture_for_direct_order(false)
+	super.clear_orders()
+
+
 func _should_defer_route_order() -> bool:
 	"""
 	Откладывает старт маршрута (move_capture), пока идёт пассивный захват гекса.

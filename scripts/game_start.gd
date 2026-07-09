@@ -660,6 +660,8 @@ func create_camera(role: String) -> void:
 			camera_node.set_observer_mode(true)
 	elif role == "Client" and Handlers.UIHandler:
 		Handlers.UIHandler.camera = camera_node
+		if Handlers.UIHandler.has_method("request_center_camera_on_own_fob"):
+			Handlers.UIHandler.call_deferred("request_center_camera_on_own_fob")
 
 
 func setup_observer_camera_bounds() -> void:
@@ -895,22 +897,9 @@ func initialize_hexes() -> void:
 		setup_observer_camera_bounds()
 
 	_HexCoordinatesScript.initialize_from_tile_bounds(used_cells)
-	_setup_hex_coordinate_labels()
+	# Метки гексов включаются кнопкой HexInfoButton в HUD, не при старте.
 
 	_try_autoload_unit_presets()
-
-
-func _setup_hex_coordinate_labels() -> void:
-	var map_root := get_node_or_null("Map")
-	if map_root == null or map_root.get_child_count() == 0:
-		return
-	var map_node: Node = map_root.get_child(0)
-	var label_layer: Node = map_node.get_node_or_null("HexLabelLayer")
-	if label_layer == null or not label_layer.has_method("build_labels"):
-		return
-	if overlay_map == null:
-		return
-	label_layer.build_labels(overlay_map)
 
 
 func _try_autoload_unit_presets() -> void:

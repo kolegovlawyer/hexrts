@@ -15,6 +15,7 @@ const SPEED = 300.0
 @onready var visibility_area = get_node("%VisibilityArea")
 @onready var reload_timer = get_node("%ReloadTimer")
 @onready var aim_timer = get_node("%AimTimer")
+@onready var unit_sprite: Sprite2D = get_node_or_null("%UnitSelfSprite") as Sprite2D
 
 # Таймер для автоматической атаки (проверка каждую секунду)
 var auto_attack_timer: Timer
@@ -78,6 +79,10 @@ var accel = 7
 @export var speed = 300
 @export var damage = 5
 @export var reload_time = 3
+## Рад/с; задаётся из пресета (UnitPresetBalance.to_game_turn_rate).
+var turn_rate: float = UnitPresetBalance.to_game_turn_rate(UnitPresetBalance.default_stats())
+## Логический курс (рад). Крутим только UnitSelfSprite — бары/имя/кольцо остаются upright.
+var facing_angle: float = 0.0
 @export var shield_regen_rate = 1.5  # Щит в секунду при восстановлении (15/10 = 1.5)
 @export var shield_regen_delay = 3.0  # Задержка начала восстановления щита после получения урона
 
@@ -138,6 +143,9 @@ var _route_abort_unstuck_used: bool = false
 var _static_block_frames: int = 0
 var _unit_block_frames: int = 0
 var _desired_velocity: Vector2 = Vector2.ZERO
+## Желаемый угол курса (path или aim); для штрафа точности при довороте.
+var _facing_desired_angle: float = 0.0
+var _has_facing_desired: bool = false
 
 # Кэш crowd-detour (дорогая проверка по группе units)
 var _crowd_cache_wp: Vector2 = Vector2.ZERO
@@ -161,6 +169,12 @@ const CROWD_PRIORITY_MOVING: float = 0.2
 const CROWD_PRIORITY_ROUTE: float = 0.05
 const CLOSE_ENOUGH_ROUTE: float = 26.0
 const MOVING_ATTACK_MIN_SPEED: float = 8.0
+## Минимальная доля скорости при полном рассогласовании курса (мягкая модель).
+const MOVE_ALIGN_MIN_SPEED: float = 0.35
+## Порог «доворачивается» для штрафа точности (рад).
+const TURN_AIM_THRESHOLD_RAD: float = deg_to_rad(10.0)
+## Множитель точности при довороте (аналог hit_chance *= TURN_ACC_MULT → раздутие spread).
+const TURN_ACC_MULT: float = 0.6
 
 enum RoutePatrolMode { NONE, LOOP, PING_PONG }
 
@@ -347,7 +361,13 @@ func _physics_process(delta: float) -> void:
 			else:
 				navagent.avoidance_priority = CROWD_PRIORITY_MOVING
 			var next_path_position: Vector2 = navagent.get_next_path_position()
-			_desired_velocity = global_position.direction_to(next_path_position) * speed
+			# Инерция поворота ДО avoidance: RVO получает курс «по носу», а не мгновенный
+			# вектор к waypoint. Post-safe_velocity ломал бы обход (курс дрался бы с RVO).
+			var desired_angle: float = global_position.direction_to(next_path_position).angle()
+			_apply_facing_toward(desired_angle, delta)
+			var align: float = maxf(0.0, cos(angle_difference(facing_angle, desired_angle)))
+			var steered_speed: float = float(speed) * lerpf(MOVE_ALIGN_MIN_SPEED, 1.0, align)
+			_desired_velocity = Vector2.RIGHT.rotated(facing_angle) * steered_speed
 			# Soft lateral bias away from locked blockers so RVO prefers a side early
 			_desired_velocity = _apply_lateral_crowd_bias(_desired_velocity)
 			navagent.set_velocity(_desired_velocity)
@@ -360,6 +380,7 @@ func _physics_process(delta: float) -> void:
 			_static_block_frames = 0
 			_unit_block_frames = 0
 			_reset_jitter_stuck_tracking()
+			_update_combat_facing(delta)
 		
 		if not _is_bot:
 			_try_opportunistic_attack_while_moving()
@@ -982,11 +1003,56 @@ func _get_move_speed_ratio() -> float:
 	return clampf(velocity.length() / float(speed), 0.0, 1.0)
 
 
+func _apply_facing_toward(desired_angle: float, delta: float) -> void:
+	_facing_desired_angle = desired_angle
+	_has_facing_desired = true
+	facing_angle = rotate_toward(facing_angle, desired_angle, turn_rate * delta)
+	# Только спрайт юнита — корень CharacterBody2D не крутим (бары, имя, ring).
+	if unit_sprite:
+		unit_sprite.rotation = facing_angle
+
+
+func _is_turning_to_aim() -> bool:
+	if not _has_facing_desired:
+		return false
+	return absf(angle_difference(facing_angle, _facing_desired_angle)) > TURN_AIM_THRESHOLD_RAD
+
+
+## Мировая позиция цели для доворота на месте, или null если цели нет.
+func _resolve_aim_world_position():
+	var attack_order: Dictionary = _find_first_order(["attack"])
+	if not attack_order.is_empty() and is_instance_valid(attack_order.get("target")):
+		return (attack_order.target as Node2D).global_position
+	var fob_order: Dictionary = _find_first_order(["attack_fob"])
+	if not fob_order.is_empty() and is_instance_valid(fob_order.get("target")):
+		return (fob_order.target as Node2D).global_position
+	var pos_order: Dictionary = _find_first_order(["attack_position"])
+	if not pos_order.is_empty() and pos_order.has("position"):
+		return pos_order.get("position", Vector2.ZERO)
+	return null
+
+
+func _update_combat_facing(delta: float) -> void:
+	var aim_pos = _resolve_aim_world_position()
+	if aim_pos == null:
+		_has_facing_desired = false
+		return
+	var aim_vec: Vector2 = aim_pos as Vector2
+	if aim_vec.is_equal_approx(global_position):
+		_has_facing_desired = false
+		return
+	_apply_facing_toward(global_position.direction_to(aim_vec).angle(), delta)
+
+
 func _compute_projectile_spread_offset() -> Vector2:
 	var ratio: float = _get_move_speed_ratio()
-	if ratio <= 0.0:
-		return Vector2.ZERO
 	var spread_radius: float = ratio * MOVING_SHOOT_MAX_SPREAD
+	# Нет дискретного hit_chance: TURN_ACC_MULT как множитель точности → раздутие spread.
+	if _is_turning_to_aim():
+		spread_radius = maxf(spread_radius, MOVING_SHOOT_MAX_SPREAD * (1.0 - TURN_ACC_MULT))
+		spread_radius /= TURN_ACC_MULT
+	if spread_radius <= 0.0:
+		return Vector2.ZERO
 	return Vector2.from_angle(randf() * TAU) * spread_radius
 
 
@@ -2282,6 +2348,7 @@ func apply_preset_snapshot(snapshot: Dictionary) -> void:
 	shield = max_shield
 	speed = UnitPresetBalance.to_game_speed(speed_stat)
 	damage = UnitPresetBalance.to_game_damage(damage_stat)
+	turn_rate = UnitPresetBalance.to_game_turn_rate(snapshot)
 
 	var new_vision_radius := UnitPresetBalance.to_game_vision_radius(range_stat)
 	set_vision_radius(new_vision_radius)

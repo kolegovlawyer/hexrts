@@ -39,6 +39,13 @@ const SCALE_MAX := 1.5
 ## Время развёртывания КШМ в FOB (секунды).
 const DEPLOY_FOB_DURATION := 5.0
 
+## Поворот: лёгкий / тяжёлый юнит (град/с). MASS_MAX = бюджет без speed (STAT_SUM_MAX - STAT_MIN).
+const TURN_FAST_DEG := 360.0
+const TURN_SLOW_DEG := 90.0
+const MASS_MAX := 36.0
+const TURN_SPEED_MULT_MIN := 0.7
+const TURN_SPEED_MULT_MAX := 1.4
+
 
 static func default_stats() -> Dictionary:
 	return {
@@ -131,6 +138,26 @@ static func to_game_damage(stat: int) -> int:
 
 static func to_game_vision_radius(stat: int) -> float:
 	return _curved_stat_value(stat, VISION_RADIUS_PER_STAT, VISION_MULT_AT_MIN, VISION_MULT_AT_MAX)
+
+
+## Масса для инерции поворота: всё кроме speed (быстрый юнит не должен быть «тяжёлым»).
+static func calc_mass(stats: Dictionary) -> float:
+	return float(
+		clamp_stat(int(stats.get("health", DEFAULT_STAT)))
+		+ clamp_stat(int(stats.get("shield", DEFAULT_STAT)))
+		+ clamp_stat(int(stats.get("damage", DEFAULT_STAT)))
+		+ clamp_stat(int(stats.get("range", DEFAULT_STAT)))
+	)
+
+
+## Рад/с: масса → неповоротливость, speed_stat → вёрткость.
+static func to_game_turn_rate(stats: Dictionary) -> float:
+	var mass := calc_mass(stats)
+	var mass_t := clampf(mass / MASS_MAX, 0.0, 1.0)
+	var base_turn := deg_to_rad(lerpf(TURN_FAST_DEG, TURN_SLOW_DEG, mass_t))
+	var speed_stat := float(clamp_stat(int(stats.get("speed", DEFAULT_STAT))))
+	var speed_mult := lerpf(TURN_SPEED_MULT_MIN, TURN_SPEED_MULT_MAX, speed_stat / float(STAT_MAX))
+	return base_turn * speed_mult
 
 
 static func validate_spawn_request(stats: Dictionary, is_command: bool, claimed_cost: int) -> bool:

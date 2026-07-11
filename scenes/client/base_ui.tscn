@@ -454,6 +454,11 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
 
+[node name="DeployButton" type="Button" parent="MarginContainer/MainRack/HUDBoard/VBoxContainer" unique_id=1990835003]
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Развернуть КШМ"
+
 [node name="MarginContainer" type="MarginContainer" parent="MarginContainer/MainRack/HUDBoard/VBoxContainer" unique_id=1578365429]
 layout_mode = 2
 size_flags_horizontal = 3

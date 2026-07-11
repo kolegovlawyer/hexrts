@@ -6,9 +6,11 @@
 [ext_resource type="Texture2D" uid="uid://fb0j5huhafry" path="res://assets/all_icons/circle-s.png" id="4_3coue"]
 [ext_resource type="Script" uid="uid://b1fv54ksitimn" path="res://scripts/networking/synchronizer.gd" id="5_c8msn"]
 [ext_resource type="Texture2D" uid="uid://dwwvimsrx2f7h" path="res://assets/all_icons/rank-1.png" id="6_3coue"]
-[ext_resource type="Texture2D" uid="uid://ba30087ucun2e" path="res://assets/units/bars/capture_progress.png" id="7_t5cf2"]
+[ext_resource type="Texture2D" uid="uid://b8fuvv8mk7led" path="res://assets/units/bars/capture_bar/variant-a/background.png" id="7_5hrhh"]
+[ext_resource type="Texture2D" uid="uid://b1uq8xg60stct" path="res://assets/units/bars/capture_bar/variant-a/border.png" id="8_hqomm"]
 [ext_resource type="Theme" uid="uid://cs6k2aheouulp" path="res://prefabs/themes/main_theme.tres" id="8_xa2qg"]
-[ext_resource type="Script" path="res://scripts/units/unit_tracks.gd" id="9_tracks"]
+[ext_resource type="Texture2D" uid="uid://6mm882jw0ke7" path="res://assets/units/bars/capture_bar/variant-a/progress.png" id="9_0d7kr"]
+[ext_resource type="Script" uid="uid://cxynu02ej653n" path="res://scripts/units/unit_tracks.gd" id="9_tracks"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_lxa7t"]
 radius = 22.561
@@ -156,25 +158,14 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 value = 80.0
 fill_mode = 4
-texture_under = ExtResource("7_t5cf2")
-texture_over = ExtResource("7_t5cf2")
-texture_progress = ExtResource("7_t5cf2")
+texture_under = ExtResource("7_5hrhh")
+texture_over = ExtResource("8_hqomm")
+texture_progress = ExtResource("9_0d7kr")
 tint_under = Color(0.54902, 0.478431, 0.219608, 0.141176)
 tint_over = Color(1, 1, 1, 0)
-tint_progress = Color(0.613102, 0.53899, 3.85046e-07, 1)
 
-[node name="UnitTracks" type="Node" parent="."]
+[node name="UnitTracks" type="Node" parent="." unique_id=1339044761]
 script = ExtResource("9_tracks")
-sample_distance_px = 30.0
-track_color = Color(0.7, 0.7, 0.7, 0.4)
-dissolve_color = Color(1, 1, 1, 0)
-line_width = 4.0
-line_half_spacing = 6.0
-lifetime_base_sec = 5.0
-fade_window_sec = 1.5
-max_segments = 200
-use_cost_scaling = true
-command_width_multiplier = 1.4
 
 [node name="UnitName" type="Label" parent="." unique_id=1199256143]
 unique_name_in_owner = true

@@ -21,6 +21,8 @@ var projectiles: Array[Projectile] = []
 
 var _next_visual_id: int = 0
 var _active_visuals: Dictionary = {} # visual_id -> VisualProjectile (только клиент)
+## visual_id -> {volume, radius} — громкость для взрыва без смены show_explosion_at RPC
+var _combat_audio_by_visual: Dictionary = {}
 
 const _ExplosionVfxScript := preload("res://scripts/projectile/explosion_vfx.gd")
 
@@ -105,11 +107,13 @@ func create_projectile(
 	
 	# Отправляем визуальную синхронизацию всем клиентам
 	# Клиенты получат только анимацию полета без логики урона
-	rpc("create_visual_projectile", 
+	var shot_linear_volume := _shot_linear_volume_for_unit(owner_unit)
+	rpc("create_visual_projectile",
 		owner_unit.global_position,
 		target_position,
 		explosion_radius,
-		visual_id)
+		visual_id,
+		shot_linear_volume)
 
 @rpc("any_peer", "call_local", "reliable")
 func create_projectile_at_position(
@@ -132,35 +136,40 @@ func create_projectile_at_position(
 	add_child(projectile)
 	projectiles.append(projectile)
 	projectile.destroyed.connect(_on_projectile_destroyed)
+	var shot_linear_volume := _shot_linear_volume_for_unit(owner_unit)
 	rpc(
 		"create_visual_projectile",
 		owner_unit.global_position,
 		target_position,
 		explosion_radius,
-		visual_id
+		visual_id,
+		shot_linear_volume
 	)
 
 ## КЛИЕНТСКИЕ ФУНКЦИИ
-@rpc("authority", "call_local", "reliable") 
-func create_visual_projectile(start_pos: Vector2, target_pos: Vector2, explosion_radius: float, visual_id: int) -> void:
+@rpc("authority", "call_local", "reliable")
+func create_visual_projectile(
+		start_pos: Vector2,
+		target_pos: Vector2,
+		explosion_radius: float,
+		visual_id: int,
+		shot_linear_volume: float = 1.0
+	) -> void:
 	"""
-	Создает визуальный снаряд для клиентов (только анимация)
-	
-	ПАРАМЕТРЫ:
-	- start_pos: Начальная позиция полета
-	- target_pos: Конечная позиция полета  
-	- explosion_radius: Радиус анимации взрыва
-	
-	ВАЖНО: Эта функция вызывается только на клиентах
-	Визуальные снаряды не имеют логики урона - только красивая анимация
+	Создает визуальный снаряд для клиентов (только анимация).
+	shot_linear_volume — косметика: громкость выстрела/взрыва (0.1…1.0), считается на сервере.
 	"""
-	# Визуальные снаряды создаются только на клиентах
+	_combat_audio_by_visual[visual_id] = {
+		"volume": shot_linear_volume,
+		"radius": explosion_radius,
+	}
+	# Выстрел: AudioManager no-op на headless; на host/client — позиционный one-shot.
+	AudioManager.play_shot(start_pos, shot_linear_volume)
+
+	# Визуальные снаряды — только на клиентах (не на dedicated/listen server process).
 	if multiplayer.is_server():
-		return  # Сервер уже имеет логический снаряд
-		
-	# print("🎨 ProjectileSystem: Создание визуального снаряда для клиента")  # DEBUG
-	
-	# Создаем визуальный снаряд только для отображения
+		return
+
 	var visual_projectile = preload("res://scripts/projectile/visual_projectile.gd").new()
 	visual_projectile.init_visual(start_pos, target_pos, explosion_radius, visual_id)
 	add_child(visual_projectile)
@@ -168,6 +177,8 @@ func create_visual_projectile(start_pos: Vector2, target_pos: Vector2, explosion
 
 @rpc("authority", "call_local", "reliable")
 func finish_visual_projectile(visual_id: int, pos: Vector2) -> void:
+	# Взрыв привязан к visual_id (не к show_explosion_at), чтобы не расширять боевой RPC.
+	_play_explosion_for_visual(visual_id, pos)
 	if multiplayer.is_server():
 		return
 	var visual: VisualProjectile = _active_visuals.get(visual_id)
@@ -189,6 +200,25 @@ static func spawn_explosion_at(parent: Node, pos: Vector2, radius: float) -> voi
 
 func _spawn_explosion_at(pos: Vector2, radius: float) -> void:
 	_ExplosionVfxScript.spawn_at(self, pos, radius)
+
+
+func _shot_linear_volume_for_unit(owner_unit: Node) -> float:
+	# DAMAGE_PER_STAT == 1 → unit.damage совпадает с характеристикой атаки 1…20.
+	var attack := 5
+	if owner_unit.get("damage") != null:
+		attack = int(owner_unit.damage)
+	return AudioManager.linear_volume_from_attack(attack)
+
+
+func _play_explosion_for_visual(visual_id: int, pos: Vector2) -> void:
+	var audio_data: Variant = _combat_audio_by_visual.get(visual_id)
+	_combat_audio_by_visual.erase(visual_id)
+	var linear_volume := 1.0
+	var radius := 50.0
+	if audio_data is Dictionary:
+		linear_volume = float(audio_data.get("volume", 1.0))
+		radius = float(audio_data.get("radius", 50.0))
+	AudioManager.play_explosion(pos, linear_volume, radius)
 
 
 func _allocate_visual_id() -> int:

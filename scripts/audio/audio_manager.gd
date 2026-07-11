@@ -1,5 +1,5 @@
 extends Node
-## Клиентский менеджер звука движения армии.
+## Клиентский менеджер звука движения армии и боевых one-shot (выстрел/взрыв).
 ## Headless-сервер полностью бездействует и не загружает аудио.
 
 # --- Константы движения / слоёв ---
@@ -7,27 +7,47 @@ const MOVE_SOUND_SATURATION := 15.0
 const SMOOTH_SPEED := 2.0
 const POSITIONAL_LIMIT := 8
 const DUCK_DB := -6.0
-const FADE_IN_SEC := 0.4
-const FADE_OUT_SEC := 0.3
-const MOVE_ENTER_SPEED := 5.0 ## px/s — порог входа в «движение»
-const MOVE_ENTER_HOLD := 0.1 ## s
-const MOVE_EXIT_SPEED := 2.0 ## px/s — порог выхода
-const MOVE_EXIT_HOLD := 0.3 ## s
+const FADE_IN_SEC := 0.12 ## Быстрый вход, чтобы звук не «догонял» старт движения
+const FADE_OUT_SEC := 0.25
+const MOVE_ENTER_SPEED := 5.0 ## px/s — мгновенный вход в «движение»
+const MOVE_EXIT_SPEED := 2.0 ## px/s — порог «тишины» по скорости
+const MOVE_EXIT_HOLD := 0.55 ## s без заметного сдвига (сеть шлёт position не каждый кадр)
+const ASSIGN_START_LINEAR := 0.45 ## стартовая громкость слота при назначении
 const LINEAR_SILENCE := 0.0001
 const DUCK_SMOOTH_SPEED := 4.0
 const MOVE_STREAM_PATH := "res://assets/audio/disel_engine.ogg"
 const BUS_UNITS := "Units"
 
+# --- Константы боевых one-shot (выстрел / взрыв) ---
+const ONESHOT_LIMIT := 12
+const SHOT_STREAM_PATH := "res://assets/audio/shot.ogg"
+const EXPLOSION_STREAM_PATH := "res://assets/audio/explosion.ogg"
+const BUS_COMBAT := "Combat"
+const ONESHOT_PITCH_MIN := 0.92
+const ONESHOT_PITCH_MAX := 1.08
+const ONESHOT_VOLUME_JITTER_DB := 1.5 ## ± дБ к линейной громкости
+const MAX_RADIUS_REF := 120.0 ## радиус, при котором pitch взрыва на минимуме
+const ATTACK_STAT_MIN := 1.0
+const ATTACK_STAT_MAX := 20.0
+const VOLUME_AT_ATTACK_MIN := 0.1 ## атака 1 → −20 dB относительно семпла
+const VOLUME_AT_ATTACK_MAX := 1.0 ## атака 20 → оригинальная громкость
+
 var _enabled: bool = false
 var _stream: AudioStream = null
+var _shot_stream: AudioStream = null
+var _explosion_stream: AudioStream = null
 var _layer1: AudioStreamPlayer = null
 var _pool: Array[AudioStreamPlayer2D] = []
+var _oneshot_pool: Array[AudioStreamPlayer2D] = []
 
 ## Трекинг позиции/скорости по instance_id юнита.
 var _tracks: Dictionary = {} # int -> Dictionary
 
 ## Слот пула: unit, player, linear_vol, target_vol, pitch_jitter, fading_out
 var _slots: Array[Dictionary] = []
+
+## Слот one-shot: player, start_msec (для вытеснения самого старого)
+var _oneshot_slots: Array[Dictionary] = []
 
 var _layer1_loudness: float = 0.0
 var _duck_linear: float = 1.0
@@ -52,6 +72,9 @@ func _init_audio() -> void:
 		(_stream as AudioStreamOggVorbis).loop = true
 	elif _stream is AudioStreamMP3:
 		(_stream as AudioStreamMP3).loop = true
+
+	_shot_stream = _load_oneshot_stream(SHOT_STREAM_PATH)
+	_explosion_stream = _load_oneshot_stream(EXPLOSION_STREAM_PATH)
 
 	_layer1 = AudioStreamPlayer.new()
 	_layer1.name = "MoveLayer1"
@@ -81,8 +104,119 @@ func _init_audio() -> void:
 			"fading_out": false,
 		})
 
+	_oneshot_pool.clear()
+	_oneshot_slots.clear()
+	for i in ONESHOT_LIMIT:
+		var op := AudioStreamPlayer2D.new()
+		op.name = "CombatOneshot_%d" % i
+		op.bus = BUS_COMBAT
+		op.max_distance = 2000.0
+		add_child(op)
+		_oneshot_pool.append(op)
+		_oneshot_slots.append({
+			"player": op,
+			"start_msec": 0,
+		})
+
 	_enabled = true
-	Handlers.dprint("AudioManager: initialized, pool=", POSITIONAL_LIMIT)
+	Handlers.dprint(
+		"AudioManager: initialized, move_pool=", POSITIONAL_LIMIT,
+		" oneshot_pool=", ONESHOT_LIMIT
+	)
+
+
+func _load_oneshot_stream(path: String) -> AudioStream:
+	var stream := load(path) as AudioStream
+	if stream == null:
+		Handlers.dprint("AudioManager: failed to load", path)
+		return null
+	# Семплы one-shot не зацикливаются.
+	if stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = false
+	elif stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = false
+	return stream
+
+
+## Линейная громкость по характеристике атаки юнита (1…20). Чистая математика — безопасно на headless.
+func linear_volume_from_attack(attack: int) -> float:
+	var a := clampf(float(attack), ATTACK_STAT_MIN, ATTACK_STAT_MAX)
+	var t := (a - ATTACK_STAT_MIN) / (ATTACK_STAT_MAX - ATTACK_STAT_MIN)
+	return lerpf(VOLUME_AT_ATTACK_MIN, VOLUME_AT_ATTACK_MAX, t)
+
+
+func play_shot(global_pos: Vector2, linear_volume: float) -> void:
+	play_oneshot(_shot_stream, global_pos, linear_volume, 1.0)
+
+
+func play_explosion(global_pos: Vector2, linear_volume: float, explosion_radius: float) -> void:
+	var radius_t := clampf(explosion_radius / MAX_RADIUS_REF, 0.0, 1.0)
+	var base_pitch := lerpf(1.05, 0.9, radius_t)
+	play_oneshot(_explosion_stream, global_pos, linear_volume, base_pitch)
+
+
+## Позиционный one-shot на шине Combat. Плееры принадлежат только AudioManager.
+func play_oneshot(
+		stream: AudioStream,
+		global_pos: Vector2,
+		linear_volume: float,
+		base_pitch: float
+	) -> void:
+	if not _enabled or stream == null:
+		return
+
+	var slot := _acquire_oneshot_slot(global_pos)
+	if slot.is_empty():
+		return
+
+	var player: AudioStreamPlayer2D = slot["player"]
+	if player.playing:
+		player.stop()
+
+	var vol_jitter_db := randf_range(-ONESHOT_VOLUME_JITTER_DB, ONESHOT_VOLUME_JITTER_DB)
+	var linear_with_jitter := maxf(linear_volume, 0.0) * db_to_linear(vol_jitter_db)
+	player.stream = stream
+	player.global_position = global_pos
+	player.volume_db = _linear_to_player_db(linear_with_jitter)
+	player.pitch_scale = base_pitch * randf_range(ONESHOT_PITCH_MIN, ONESHOT_PITCH_MAX)
+	slot["start_msec"] = Time.get_ticks_msec()
+	player.play()
+
+
+func _acquire_oneshot_slot(_global_pos: Vector2) -> Dictionary:
+	# Свободный (не играет) слот.
+	for slot in _oneshot_slots:
+		var player: AudioStreamPlayer2D = slot["player"]
+		if not player.playing:
+			return slot
+
+	# Все заняты — вытесняем самый давно запущенный; при равенстве — самый дальний от центра экрана.
+	var screen_center := Vector2.ZERO
+	var camera := _get_camera()
+	if camera != null and is_instance_valid(camera):
+		screen_center = camera.global_position
+
+	var best_idx := 0
+	var best_start: int = int(_oneshot_slots[0]["start_msec"])
+	var best_dist_sq: float = (
+		_oneshot_slots[0]["player"] as AudioStreamPlayer2D
+	).global_position.distance_squared_to(screen_center)
+
+	for i in range(1, _oneshot_slots.size()):
+		var slot: Dictionary = _oneshot_slots[i]
+		var start_msec: int = int(slot["start_msec"])
+		var dist_sq: float = (slot["player"] as AudioStreamPlayer2D).global_position.distance_squared_to(
+			screen_center
+		)
+		if start_msec < best_start:
+			best_idx = i
+			best_start = start_msec
+			best_dist_sq = dist_sq
+		elif start_msec == best_start and dist_sq > best_dist_sq:
+			best_idx = i
+			best_dist_sq = dist_sq
+
+	return _oneshot_slots[best_idx]
 
 
 func _physics_process(delta: float) -> void:
@@ -123,33 +257,28 @@ func _physics_process(delta: float) -> void:
 		if track.has("last_pos"):
 			observed_speed = pos.distance_to(track["last_pos"]) / delta
 		var is_moving: bool = bool(track.get("is_moving", false))
-		var enter_t: float = float(track.get("enter_t", 0.0))
-		var exit_t: float = float(track.get("exit_t", 0.0))
+		var quiet_t: float = float(track.get("quiet_t", 0.0))
 
-		if is_moving:
-			if observed_speed < MOVE_EXIT_SPEED:
-				exit_t += delta
-				if exit_t >= MOVE_EXIT_HOLD:
-					is_moving = false
-					enter_t = 0.0
-					exit_t = 0.0
-			else:
-				exit_t = 0.0
+		# Клиент часто видит position рывками (MultiplayerSynchronizer): между пакетами
+		# observed_speed=0. Поэтому вход мгновенный, выход — только после HOLD тишины.
+		# Плюс приказ движения из order queue (приходит раньше, чем сдвиг позиции).
+		var has_move_intent := _unit_has_move_intent(unit)
+		if observed_speed > MOVE_ENTER_SPEED or has_move_intent:
+			is_moving = true
+			quiet_t = 0.0
+		elif observed_speed < MOVE_EXIT_SPEED:
+			quiet_t += delta
+			if quiet_t >= MOVE_EXIT_HOLD:
+				is_moving = false
+				quiet_t = 0.0
 		else:
-			if observed_speed > MOVE_ENTER_SPEED:
-				enter_t += delta
-				if enter_t >= MOVE_ENTER_HOLD:
-					is_moving = true
-					enter_t = 0.0
-					exit_t = 0.0
-			else:
-				enter_t = 0.0
+			# Между порогами входа/выхода — сохраняем состояние, таймер тишины не копятся.
+			quiet_t = 0.0
 
 		_tracks[id] = {
 			"last_pos": pos,
 			"is_moving": is_moving,
-			"enter_t": enter_t,
-			"exit_t": exit_t,
+			"quiet_t": quiet_t,
 			"observed_speed": observed_speed,
 			"unit": unit,
 		}
@@ -286,12 +415,30 @@ func _assign_slot(idx: int, unit: BaseUnit) -> void:
 	var player: AudioStreamPlayer2D = slot["player"]
 	slot["unit"] = unit
 	slot["target_vol"] = 1.0
+	slot["linear_vol"] = ASSIGN_START_LINEAR
 	slot["fading_out"] = false
 	slot["pitch_jitter"] = randf_range(0.95, 1.05)
 	player.global_position = unit.global_position
+	player.volume_db = _linear_to_player_db(ASSIGN_START_LINEAR)
 	if not player.playing:
 		player.play()
 	Handlers.dprint("AudioManager: assign positional to", unit.name)
+
+
+func _unit_has_move_intent(unit: BaseUnit) -> bool:
+	"""Есть активный приказ движения — звук можно стартовать до видимого сдвига позиции."""
+	var snapshot: Array = []
+	if unit.has_method("get_order_queue_snapshot"):
+		snapshot = unit.get_order_queue_snapshot()
+	elif unit.get("orders") != null and unit.orders is Array:
+		snapshot = unit.orders
+	for order in snapshot:
+		if typeof(order) != TYPE_DICTIONARY:
+			continue
+		var order_type := str(order.get("type", ""))
+		if order_type == "move" or order_type == "move_capture" or order_type == "attack_position":
+			return true
+	return false
 
 
 func _begin_fade_out(slot: Dictionary) -> void:
@@ -350,6 +497,8 @@ func _update_pool_max_distance(visible_rect: Rect2) -> void:
 	var diag := visible_rect.size.length()
 	var max_dist := maxf(diag * 0.75, 400.0)
 	for p in _pool:
+		p.max_distance = max_dist
+	for p in _oneshot_pool:
 		p.max_distance = max_dist
 
 

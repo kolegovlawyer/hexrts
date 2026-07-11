@@ -55,6 +55,7 @@ func _activate_card() -> void:
 		return
 
 	var spawn_point := Handlers.UnitSelectionHandler.selected_fob.position
+	var fob_uid := str(Handlers.UnitSelectionHandler.selected_fob.UID)
 	var snapshot := preset.to_spawn_snapshot()
 	Handlers.UnitSpawnHandler.rpc_id(
 		1,
@@ -62,5 +63,6 @@ func _activate_card() -> void:
 		spawn_point,
 		preset.get_unit_type(),
 		spawn_cost,
-		snapshot
+		snapshot,
+		fob_uid
 	)

@@ -1,5 +1,7 @@
 class_name UnitSpawner extends Node2D
 
+const FOB_SCENE_PATH := "res://prefabs/units/base_fob.tscn"
+
 func _ready():
 	Handlers.UnitSpawnHandler = self
 
@@ -11,7 +13,8 @@ func spawn_unit_with_validation(
 		spawn_point,
 		unit_type: String = "base_unit",
 		unit_cost: int = 10,
-		preset_snapshot: Dictionary = {}
+		preset_snapshot: Dictionary = {},
+		fob_uid: String = ""
 	):
 	"""
 	Новая функция спавна с валидацией очков и отложенным спавном через FOB
@@ -31,7 +34,7 @@ func spawn_unit_with_validation(
 		# Валидация очков через GameManager
 		if Handlers.GameHandler and Handlers.GameHandler.validate_unit_spawn(player_id, unit_cost):
 			# Очки списаны, ищем FOB игрока и добавляем заказ в его очередь
-			var player_fob = _find_player_fob(player_id)
+			var player_fob = _resolve_player_fob(player_id, spawn_point, fob_uid)
 			if player_fob:
 				var spawn_delay := 3.0
 				if not preset_snapshot.is_empty():
@@ -55,9 +58,47 @@ func _find_player_fob(player_id: int) -> fob:
 	"""
 	var all_fobs = get_tree().get_nodes_in_group("fobs")
 	for fob_node in all_fobs:
-		if fob_node is fob and fob_node.owner_id == player_id:
+		if fob_node is fob and fob_node.owner_id == player_id and not fob_node.is_destroyed:
 			return fob_node
 	return null
+
+
+func _find_player_fob_by_uid(player_id: int, fob_uid: String) -> fob:
+	if fob_uid == "":
+		return null
+	var all_fobs = get_tree().get_nodes_in_group("fobs")
+	for fob_node in all_fobs:
+		if fob_node is fob and fob_node.owner_id == player_id and fob_node.UID == fob_uid:
+			if not fob_node.is_destroyed:
+				return fob_node
+	return null
+
+
+func _find_nearest_player_fob(player_id: int, world_pos: Vector2) -> fob:
+	var best: fob = null
+	var best_dist: float = INF
+	for fob_node in get_tree().get_nodes_in_group("fobs"):
+		if not fob_node is fob:
+			continue
+		var candidate := fob_node as fob
+		if candidate.owner_id != player_id or candidate.is_destroyed:
+			continue
+		var dist: float = candidate.global_position.distance_squared_to(world_pos)
+		if dist < best_dist:
+			best_dist = dist
+			best = candidate
+	return best
+
+
+func _resolve_player_fob(player_id: int, spawn_point, fob_uid: String = "") -> fob:
+	var by_uid := _find_player_fob_by_uid(player_id, fob_uid)
+	if by_uid:
+		return by_uid
+	if typeof(spawn_point) == TYPE_VECTOR2:
+		var nearest := _find_nearest_player_fob(player_id, spawn_point)
+		if nearest:
+			return nearest
+	return _find_player_fob(player_id)
 
 @rpc("authority", "call_remote", "reliable")
 func confirm_spawn_started(unit_type: String, cost: int, spawn_delay: float = 3.0):
@@ -81,11 +122,73 @@ func spawn_unit(spawn_point, unit_type: String = "base_unit"):
 		var player_id = multiplayer.get_remote_sender_id()
 		_internal_spawn_unit(spawn_point, unit_type, player_id)
 
+
+func deploy_command_as_fob(unit: BaseUnit, snapshot: Dictionary) -> void:
+	if not is_multiplayer_authority():
+		return
+	if not is_instance_valid(unit):
+		return
+	if Handlers.NetworkSpawner == null:
+		return
+
+	var spawn_pos := unit.global_position
+	var player_id: int = unit.owner_id
+	var team_id := 0
+	if unit.owner_team != null:
+		team_id = int(unit.owner_team)
+
+	var source_snapshot: Dictionary = snapshot.duplicate(true)
+	if source_snapshot.is_empty() and not unit.preset_snapshot.is_empty():
+		source_snapshot = unit.preset_snapshot.duplicate(true)
+
+	if unit.has_method("despawn_for_transform"):
+		unit.despawn_for_transform()
+	else:
+		unit.queue_free()
+
+	var spawn_data := {
+		"path": FOB_SCENE_PATH,
+		"position": spawn_pos,
+		"owner_id": player_id,
+		"team": team_id,
+		"is_starting_fob": false,
+		"source_preset_snapshot": source_snapshot,
+	}
+	var fob_node = Handlers.NetworkSpawner.spawn(spawn_data)
+	if fob_node is fob:
+		fob_node.owner_id = player_id
+		fob_node.team = team_id
+		fob_node.is_starting_fob = false
+		fob_node.is_network_spawned = true
+		fob_node.source_preset_snapshot = source_snapshot
+	print("🏭 DEPLOY: FOB создан для игрока ", player_id, " в ", spawn_pos)
+
+
+func undeploy_fob_as_command(fob_node: fob) -> void:
+	if not is_multiplayer_authority():
+		return
+	if not is_instance_valid(fob_node) or fob_node.is_destroyed:
+		return
+
+	var spawn_pos := fob_node.global_position
+	var player_id: int = fob_node.owner_id
+	var snapshot: Dictionary
+	if fob_node.is_starting_fob or fob_node.source_preset_snapshot.is_empty():
+		snapshot = UnitPresetBalance.starting_fob_pack_snapshot()
+	else:
+		snapshot = fob_node.source_preset_snapshot.duplicate(true)
+
+	fob_node.pack_fob()
+	_internal_spawn_unit(spawn_pos, "command_unit", player_id, snapshot, false)
+	print("🏭 UNDEPLOY: КШМ создан для игрока ", player_id, " в ", spawn_pos)
+
+
 func _internal_spawn_unit(
 		spawn_point: Vector2,
 		unit_type: String,
 		player_id: int,
-		preset_snapshot: Dictionary = {}
+		preset_snapshot: Dictionary = {},
+		apply_scatter: bool = true
 	):
 	"""
 	Внутренняя функция спавна, которая может быть вызвана напрямую с указанием player_id
@@ -94,12 +197,14 @@ func _internal_spawn_unit(
 	if not is_multiplayer_authority():
 		return
 		
-	# Добавляем случайный разброс в пределах 20 пикселей
-	var random_offset = Vector2(
-		randf_range(-50.0, 50.0),
-		randf_range(-50.0, 50.0)
-	)
-	spawn_point += random_offset
+	if apply_scatter:
+		var random_offset = Vector2(
+			randf_range(-50.0, 50.0),
+			randf_range(-50.0, 50.0)
+		)
+		spawn_point += random_offset
+	else:
+		spawn_point += Vector2(randf_range(-10.0, 10.0), randf_range(-10.0, 10.0))
 	
 	var scene_path := "res://prefabs/units/base_unit.tscn"
 	if unit_type == "command_unit":

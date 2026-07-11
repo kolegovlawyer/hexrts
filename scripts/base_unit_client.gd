@@ -401,7 +401,8 @@ func sync_preset_stats(
 		_new_speed: int,
 		_new_damage: int,
 		new_vision_radius: float,
-		new_preset_cost: int = 0
+		new_preset_cost: int = 0,
+		new_preset_stat_sum: int = 0
 	) -> void:
 	# Только caps/vision. Текущие HP/щит приходят через sync_vitals,
 	# иначе при позднем reveal враг видит «полный» бар после урона.
@@ -409,6 +410,7 @@ func sync_preset_stats(
 	max_shield = new_max_shield
 	move_speed_max = _new_speed
 	preset_cost = new_preset_cost
+	preset_stat_sum = new_preset_stat_sum
 	set_vision_radius(new_vision_radius)
 	if health_bar:
 		health_bar.max_value = max_health
@@ -419,6 +421,8 @@ func sync_preset_stats(
 	apply_visual_scale()
 	if preview and is_instance_valid(preview):
 		preview.update_visual()
+	if Handlers.UIHandler and Handlers.UIHandler.has_method("update_deploy_button_visibility"):
+		Handlers.UIHandler.update_deploy_button_visibility()
 
 @rpc("authority", "call_local", "reliable")
 func sync_unit_appearance(display_name: String, instance_number: int, icon_path: String) -> void:
@@ -447,3 +451,5 @@ func sync_order_queue(snapshot: Array) -> void:
 	_order_queue_snapshot = snapshot
 	if Handlers.UIHandler and Handlers.UIHandler.has_method("refresh_waypoint_markers"):
 		Handlers.UIHandler.refresh_waypoint_markers()
+	if Handlers.UIHandler and Handlers.UIHandler.has_method("update_deploy_button_visibility"):
+		Handlers.UIHandler.update_deploy_button_visibility()

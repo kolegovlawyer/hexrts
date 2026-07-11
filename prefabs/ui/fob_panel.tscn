@@ -41,3 +41,9 @@ mouse_filter = 1
 
 [node name="CommandUnitCard2" parent="FobPanelMarginContainer/MainRack/UnitsBoard" unique_id=142660473 instance=ExtResource("3_81dbq")]
 layout_mode = 2
+
+[node name="Undeploy" type="Button" parent="FobPanelMarginContainer/MainRack" unique_id=1894335071]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Свернуть ФОБ"

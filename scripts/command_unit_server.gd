@@ -29,6 +29,10 @@ const SAFE_RETREAT_DISTANCE: float = 400.0  # Дистанция отступл�
 var enemy_check_timer: float = 0.0
 const ENEMY_CHECK_INTERVAL: float = 1.0  # Проверка врагов каждую секунду
 
+# Развёртывание КШМ → FOB
+var is_deploying_fob: bool = false
+var deploy_fob_timer: float = 0.0
+
 func _ready() -> void:
 	# Устанавливаем флаг командного юнита
 	is_command_unit_flag = true
@@ -198,8 +202,11 @@ func _physics_process(delta: float) -> void:
 	
 	# СЕРВЕРНАЯ ЛОГИКА
 	if is_multiplayer_authority():
+		if is_deploying_fob:
+			_process_deploy_fob(delta)
+
 		# СИСТЕМЫ АНТИ-ЗАСТРЕВАНИЯ для CommandUnit (только если не отступаем)
-		if not is_retreating:
+		if not is_retreating and not is_deploying_fob:
 			_handle_command_unit_stuck_detection(delta)
 		
 		# СИСТЕМА ПРОВЕРКИ БЕЗОПАСНОСТИ ПРИ ОТСТУПЛЕНИИ
@@ -210,14 +217,14 @@ func _physics_process(delta: float) -> void:
 				_check_retreat_safety()
 		
 		# Обновляем таймер проверки гексов (каждую секунду) - НЕ во время отступления
-		if not is_retreating:
+		if not is_retreating and not is_deploying_fob:
 			check_timer += delta
 			if check_timer >= CHECK_INTERVAL:
 				check_timer = 0.0
 				check_current_hex()
 		
 		# Обновляем прогресс захвата если юнит захватывает гекс - НЕ во время отступления
-		if not is_retreating and is_capturing and current_hex and current_hex.capturing_team == owner_team:
+		if not is_retreating and not is_deploying_fob and is_capturing and current_hex and current_hex.capturing_team == owner_team:
 			var capture_speed = 1.0 / CAPTURE_TIME  # Скорость захвата
 			var old_owner: int = current_hex.team_owner
 			var capture_completed = current_hex.update_capture_progress(delta, capture_speed)
@@ -249,6 +256,8 @@ func _physics_process(delta: float) -> void:
 
 func interrupt_capture_for_direct_order(prepare_move: bool = true) -> void:
 	"""Сбрасывает захват, чтобы КШМ мог немедленно выполнить прямой приказ движения."""
+	if is_deploying_fob:
+		_cancel_deploy_fob("новый приказ")
 	if is_capturing:
 		stop_capture("новый приказ")
 	if unit_state == UNIT_STATES.IDLE and orders.size() > 0:
@@ -274,6 +283,90 @@ func clear_orders() -> void:
 	if is_multiplayer_authority():
 		interrupt_capture_for_direct_order(false)
 	super.clear_orders()
+
+
+@rpc("any_peer", "reliable")
+func request_deploy_fob() -> void:
+	if not is_multiplayer_authority():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if sender_id == 0:
+		sender_id = multiplayer.get_unique_id()
+	if owner_id != sender_id:
+		return
+	if not _can_start_deploy_fob():
+		return
+	_start_deploy_fob()
+
+
+func _can_start_deploy_fob() -> bool:
+	if is_deploying_fob or is_retreating:
+		return false
+	if not is_command_unit():
+		return false
+	var weight_ok := preset_stat_sum == UnitPresetBalance.STAT_SUM_MAX
+	if not weight_ok and not preset_snapshot.is_empty():
+		weight_ok = UnitPresetBalance.is_max_weight(preset_snapshot)
+	if not weight_ok:
+		return false
+	if not orders.is_empty():
+		return false
+	if unit_state != UNIT_STATES.IDLE:
+		return false
+	if navagent and not navagent.is_navigation_finished():
+		return false
+	return _is_on_friendly_hex()
+
+
+func _is_on_friendly_hex() -> bool:
+	if not Handlers.GameHandler or owner_team == null:
+		return false
+	var hex = Handlers.GameHandler.get_hex_at_world_position(global_position)
+	if hex == null:
+		return false
+	return hex.team_owner == int(owner_team)
+
+
+func _start_deploy_fob() -> void:
+	if is_capturing:
+		stop_capture("развёртывание FOB")
+	orders.clear()
+	unit_state = UNIT_STATES.IDLE
+	if navagent:
+		navagent.target_position = global_position
+		navagent.set_velocity(Vector2.ZERO)
+	is_deploying_fob = true
+	deploy_fob_timer = 0.0
+	_sync_order_queue_to_owner()
+	rpc("client_start_capture_visual", Vector2i.ZERO)
+
+
+func _cancel_deploy_fob(_reason: String = "") -> void:
+	if not is_deploying_fob:
+		return
+	is_deploying_fob = false
+	deploy_fob_timer = 0.0
+	rpc("client_stop_capture_visual")
+
+
+func _process_deploy_fob(delta: float) -> void:
+	if not _is_on_friendly_hex() or not orders.is_empty() or unit_state == UNIT_STATES.MOVING:
+		_cancel_deploy_fob("условия нарушены")
+		return
+	deploy_fob_timer += delta
+	var progress := clampf(deploy_fob_timer / UnitPresetBalance.DEPLOY_FOB_DURATION, 0.0, 1.0) * 100.0
+	rpc("client_update_capture_progress", progress)
+	if deploy_fob_timer >= UnitPresetBalance.DEPLOY_FOB_DURATION:
+		_complete_deploy_fob()
+
+
+func _complete_deploy_fob() -> void:
+	is_deploying_fob = false
+	deploy_fob_timer = 0.0
+	rpc("client_stop_capture_visual")
+	var snapshot: Dictionary = preset_snapshot.duplicate(true)
+	if Handlers.UnitSpawnHandler and Handlers.UnitSpawnHandler.has_method("deploy_command_as_fob"):
+		Handlers.UnitSpawnHandler.deploy_command_as_fob(self, snapshot)
 
 
 func _should_defer_route_order() -> bool:
@@ -521,6 +614,9 @@ func _on_command_unit_under_attack(_attacker: BaseUnit, victim: BaseUnit) -> voi
 	if victim != self:
 		return
 
+	if is_deploying_fob:
+		_cancel_deploy_fob("под атакой")
+
 	# Игровой КШМ: не вмешиваемся в приказы владельца.
 	var is_bot := Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
 	if not is_bot:
@@ -539,6 +635,9 @@ func _initiate_retreat() -> void:
 	"""
 	if is_retreating:
 		return  # Уже отступаем
+
+	if is_deploying_fob:
+		_cancel_deploy_fob("отступление")
 	
 	is_retreating = true
 	
@@ -636,6 +735,15 @@ func _check_retreat_safety() -> void:
 		is_retreating = false
 		retreat_target_position = Vector2.ZERO
 		print("✅ RETREAT: CommandUnit ", name, " в безопасности, отступление завершено")
+
+func die() -> void:
+	if is_deploying_fob:
+		_cancel_deploy_fob("смерть")
+	var owner_player_id := owner_id
+	super.die()
+	if Handlers.GameHandler and Handlers.GameHandler.has_method("handle_command_unit_lost"):
+		Handlers.GameHandler.call_deferred("handle_command_unit_lost", owner_player_id)
+
 
 func _exit_tree() -> void:
 	"""Очищаем ссылки при удалении юнита"""

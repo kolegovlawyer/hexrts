@@ -30,3 +30,8 @@ func client_stop_capture_visual() -> void:
 func client_update_capture_progress(progress_percent: float) -> void:
 	if is_instance_valid(multiplayer) and owner_id == multiplayer.get_unique_id() and capture_progress_bar and capture_progress_bar.visible:
 		capture_progress_bar.value = progress_percent
+
+
+@rpc("any_peer", "reliable")
+func request_deploy_fob() -> void:
+	pass

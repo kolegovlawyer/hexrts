@@ -4,11 +4,14 @@ extends PanelContainer
 const UNIT_CARD_SCENE := preload("res://prefabs/ui/preset_unit_card.tscn")
 
 @onready var units_board: HBoxContainer = $FobPanelMarginContainer/MainRack/UnitsBoard
+@onready var undeploy_button: Button = %Undeploy
 
 
 func _ready() -> void:
 	UnitPresetManager.presets_changed.connect(_on_presets_changed)
 	_rebuild_unit_cards()
+	if undeploy_button:
+		undeploy_button.pressed.connect(_on_undeploy_pressed)
 
 
 func _exit_tree() -> void:
@@ -36,3 +39,15 @@ func _rebuild_unit_cards() -> void:
 			continue
 		units_board.add_child(card)
 		card.setup(preset)
+
+
+func _on_undeploy_pressed() -> void:
+	if Handlers.UnitSelectionHandler == null:
+		return
+	var selected: fob = Handlers.UnitSelectionHandler.selected_fob
+	if selected == null or not is_instance_valid(selected):
+		return
+	if undeploy_button:
+		undeploy_button.disabled = true
+		undeploy_button.text = "Сворачивание..."
+	selected.rpc_id(1, "request_undeploy")

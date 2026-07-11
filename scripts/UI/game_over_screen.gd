@@ -9,7 +9,7 @@ const REASON_TEXT: Dictionary = {
 	"vp_threshold": "Набрано достаточно очков победы",
 	"domination": "Доминирование на карте",
 	"time_limit": "Истекло время матча",
-	"fob_destroyed": "База противника уничтожена",
+	"fob_destroyed": "У противника не осталось ФОБ и КШМ",
 }
 
 

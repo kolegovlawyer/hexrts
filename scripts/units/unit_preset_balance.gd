@@ -36,6 +36,9 @@ const SCALE_STAT_SUM_MAX := STAT_SUM_MAX
 const SCALE_MIN := 0.5
 const SCALE_MAX := 1.5
 
+## Время развёртывания КШМ в FOB (секунды).
+const DEPLOY_FOB_DURATION := 5.0
+
 
 static func default_stats() -> Dictionary:
 	return {
@@ -45,6 +48,29 @@ static func default_stats() -> Dictionary:
 		"shield": DEFAULT_STAT,
 		"range": DEFAULT_STAT,
 	}
+
+
+static func is_max_weight(stats: Dictionary) -> bool:
+	return sum_stats(stats) == STAT_SUM_MAX
+
+
+## Статы КШМ при сворачивании стартового FOB (сумма = 40 → можно снова развернуть).
+static func starting_fob_pack_stats() -> Dictionary:
+	return {
+		"health": 5,
+		"speed": 20,
+		"damage": 5,
+		"shield": 5,
+		"range": 5,
+	}
+
+
+static func starting_fob_pack_snapshot() -> Dictionary:
+	var snapshot := starting_fob_pack_stats()
+	snapshot["is_command"] = true
+	snapshot["preset_id"] = "packed_starting_fob"
+	snapshot["preset_name"] = "КШМ"
+	return snapshot
 
 
 static func default_preset_name() -> String:

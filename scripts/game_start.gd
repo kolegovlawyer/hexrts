@@ -656,13 +656,19 @@ func _deliver_unit_vitals_local(
 		# через spawn RPC, если peer не видел юнит в момент спавна.
 		if preset_cost_value > 0 or icon_path != "" or vision_radius_value > 0.0:
 			if unit.has_method("sync_preset_stats"):
+				var revealed_stat_sum := unit.preset_stat_sum
+				if revealed_stat_sum <= 0 and preset_cost_value > 0:
+					revealed_stat_sum = UnitPresetBalance.stat_sum_from_recruitment_cost(
+						preset_cost_value, unit.is_command_unit()
+					)
 				unit.sync_preset_stats(
 					max_health_value if max_health_value > 0 else unit.max_health,
 					max_shield_value if max_shield_value > 0 else unit.max_shield,
 					speed_value,
 					damage_value,
 					vision_radius_value if vision_radius_value > 0.0 else unit.vision_radius,
-					preset_cost_value
+					preset_cost_value,
+					revealed_stat_sum
 				)
 			if unit.has_method("sync_unit_appearance") and (display_name != "" or icon_path != ""):
 				unit.sync_unit_appearance(display_name, instance_number, icon_path)
@@ -680,7 +686,53 @@ func unregister_fob(fob_node: fob) -> void:
 func handle_fob_destroyed(owner_player_id: int) -> void:
 	if not is_multiplayer_authority() or game_ended:
 		return
-	Handlers.dprint("🏚️ FOB: База игрока ", owner_player_id, " уничтожена")
+	Handlers.dprint("🏚️ FOB: База игрока ", owner_player_id, " уничтожена — проверка элиминации")
+	# deferred: уничтоженный FOB уже снят с дерева к моменту проверки
+	call_deferred("_check_player_eliminated", owner_player_id)
+
+
+func handle_command_unit_lost(owner_player_id: int) -> void:
+	if not is_multiplayer_authority() or game_ended:
+		return
+	Handlers.dprint("🎖️ КШМ: Юнит игрока ", owner_player_id, " потерян — проверка элиминации")
+	call_deferred("_check_player_eliminated", owner_player_id)
+
+
+func _player_has_alive_fob(player_id: int) -> bool:
+	for fob_node in get_tree().get_nodes_in_group("fobs"):
+		if not fob_node is fob:
+			continue
+		var candidate := fob_node as fob
+		if candidate.owner_id == player_id and candidate.is_alive():
+			return true
+	return false
+
+
+func _player_has_command_unit(player_id: int) -> bool:
+	for unit in get_tree().get_nodes_in_group("units"):
+		if not unit is BaseUnit:
+			continue
+		var base_unit := unit as BaseUnit
+		if not is_instance_valid(base_unit):
+			continue
+		if base_unit.owner_id != player_id:
+			continue
+		if base_unit.is_command_unit():
+			return true
+	return false
+
+
+## Поражение: нет развёрнутых FOB и одновременно нет ни одного КШМ.
+func _check_player_eliminated(owner_player_id: int) -> void:
+	if not is_multiplayer_authority() or game_ended:
+		return
+	if _player_has_alive_fob(owner_player_id):
+		Handlers.dprint("🏚️ Элиминация: у игрока ", owner_player_id, " ещё есть FOB")
+		return
+	if _player_has_command_unit(owner_player_id):
+		Handlers.dprint("🎖️ Элиминация: у игрока ", owner_player_id, " ещё есть КШМ")
+		return
+	Handlers.dprint("❌ Элиминация: игрок ", owner_player_id, " без FOB и КШМ")
 	var winners := _get_enemy_human_player_ids(owner_player_id)
 	end_match(winners, [owner_player_id], VictoryBalance.REASON_FOB_DESTROYED)
 

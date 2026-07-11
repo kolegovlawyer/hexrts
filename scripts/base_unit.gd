@@ -45,6 +45,10 @@ var preset_display_name: String = ""
 var preset_instance_number: int = 0
 var preset_icon_path: String = ""
 var preset_cost: int = 0
+## Сумма editor-статов пресета (для UI deploy: max weight = 40).
+var preset_stat_sum: int = 0
+## Полный snapshot пресета (сервер хранит для FOB deploy/undeploy).
+var preset_snapshot: Dictionary = {}
 ## Макс. скорость из пресета (для клиента / pitch звука движения).
 var move_speed_max: int = 300
 
@@ -213,14 +217,21 @@ func sync_preset_stats(
 		_new_speed: int,
 		_new_damage: int,
 		new_vision_radius: float,
-		new_preset_cost: int = 0
+		new_preset_cost: int = 0,
+		new_preset_stat_sum: int = 0
 	) -> void:
 	max_health = new_max_health
 	max_shield = new_max_shield
 	move_speed_max = _new_speed
 	preset_cost = new_preset_cost
+	preset_stat_sum = new_preset_stat_sum
 	set_vision_radius(new_vision_radius)
 	_refresh_unit_tracks()
+
+@rpc("any_peer", "reliable")
+func request_deploy_fob() -> void:
+	"""Stub: развёртывание КШМ в FOB (CommandUnitServer)."""
+	pass
 
 func apply_preset_snapshot(_snapshot: Dictionary) -> void:
 	pass

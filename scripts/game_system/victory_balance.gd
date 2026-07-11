@@ -66,7 +66,7 @@ const DEFAULT_MAP_SCENE := "res://scenes/maps/test_world_1.tscn"
 const REASON_VP_THRESHOLD := "vp_threshold"       # набран порог очков победы
 const REASON_DOMINATION := "domination"         # контроль достаточной доли карты
 const REASON_TIME_LIMIT := "time_limit"           # истекло время матча
-const REASON_FOB_DESTROYED := "fob_destroyed"     # уничтожена база (FOB) противника
+const REASON_FOB_DESTROYED := "fob_destroyed"     # нет FOB и одновременно нет КШМ
 
 
 static func resolve_map_scene_path(map_name: String) -> String:

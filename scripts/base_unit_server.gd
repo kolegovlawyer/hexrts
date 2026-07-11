@@ -2266,6 +2266,8 @@ func apply_preset_snapshot(snapshot: Dictionary) -> void:
 	if not is_multiplayer_authority():
 		return
 
+	preset_snapshot = snapshot.duplicate(true)
+
 	var health_stat := int(snapshot.get("health", UnitPresetBalance.DEFAULT_STAT))
 	var shield_stat := int(snapshot.get("shield", UnitPresetBalance.DEFAULT_STAT))
 	var speed_stat := int(snapshot.get("speed", UnitPresetBalance.DEFAULT_STAT))
@@ -2286,6 +2288,7 @@ func apply_preset_snapshot(snapshot: Dictionary) -> void:
 
 	var is_command := bool(snapshot.get("is_command", false)) or is_command_unit()
 	preset_cost = UnitPresetBalance.calculate_cost(snapshot, is_command)
+	preset_stat_sum = UnitPresetBalance.sum_stats(snapshot)
 	_refresh_unit_tracks()
 
 	if preset_icon_path == "":
@@ -2294,7 +2297,16 @@ func apply_preset_snapshot(snapshot: Dictionary) -> void:
 		preset_instance_number = UnitPresetManager.next_instance_number(owner_id, preset_id)
 		preset_icon_path = UnitIconUtil.get_icon_path_from_stats(snapshot, is_command)
 
-	rpc("sync_preset_stats", max_health, max_shield, speed, damage, new_vision_radius, preset_cost)
+	rpc(
+		"sync_preset_stats",
+		max_health,
+		max_shield,
+		speed,
+		damage,
+		new_vision_radius,
+		preset_cost,
+		preset_stat_sum
+	)
 	call_deferred(
 		"_deferred_sync_unit_appearance",
 		preset_display_name,
@@ -2308,6 +2320,22 @@ func _deferred_sync_unit_appearance(display_name: String, instance_number: int, 
 	rpc("sync_unit_appearance", display_name, instance_number, icon_path)
 
 
+## Удаляет юнит без death-логики (трансформация КШМ → FOB).
+func despawn_for_transform() -> void:
+	if not is_multiplayer_authority():
+		return
+	if Handlers.UnitSelectionHandler and self in Handlers.UnitSelectionHandler.selected_units:
+		Handlers.UnitSelectionHandler.selected_units.erase(self)
+	visible_by.clear()
+	has_vision_on.clear()
+	_enemies_in_vision.clear()
+	if Handlers.GameHandler and Handlers.GameHandler.units_dict.has(UID):
+		Handlers.GameHandler.units_dict.erase(UID)
+	if is_in_group("units"):
+		remove_from_group("units")
+	queue_free()
+
+
 @rpc("authority", "call_local", "reliable")
 func sync_preset_stats(
 		new_max_health: int,
@@ -2315,10 +2343,17 @@ func sync_preset_stats(
 		new_speed: int,
 		new_damage: int,
 		new_vision_radius: float,
-		new_preset_cost: int = 0
+		new_preset_cost: int = 0,
+		new_preset_stat_sum: int = 0
 	) -> void:
 	super.sync_preset_stats(
-		new_max_health, new_max_shield, new_speed, new_damage, new_vision_radius, new_preset_cost
+		new_max_health,
+		new_max_shield,
+		new_speed,
+		new_damage,
+		new_vision_radius,
+		new_preset_cost,
+		new_preset_stat_sum
 	)
 	if is_multiplayer_authority():
 		speed = new_speed

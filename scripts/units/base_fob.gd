@@ -47,6 +47,15 @@ var ui_update_timer: Timer
 @export var team: int
 ## Меньше значение = раньше выдаётся входящему игроку команды (0, 1, 2, ...)
 @export var player_slot_priority: int = 0
+## Стартовый map FOB; false у развёрнутых из КШМ.
+@export var is_starting_fob: bool = true
+## Snapshot КШМ, из которого развёрнут FOB (пусто у стартовых).
+var source_preset_snapshot: Dictionary = {}
+## True если FOB создан через MultiplayerSpawner (не map instance).
+var is_network_spawned: bool = false
+## Канал сворачивания FOB → КШМ (5 с).
+var is_undeploying: bool = false
+var undeploy_timer: float = 0.0
 var owner_id = 0:
 	set(value):
 		var resolved_id := _resolve_owner_id(value)
@@ -63,10 +72,13 @@ var selected: bool = false:
 		selected = value
 		if value == true:
 			show_fob_panel()
-			Handlers.UnitSelectionHandler.selected_fob = self
+			if Handlers.UnitSelectionHandler:
+				Handlers.UnitSelectionHandler.selected_fob = self
 		else:
-			Handlers.UIHandler.delete_fob_panel()
-			Handlers.UnitSelectionHandler.selected_fob = null
+			if Handlers.UIHandler:
+				Handlers.UIHandler.delete_fob_panel()
+			if Handlers.UnitSelectionHandler:
+				Handlers.UnitSelectionHandler.selected_fob = null
 
 func _ready() -> void:
 	add_to_group("fobs")
@@ -84,9 +96,24 @@ func _ready() -> void:
 		_resolve_owner_team()
 		if Handlers.GameHandler and Handlers.GameHandler.has_method("register_fob"):
 			Handlers.GameHandler.register_fob(self)
+		rpc("sync_fob_uid", UID)
 	else:
-		update_visual()
 		_initialize_spawn_ui()
+	update_visual()
+
+
+func _process(delta: float) -> void:
+	if not is_multiplayer_authority() or is_destroyed:
+		return
+	if not is_undeploying:
+		return
+	undeploy_timer += delta
+	var progress := clampf(
+		undeploy_timer / UnitPresetBalance.DEPLOY_FOB_DURATION, 0.0, 1.0
+	) * 100.0
+	_sync_undeploy_progress(progress)
+	if undeploy_timer >= UnitPresetBalance.DEPLOY_FOB_DURATION:
+		_complete_undeploy()
 
 
 func _setup_pick_only_collision() -> void:
@@ -100,6 +127,8 @@ func _setup_pick_only_collision() -> void:
 		input_event.connect(handle_input)
 
 func _exit_tree() -> void:
+	if selected:
+		selected = false
 	if is_multiplayer_authority() and Handlers.GameHandler and Handlers.GameHandler.has_method("unregister_fob"):
 		Handlers.GameHandler.unregister_fob(self)
 	_clear_vision_links()
@@ -151,6 +180,9 @@ func show_fob_panel():
 	Handlers.UIHandler.create_fob_panel(self)
 
 func update_visual():
+	# custom_spawner выставляет owner_id до _ready → @onready sprite ещё null
+	if sprite == null:
+		return
 	if owner_id == 0:
 		sprite.modulate = GameTypes.enemy_color
 		sprite.visibility_layer = 2
@@ -258,6 +290,8 @@ func _on_shield_regen_timeout() -> void:
 func _destroy_fob(_from: BaseUnitServer = null) -> void:
 	if is_destroyed:
 		return
+	if is_undeploying:
+		_cancel_undeploy()
 	is_destroyed = true
 	_clear_vision_links()
 	if Handlers.GameHandler and Handlers.GameHandler.battle_log:
@@ -267,6 +301,94 @@ func _destroy_fob(_from: BaseUnitServer = null) -> void:
 		Handlers.GameHandler.handle_fob_destroyed(owner_id)
 	rpc("sync_fob_destroyed")
 	queue_free()
+
+## Сворачивание FOB без поражения (трансформация в КШМ).
+func pack_fob() -> void:
+	if not is_multiplayer_authority() or is_destroyed:
+		return
+	is_undeploying = false
+	undeploy_timer = 0.0
+	is_destroyed = true
+	if selected:
+		selected = false
+	_clear_vision_links()
+	spawn_queue.clear()
+	if spawn_timer:
+		spawn_timer.stop()
+	if ui_update_timer:
+		ui_update_timer.stop()
+	if is_in_group("fobs"):
+		remove_from_group("fobs")
+	if Handlers.GameHandler and Handlers.GameHandler.has_method("unregister_fob"):
+		Handlers.GameHandler.unregister_fob(self)
+	if is_network_spawned:
+		queue_free()
+	else:
+		rpc("sync_fob_packed")
+		queue_free()
+
+@rpc("authority", "call_remote", "reliable")
+func sync_fob_packed() -> void:
+	is_destroyed = true
+	visible = false
+	if selected:
+		selected = false
+	if is_in_group("fobs"):
+		remove_from_group("fobs")
+	queue_free()
+
+@rpc("any_peer", "reliable")
+func request_undeploy() -> void:
+	if not is_multiplayer_authority() or is_destroyed:
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if sender_id == 0:
+		sender_id = multiplayer.get_unique_id()
+	if owner_id != sender_id:
+		return
+	if is_undeploying:
+		return
+	if spawn_queue.size() > 0:
+		return
+	_start_undeploy()
+
+
+func _start_undeploy() -> void:
+	is_undeploying = true
+	undeploy_timer = 0.0
+	_sync_undeploy_progress(0.0)
+
+
+func _sync_undeploy_progress(progress: float) -> void:
+	if not is_multiplayer_authority():
+		return
+	# Показываем прогресс сворачивания через spawn UI владельца
+	if owner_id == multiplayer.get_unique_id():
+		_apply_spawn_ui(1, progress)
+	elif owner_id in multiplayer.get_peers():
+		update_spawn_ui.rpc_id(owner_id, 1, progress)
+
+
+func _complete_undeploy() -> void:
+	if not is_undeploying or is_destroyed:
+		return
+	is_undeploying = false
+	undeploy_timer = 0.0
+	if Handlers.UnitSpawnHandler and Handlers.UnitSpawnHandler.has_method("undeploy_fob_as_command"):
+		Handlers.UnitSpawnHandler.undeploy_fob_as_command(self)
+
+
+func _cancel_undeploy() -> void:
+	if not is_undeploying:
+		return
+	is_undeploying = false
+	undeploy_timer = 0.0
+	_sync_spawn_ui_to_clients()
+
+@rpc("authority", "call_remote", "reliable")
+func sync_fob_uid(new_uid: String) -> void:
+	UID = new_uid
+
 
 @rpc("authority", "call_local", "reliable")
 func sync_fob_destroyed() -> void:
@@ -359,7 +481,7 @@ func add_spawn_order(
 		spawn_delay: float = -1.0,
 		preset_snapshot: Dictionary = {}
 	) -> void:
-	if not is_multiplayer_authority():
+	if not is_multiplayer_authority() or is_undeploying:
 		return
 
 	var resolved_delay := spawn_delay

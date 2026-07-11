@@ -8,10 +8,14 @@ func _exit_tree():
 	Handlers.NetworkSpawner = null
 
 func custom_spawner(data:Dictionary):
-	var unit = load(data["path"]).instantiate()
+	var path := str(data.get("path", ""))
+	if path.ends_with("base_fob.tscn"):
+		return _spawn_fob(data)
+
+	var unit = load(path).instantiate()
 	
 	# НОВАЯ СИСТЕМА: Назначаем правильный скрипт в зависимости от роли
-	var is_command_unit = data["path"].ends_with("command_unit.tscn")
+	var is_command_unit = path.ends_with("command_unit.tscn")
 	
 	if is_multiplayer_authority():
 		# Серверная инстанция
@@ -60,6 +64,21 @@ func custom_spawner(data:Dictionary):
 		(unit as BaseUnit).vision_radius = data["vision_radius"]
 
 	return unit
+
+
+func _spawn_fob(data: Dictionary) -> Node:
+	var fob_node = load(str(data["path"])).instantiate()
+	fob_node.position = data["position"]
+	fob_node.is_network_spawned = true
+	fob_node.is_starting_fob = bool(data.get("is_starting_fob", false))
+	if data.has("team"):
+		fob_node.team = int(data["team"])
+	if data.has("owner_id"):
+		fob_node.owner_id = data["owner_id"]
+	if data.has("source_preset_snapshot"):
+		fob_node.source_preset_snapshot = data["source_preset_snapshot"]
+	Handlers.dprint("🏭 SPAWNER: FOB at %s owner=%s" % [data["position"], data.get("owner_id", 0)])
+	return fob_node
 
 
 func _apply_spawn_appearance(unit: Node, data: Dictionary) -> void:

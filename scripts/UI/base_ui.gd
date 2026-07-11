@@ -42,6 +42,7 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 @onready var stop_button = get_node(
 	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/StopButton"
 )
+@onready var deploy_button: Button = %DeployButton
 @onready var path_button = get_node(
 	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/PathButton"
 )
@@ -253,6 +254,9 @@ func _setup_hud_order_buttons() -> void:
 		line_patrol_button.toggled.connect(_on_line_patrol_toggled)
 	if stop_button:
 		stop_button.pressed.connect(_on_stop_pressed)
+	if deploy_button:
+		deploy_button.visible = false
+		deploy_button.pressed.connect(_on_deploy_pressed)
 	_update_hud_mode_button_visuals()
 
 func _register_hud_mode_button(button: BaseButton) -> void:
@@ -447,6 +451,7 @@ func _on_stop_pressed() -> void:
 	for unit in _get_own_selected_units():
 		unit.rpc_id(1, "clear_orders")
 	reset_patrol_hud_on_selection_change()
+	call_deferred("update_deploy_button_visibility")
 
 func _on_spread_pressed() -> void:
 	"""Рассредоточить выбранных юнитов от центроида группы."""
@@ -535,6 +540,48 @@ func sync_unit_rack_selection() -> void:
 		var is_selected := is_instance_valid(preview.unit) and preview.unit in selected_units
 		preview.set_rack_selected(is_selected)
 	_update_auto_attack_button_visual()
+	update_deploy_button_visibility()
+
+
+func update_deploy_button_visibility() -> void:
+	if deploy_button == null:
+		return
+	deploy_button.visible = _get_deployable_command_unit() != null
+
+
+func _get_deployable_command_unit() -> BaseUnit:
+	if Handlers.UnitSelectionHandler == null:
+		return null
+	var own_selected: Array = _get_own_selected_units()
+	if own_selected.size() != 1:
+		return null
+	var unit: BaseUnit = own_selected[0]
+	if not is_instance_valid(unit) or not unit.is_command_unit():
+		return null
+	if unit.preset_stat_sum != UnitPresetBalance.STAT_SUM_MAX:
+		return null
+	if unit.has_method("get_order_queue_snapshot"):
+		if not unit.get_order_queue_snapshot().is_empty():
+			return null
+	if not _is_unit_on_friendly_hex(unit):
+		return null
+	return unit
+
+
+func _is_unit_on_friendly_hex(unit: BaseUnit) -> bool:
+	if not Handlers.GameHandler or unit.owner_team == null:
+		return false
+	var hex = Handlers.GameHandler.get_hex_at_world_position(unit.global_position)
+	if hex == null:
+		return false
+	return hex.team_owner == int(unit.owner_team)
+
+
+func _on_deploy_pressed() -> void:
+	var unit := _get_deployable_command_unit()
+	if unit == null:
+		return
+	unit.rpc_id(1, "request_deploy_fob")
 
 func get_unit_preview(uid: String) -> UnitPreview:
 	return _unit_previews.get(uid, null)
@@ -940,7 +987,9 @@ func create_fob_panel(_fob_node) -> void:
 	
 
 func delete_fob_panel():
-	fob_panel.queue_free()
+	if fob_panel and is_instance_valid(fob_panel):
+		fob_panel.queue_free()
+	fob_panel = null
 
 
 func open_unit_editor() -> void:

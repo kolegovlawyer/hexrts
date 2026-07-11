@@ -11,6 +11,15 @@ var fobs_dict: Dictionary = {}
 # Словарь гексов карты: позиция_гекса -> объект Hex
 var hexes_dict: Dictionary = {}
 
+# Клиент: последняя разведанная принадлежность гекса (Vector2i -> int team_owner)
+# Не авторитетна; обновляется только в зоне обзора союзников.
+var last_known_hex_owner: Dictionary = {}
+# Клиент: гексы, которыми команда владела в этом матче — статус на карте всегда live.
+var _ever_owned_hexes: Dictionary = {}
+
+const HEX_INTEL_INTERVAL: float = 0.15
+var _hex_intel_timer: float = 0.0
+
 # Ссылка на OverlayMap для обновления тайлов захвата
 var overlay_map: TileMapLayer
 
@@ -899,10 +908,27 @@ func initialize_hexes() -> void:
 	_HexCoordinatesScript.initialize_from_tile_bounds(used_cells)
 	# Метки гексов включаются кнопкой HexInfoButton в HUD, не при старте.
 
-	if Handlers.UIHandler and Handlers.UIHandler.minimap:
+	if not is_multiplayer_authority():
+		last_known_hex_owner.clear()
+		_ever_owned_hexes.clear()
+		_clear_client_overlay_map()
+		call_deferred("refresh_client_hex_intel")
+	elif Handlers.UIHandler and Handlers.UIHandler.minimap:
 		Handlers.UIHandler.minimap.notify_map_data_ready()
 
 	_try_autoload_unit_presets()
+
+
+func _process(delta: float) -> void:
+	if is_multiplayer_authority():
+		return
+	if hexes_dict.is_empty() or overlay_map == null:
+		return
+	_hex_intel_timer -= delta
+	if _hex_intel_timer > 0.0:
+		return
+	_hex_intel_timer = HEX_INTEL_INTERVAL
+	refresh_client_hex_intel()
 
 
 func _try_autoload_unit_presets() -> void:
@@ -972,18 +998,8 @@ func sync_hex_capture(hex_position: Vector2i, new_owner_team: int) -> void:
 		hex.team_owner = new_owner_team
 		Handlers.dprint("✅ КЛИЕНТ: Обновлен локальный объект гекса ", hex_position)
 	
-	# Определяем как отображать гекс с точки зрения этого клиента
-	var my_team = -1
-	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
-		my_team = Handlers.TeamHandler.my_profile.team
-		Handlers.dprint("👤 КЛИЕНТ: Моя команда = ", my_team)
-	else:
-		Handlers.dprint("❌ КЛИЕНТ: TeamHandler или my_profile не найден!")
-	
-	# Обновляем визуал OverlayMap для клиента
-	_update_overlay_visual(hex_position, new_owner_team, my_team)
-	if Handlers.UIHandler and Handlers.UIHandler.minimap:
-		Handlers.UIHandler.minimap.notify_map_data_ready()
+	# Визуал и last-known только через intel (зона обзора)
+	refresh_client_hex_intel()
 
 func _update_overlay_visual(hex_position: Vector2i, hex_owner_team: int, viewer_team: int) -> void:
 	"""
@@ -1026,6 +1042,134 @@ func _update_overlay_visual(hex_position: Vector2i, hex_owner_team: int, viewer_
 		_: viewer_str = str(viewer_team)
 	
 	Handlers.dprint("🎨 ВИЗУАЛ: Гекс ", hex_position, " владелец=", owner_str, " наблюдатель=", viewer_str, " atlas=", atlas_coords)
+
+
+func _clear_client_overlay_map() -> void:
+	if overlay_map == null:
+		return
+	for cell_pos in overlay_map.get_used_cells():
+		overlay_map.erase_cell(cell_pos)
+	overlay_map.notify_runtime_tile_data_update()
+
+
+func get_last_known_hex_owner(hex_pos: Vector2i) -> Variant:
+	if last_known_hex_owner.has(hex_pos):
+		return last_known_hex_owner[hex_pos]
+	return null
+
+
+func client_has_vision_at_hex(hex_tile: Vector2i) -> bool:
+	if overlay_map == null:
+		return false
+	if Handlers.TeamHandler == null or Handlers.TeamHandler.my_profile == null:
+		return false
+	var player_team = Handlers.TeamHandler.my_profile.team
+	if player_team == null:
+		return false
+	var world_pos := _hex_tile_to_world_center(hex_tile)
+	return _client_has_ally_vision_at_world(world_pos, player_team)
+
+
+func _hex_tile_to_world_center(hex_tile: Vector2i) -> Vector2:
+	if overlay_map == null or overlay_map.tile_set == null:
+		return Vector2.ZERO
+	var half_size := Vector2(overlay_map.tile_set.tile_size) * 0.5
+	return overlay_map.to_global(overlay_map.map_to_local(hex_tile) + half_size)
+
+
+func _client_has_ally_vision_at_world(world_pos: Vector2, player_team) -> bool:
+	for unit in get_tree().get_nodes_in_group("units"):
+		if not is_instance_valid(unit) or not (unit is BaseUnit):
+			continue
+		if not _is_ally_vision_source(unit, player_team):
+			continue
+		var radius: float = unit.vision_radius
+		if unit.global_position.distance_squared_to(world_pos) <= radius * radius:
+			return true
+	for fob_node in get_tree().get_nodes_in_group("fobs"):
+		if not is_instance_valid(fob_node):
+			continue
+		if not _is_ally_fob_vision_source(fob_node, player_team):
+			continue
+		var fob_radius: float = fob_node.vision_radius
+		if fob_node.global_position.distance_squared_to(world_pos) <= fob_radius * fob_radius:
+			return true
+	return false
+
+
+func _is_ally_vision_source(unit: BaseUnit, player_team) -> bool:
+	if unit.owner_team != null:
+		return unit.owner_team == player_team
+	var bot_team: int = get_bot_team_by_id(unit.owner_id)
+	if bot_team != -1:
+		return bot_team == player_team
+	if Handlers.TeamHandler:
+		var player = Handlers.TeamHandler.find_player_by_id(unit.owner_id)
+		if player:
+			return player.team == player_team
+	return false
+
+
+func _is_ally_fob_vision_source(fob_node: Node, player_team) -> bool:
+	if not is_instance_valid(fob_node):
+		return false
+	if fob_node.get("owner_team") != null and fob_node.owner_team == player_team:
+		return true
+	if fob_node.get("team") != null and int(fob_node.team) == int(player_team):
+		return true
+	if Handlers.TeamHandler:
+		var player = Handlers.TeamHandler.find_player_by_id(fob_node.owner_id)
+		if player:
+			return player.team == player_team
+	return false
+
+
+func refresh_client_hex_intel() -> void:
+	"""Клиент: свои — всегда live; чужие — last-known на карте, в обзоре только актуализация."""
+	if is_multiplayer_authority():
+		return
+	if overlay_map == null or hexes_dict.is_empty():
+		return
+	var my_team: int = -1
+	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
+		my_team = Handlers.TeamHandler.my_profile.team
+
+	for hex_pos in hexes_dict.keys():
+		var hex: Hex = hexes_dict[hex_pos]
+		if hex == null:
+			continue
+		var is_own: bool = my_team != -1 and hex.team_owner == my_team
+		var in_vision: bool = client_has_vision_at_hex(hex_pos)
+		if is_own:
+			_ever_owned_hexes[hex_pos] = true
+
+		if is_own or _ever_owned_hexes.has(hex_pos):
+			# Свои (и когда-либо свои) — всегда актуальный статус сквозь туман.
+			last_known_hex_owner[hex_pos] = hex.team_owner
+			_paint_or_clear_overlay_cell(hex_pos, hex.team_owner, my_team)
+		elif in_vision:
+			# Разведка: актуализируем last-known и рисуем.
+			last_known_hex_owner[hex_pos] = hex.team_owner
+			_paint_or_clear_overlay_cell(hex_pos, hex.team_owner, my_team)
+		elif last_known_hex_owner.has(hex_pos):
+			# Вне обзора: оставляем последнюю известную окраску на основной карте.
+			_paint_or_clear_overlay_cell(hex_pos, int(last_known_hex_owner[hex_pos]), my_team)
+		else:
+			overlay_map.erase_cell(hex_pos)
+
+	overlay_map.notify_runtime_tile_data_update()
+	if Handlers.UIHandler and Handlers.UIHandler.minimap:
+		Handlers.UIHandler.minimap.notify_map_data_ready()
+
+
+func _paint_or_clear_overlay_cell(hex_pos: Vector2i, team_owner: int, viewer_team: int) -> void:
+	if overlay_map == null:
+		return
+	if team_owner == -1:
+		overlay_map.erase_cell(hex_pos)
+		return
+	_update_overlay_visual(hex_pos, team_owner, viewer_team)
+
 
 func get_hex_at_world_position(world_position: Vector2):
 	"""
@@ -1121,15 +1265,9 @@ func sync_full_map_state(captured_hexes_data: Array):
 						hex.command_units.append(unit)
 			
 			Handlers.dprint("✅ SYNC: Обновлен гекс ", hex_pos, " team: ", hex.team_owner, " progress: ", hex.capture_progress)
-			
-			# Обновляем визуал для этого гекса
-			# Получаем команду локального игрока для правильного отображения
-			var local_player_team = 0  # По умолчанию команда A
-			if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
-				local_player_team = Handlers.TeamHandler.my_profile.team
-			_update_overlay_visual(hex_pos, hex.team_owner, local_player_team)
 		else:
 			Handlers.dprint("❌ SYNC: Гекс не найден по позиции ", hex_pos)
 	
 	Handlers.dprint("🎯 SYNC: Синхронизация состояния карты завершена")
+	call_deferred("refresh_client_hex_intel")
 	call_deferred("_refresh_client_world_visuals")

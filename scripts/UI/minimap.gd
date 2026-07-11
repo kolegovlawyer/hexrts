@@ -263,13 +263,18 @@ func _collect_hex_entries(overlay_map: TileMapLayer) -> Array:
 	var my_team: int = -1
 	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
 		my_team = Handlers.TeamHandler.my_profile.team
+	if Handlers.GameHandler == null:
+		return entries
+
+	var shown: Dictionary = {}
+	var tile_size := Vector2(overlay_map.tile_set.tile_size)
+
+	# Свои гексы — всегда live.
 	for hex_pos in Handlers.GameHandler.hexes_dict.keys():
 		var hex: Hex = Handlers.GameHandler.hexes_dict[hex_pos]
-		if hex == null or hex.team_owner == -1:
+		if hex == null or my_team == -1 or hex.team_owner != my_team:
 			continue
-		if not _should_show_hex(hex, my_team):
-			continue
-		var tile_size := Vector2(overlay_map.tile_set.tile_size)
+		shown[hex_pos] = true
 		var world_center := overlay_map.to_global(
 			overlay_map.map_to_local(hex_pos) + tile_size * 0.5
 		)
@@ -277,46 +282,22 @@ func _collect_hex_entries(overlay_map: TileMapLayer) -> Array:
 			"position": world_center,
 			"color": _get_hex_fill_color(hex.team_owner, my_team),
 		})
+
+	# Остальное — last-known (разведка / потеря территории).
+	for hex_pos in Handlers.GameHandler.last_known_hex_owner.keys():
+		if shown.has(hex_pos):
+			continue
+		var known_owner = Handlers.GameHandler.last_known_hex_owner[hex_pos]
+		if known_owner == null or int(known_owner) == -1:
+			continue
+		var world_center2 := overlay_map.to_global(
+			overlay_map.map_to_local(hex_pos) + tile_size * 0.5
+		)
+		entries.append({
+			"position": world_center2,
+			"color": _get_hex_fill_color(int(known_owner), my_team),
+		})
 	return entries
-
-
-func _should_show_hex(hex: Hex, my_team: int) -> bool:
-	if hex.team_owner == -1:
-		return false
-	if my_team == -1:
-		return true
-	if hex.team_owner == my_team:
-		return true
-	return _has_vision_at_hex(hex.position)
-
-
-func _has_vision_at_hex(hex_tile: Vector2i) -> bool:
-	if Handlers.GameHandler == null or Handlers.GameHandler.overlay_map == null:
-		return false
-	if Handlers.TeamHandler == null or Handlers.TeamHandler.my_profile == null:
-		return false
-	var player_id: int = Handlers.TeamHandler.my_profile.PlayerId
-	var overlay_map: TileMapLayer = Handlers.GameHandler.overlay_map
-	var world_pos := overlay_map.to_global(
-		overlay_map.map_to_local(hex_tile) + Vector2(overlay_map.tile_set.tile_size) * 0.5
-	)
-	for unit in Handlers.GameHandler.get_all_units():
-		if not is_instance_valid(unit) or not (unit is BaseUnit):
-			continue
-		if unit.owner_id != player_id:
-			continue
-		var radius: float = unit.vision_radius
-		if unit.global_position.distance_squared_to(world_pos) <= radius * radius:
-			return true
-	for fob_node in Handlers.GameHandler.fobs_dict.values():
-		if not is_instance_valid(fob_node):
-			continue
-		if fob_node.owner_id != player_id:
-			continue
-		var fob_radius: float = fob_node.vision_radius
-		if fob_node.global_position.distance_squared_to(world_pos) <= fob_radius * fob_radius:
-			return true
-	return false
 
 
 func _get_hex_fill_color(team_owner: int, my_team: int) -> Color:

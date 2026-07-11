@@ -51,6 +51,8 @@ var preset_stat_sum: int = 0
 var preset_snapshot: Dictionary = {}
 ## Макс. скорость из пресета (для клиента / pitch звука движения).
 var move_speed_max: int = 300
+## Текущий ранг (0..5). Реплицируется клиентам для шевронов; опыт только на сервере.
+var rank: int = 0
 
 # Сигнал смерти (общий для client/server)
 signal unit_died(dead_unit: BaseUnit)
@@ -233,6 +235,11 @@ func request_deploy_fob() -> void:
 	"""Stub: развёртывание КШМ в FOB (CommandUnitServer)."""
 	pass
 
+@rpc("any_peer", "reliable")
+func request_promote_to_command() -> void:
+	"""Stub: производство ранга 5 → КШМ (BaseUnitServer)."""
+	pass
+
 func apply_preset_snapshot(_snapshot: Dictionary) -> void:
 	pass
 
@@ -291,3 +298,18 @@ func get_display_name() -> String:
 	if UID.length() >= 4:
 		return "%s %s" % [base_name, UID.right(4)]
 	return base_name
+
+
+func update_rank_sprite() -> void:
+	"""Шевроны ранга: видны всем, кто видит юнит (в т.ч. противнику)."""
+	var rank_sprite: Sprite2D = get_node_or_null("%RankSprite") as Sprite2D
+	if rank_sprite == null:
+		return
+	if rank <= 0:
+		rank_sprite.hide()
+		return
+	var path := "res://assets/ranks/rank-%d.png" % clampi(rank, 1, UnitPresetBalance.RANK_THRESHOLDS.size())
+	var tex: Texture2D = load(path) as Texture2D
+	if tex:
+		rank_sprite.texture = tex
+	rank_sprite.show()

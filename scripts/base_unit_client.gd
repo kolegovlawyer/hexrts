@@ -75,6 +75,8 @@ func _ready() -> void:
 		unit_name_label.hide()
 		unit_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
+	update_rank_sprite()
+
 	if not is_multiplayer_authority():
 		connect("input_event", handle_input)
 		connect("mouse_entered", preseclect)
@@ -475,6 +477,8 @@ func sync_preset_stats(
 		preview.update_visual()
 	if Handlers.UIHandler and Handlers.UIHandler.has_method("update_deploy_button_visibility"):
 		Handlers.UIHandler.update_deploy_button_visibility()
+	if Handlers.UIHandler and Handlers.UIHandler.has_method("update_promote_button_visibility"):
+		Handlers.UIHandler.update_promote_button_visibility()
 
 @rpc("authority", "call_local", "reliable")
 func sync_unit_appearance(display_name: String, instance_number: int, icon_path: String) -> void:
@@ -505,3 +509,5 @@ func sync_order_queue(snapshot: Array) -> void:
 		Handlers.UIHandler.refresh_waypoint_markers()
 	if Handlers.UIHandler and Handlers.UIHandler.has_method("update_deploy_button_visibility"):
 		Handlers.UIHandler.update_deploy_button_visibility()
+	if Handlers.UIHandler and Handlers.UIHandler.has_method("update_promote_button_visibility"):
+		Handlers.UIHandler.update_promote_button_visibility()

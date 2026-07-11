@@ -9,6 +9,9 @@ class_name CommandUnitClient extends BaseUnitClient
 func _ready() -> void:
 	is_command_unit_flag = true
 	super._ready()
+	# Клиент: только отображение — КШМ всегда ранг 5.
+	rank = UnitPresetBalance.RANK_THRESHOLDS.size()
+	update_rank_sprite()
 	if capture_progress_bar:
 		capture_progress_bar.hide()
 		capture_progress_bar.value = 0.0
@@ -34,4 +37,9 @@ func client_update_capture_progress(progress_percent: float) -> void:
 
 @rpc("any_peer", "reliable")
 func request_deploy_fob() -> void:
+	pass
+
+
+@rpc("any_peer", "reliable")
+func request_promote_to_command() -> void:
 	pass

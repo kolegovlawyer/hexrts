@@ -86,6 +86,18 @@ func update_visual() -> void:
 	)
 	sprite.scale = Vector2(icon_scale, icon_scale)
 
+	if rank:
+		if unit.rank <= 0:
+			rank.hide()
+		else:
+			var rank_path := "res://assets/ranks/rank-%d.png" % clampi(
+				unit.rank, 1, UnitPresetBalance.RANK_THRESHOLDS.size()
+			)
+			var rank_tex: Texture2D = load(rank_path) as Texture2D
+			if rank_tex:
+				rank.texture = rank_tex
+			rank.show()
+
 	if client_unit.has_method("get_display_name"):
 		name_label.text = client_unit.get_display_name()
 	else:

@@ -623,7 +623,8 @@ func deliver_unit_vitals(
 		damage_value: int = 0,
 		display_name: String = "",
 		instance_number: int = 0,
-		icon_path: String = ""
+		icon_path: String = "",
+		rank_value: int = 0
 	) -> void:
 	if multiplayer.is_server():
 		return
@@ -639,7 +640,8 @@ func deliver_unit_vitals(
 		damage_value,
 		display_name,
 		instance_number,
-		icon_path
+		icon_path,
+		rank_value
 	)
 
 
@@ -655,7 +657,8 @@ func _deliver_unit_vitals_local(
 		damage_value: int = 0,
 		display_name: String = "",
 		instance_number: int = 0,
-		icon_path: String = ""
+		icon_path: String = "",
+		rank_value: int = 0
 	) -> void:
 	for node in get_tree().get_nodes_in_group("units"):
 		if not node is BaseUnit:
@@ -667,6 +670,16 @@ func _deliver_unit_vitals_local(
 			unit.apply_vitals_from_network(
 				health_value, shield_value, max_health_value, max_shield_value
 			)
+		if unit.rank != rank_value:
+			unit.rank = rank_value
+			if unit.has_method("update_rank_sprite"):
+				unit.update_rank_sprite()
+			if Handlers.UIHandler and Handlers.UIHandler.has_method("get_unit_preview"):
+				var preview = Handlers.UIHandler.get_unit_preview(unit_uid)
+				if preview and is_instance_valid(preview) and preview.has_method("update_visual"):
+					preview.update_visual()
+			if Handlers.UIHandler and Handlers.UIHandler.has_method("update_promote_button_visibility"):
+				Handlers.UIHandler.update_promote_button_visibility()
 		# FoW reveal: preset_cost/иконка не в SceneReplicationConfig и не доходят
 		# через spawn RPC, если peer не видел юнит в момент спавна.
 		if preset_cost_value > 0 or icon_path != "" or vision_radius_value > 0.0:

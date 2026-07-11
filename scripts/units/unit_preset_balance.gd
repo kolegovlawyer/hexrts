@@ -52,9 +52,30 @@ const REVERSE_SPEED_MULT := 0.5
 ## Половина конуса огня от оси ствола (градусы). Огонь только если цель внутри конуса.
 const BARREL_FIRE_HALF_ANGLE_DEG := 35.0
 
+## Пороги суммарного опыта для рангов 1..5 (новый юнит = ранг 0).
+const RANK_THRESHOLDS: Array[int] = [40, 100, 180, 280, 400]
+## +10% к производным характеристикам за каждый ранг (мультипликативно от базы).
+const RANK_BONUS_PER_LEVEL := 0.1
+## Стоимость производства ранга 5 → КШМ (0 = награда за ветеранство; может стать >0 при балансе).
+const PROMOTION_COST := 0
+
 
 static func barrel_fire_half_angle_rad() -> float:
 	return deg_to_rad(BARREL_FIRE_HALF_ANGLE_DEG)
+
+
+static func rank_from_experience(xp: int) -> int:
+	var result := 0
+	for threshold in RANK_THRESHOLDS:
+		if xp >= threshold:
+			result += 1
+		else:
+			break
+	return result
+
+
+static func rank_multiplier(unit_rank: int) -> float:
+	return 1.0 + RANK_BONUS_PER_LEVEL * float(unit_rank)
 
 
 static func default_stats() -> Dictionary:

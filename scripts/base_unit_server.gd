@@ -113,6 +113,18 @@ var _steering_leg_position: Vector2 = Vector2.INF
 @export var shield_regen_rate = 1.5  # Щит в секунду при восстановлении (15/10 = 1.5)
 @export var shield_regen_delay = 3.0  # Задержка начала восстановления щита после получения урона
 
+## Опыт / ранг (серверная логика; клиенту уходит только rank).
+var experience: int = 0
+var experience_locked: bool = false
+## UID атакующего → суммарный фактически поглощённый урон.
+var damage_by_attacker: Dictionary = {}
+var _base_reload_time: float = 3.0
+var _base_turn_rate: float = 0.0
+var _base_shield_regen_rate: float = 1.5
+var rank_multiplier: float = 1.0
+## Множитель автономности без снабжения; потребитель появится с системой снабжения.
+var autonomy_multiplier: float = 1.0
+
 var _health = 30
 var _shield = 15
 
@@ -241,6 +253,11 @@ func generate_numeric_id(length: int) -> String:
 func _ready() -> void:
 	# Вызываем базовый _ready()
 	super._ready()
+
+	# База до бонусов ранга (export / дефолт turn_rate).
+	_base_reload_time = float(reload_time)
+	_base_shield_regen_rate = float(shield_regen_rate)
+	_base_turn_rate = turn_rate
 
 	# _process только для мерцания вне снабжения (Host)
 	set_process(false)
@@ -1285,6 +1302,9 @@ func _compute_projectile_spread_offset(target_pos: Vector2 = Vector2.INF) -> Vec
 	if barrel_misaligned:
 		spread_radius = maxf(spread_radius, MOVING_SHOOT_MAX_SPREAD * (1.0 - TURN_ACC_MULT))
 		spread_radius /= TURN_ACC_MULT
+	# Бонус ранга: меньше разброс (точнее стрельба).
+	if rank_multiplier > 0.0:
+		spread_radius /= rank_multiplier
 	if spread_radius <= 0.0:
 		return Vector2.ZERO
 	return Vector2.from_angle(randf() * TAU) * spread_radius
@@ -1591,6 +1611,13 @@ func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 		var instigator_name = from.name if from and is_instance_valid(from) else "null"
 		Handlers.dprint("💥 APPLY DAMAGE: %s <= %d from=%s" % [name, amount, instigator_name])
 	
+	# Фактически поглощённый урон (без оверкилла) — для дележа опыта.
+	var absorb_pool: int = _shield + _health
+	var absorbed: int = mini(amount, absorb_pool)
+	if absorbed > 0 and from and is_instance_valid(from) and from.UID != "":
+		var prev: int = int(damage_by_attacker.get(from.UID, 0))
+		damage_by_attacker[from.UID] = prev + absorbed
+	
 	var remaining_damage = amount
 	
 	# Сначала урон поглощается щитом
@@ -1628,6 +1655,88 @@ func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
 	# Проверяем смерть по серверному значению
 	if _health <= 0:
 		die()
+
+
+func _award_experience_on_death() -> void:
+	"""Делит experience_reward (= preset_cost) пропорционально урону между живыми не-КШМ."""
+	if not is_multiplayer_authority():
+		return
+	if damage_by_attacker.is_empty():
+		return
+	var reward: int = preset_cost
+	if reward <= 0:
+		damage_by_attacker.clear()
+		return
+	if Handlers.GameHandler == null:
+		damage_by_attacker.clear()
+		return
+	
+	var eligible: Array = []
+	var eligible_total: int = 0
+	for attacker_uid in damage_by_attacker.keys():
+		var dmg: int = int(damage_by_attacker[attacker_uid])
+		if dmg <= 0:
+			continue
+		if not Handlers.GameHandler.units_dict.has(attacker_uid):
+			continue
+		var attacker = Handlers.GameHandler.units_dict[attacker_uid]
+		if not is_instance_valid(attacker) or not (attacker is BaseUnitServer):
+			continue
+		if attacker._health <= 0:
+			continue
+		if attacker.is_command_unit():
+			continue
+		eligible.append({"unit": attacker, "damage": dmg})
+		eligible_total += dmg
+	
+	if eligible_total <= 0:
+		damage_by_attacker.clear()
+		return
+	
+	for entry in eligible:
+		var share: int = int(floor(float(reward) * float(entry["damage"]) / float(eligible_total)))
+		if share > 0:
+			entry["unit"]._gain_experience(share)
+	damage_by_attacker.clear()
+
+
+func _gain_experience(amount: int) -> void:
+	if not is_multiplayer_authority():
+		return
+	if experience_locked or amount <= 0:
+		return
+	experience += amount
+	var new_rank: int = UnitPresetBalance.rank_from_experience(experience)
+	if new_rank > rank:
+		rank = new_rank
+		_apply_rank_bonuses()
+		_push_vitals_to_clients()
+		Handlers.dprint("⭐ RANK UP: %s xp=%d rank=%d mult=%.2f" % [name, experience, rank, rank_multiplier])
+		if Handlers.UIHandler and Handlers.UIHandler.has_method("update_promote_button_visibility"):
+			Handlers.UIHandler.update_promote_button_visibility()
+		if Handlers.UIHandler and Handlers.UIHandler.has_method("get_unit_preview"):
+			var preview = Handlers.UIHandler.get_unit_preview(UID)
+			if preview and is_instance_valid(preview) and preview.has_method("update_visual"):
+				preview.update_visual()
+
+
+func _apply_rank_bonuses() -> void:
+	"""Пересчёт производных статов от базы; не накапливает ошибку при повторных вызовах."""
+	rank_multiplier = UnitPresetBalance.rank_multiplier(rank)
+	# TODO: потребитель появится с системой снабжения
+	autonomy_multiplier = rank_multiplier
+	reload_time = _base_reload_time / rank_multiplier
+	turn_rate = _base_turn_rate * rank_multiplier
+	shield_regen_rate = _base_shield_regen_rate * rank_multiplier
+	update_rank_sprite()
+
+
+func _lock_experience_as_command() -> void:
+	"""КШМ: ранг 5, опыт больше не растёт."""
+	experience_locked = true
+	rank = UnitPresetBalance.RANK_THRESHOLDS.size()
+	_apply_rank_bonuses()
+	_push_vitals_to_clients()
 
 func _push_vitals_to_clients() -> void:
 	"""Доставка HP/щита через GameManager (обходит RPC-фильтр на узле юнита)."""
@@ -1679,13 +1788,16 @@ func _push_vitals_to_peer(peer_id: int) -> void:
 		damage,
 		preset_display_name,
 		preset_instance_number,
-		preset_icon_path
+		preset_icon_path,
+		rank
 	)
 
 func _set_peer_visible(peer_id: int, is_visible_flag: bool) -> void:
 	_peer_visibility[peer_id] = is_visible_flag
 
 func die() -> void:
+	if is_multiplayer_authority():
+		_award_experience_on_death()
 	if Handlers.GameHandler and Handlers.GameHandler.battle_log:
 		Handlers.GameHandler.battle_log.on_unit_died(self)
 	unit_died.emit(self)
@@ -1701,6 +1813,7 @@ func die() -> void:
 	visible_by.clear()
 	has_vision_on.clear()
 	_enemies_in_vision.clear()
+	damage_by_attacker.clear()
 	
 	for observer in observers:
 		if observer is BaseUnit and observer.has_method("_on_unit_died"):
@@ -2712,7 +2825,9 @@ func apply_preset_snapshot(snapshot: Dictionary) -> void:
 	shield = max_shield
 	speed = UnitPresetBalance.to_game_speed(speed_stat)
 	damage = UnitPresetBalance.to_game_damage(damage_stat)
-	turn_rate = UnitPresetBalance.to_game_turn_rate(snapshot)
+	# База от пресета/export — бонусы ранга накладываются отдельно.
+	_base_turn_rate = UnitPresetBalance.to_game_turn_rate(snapshot)
+	# reload/shield-regen база уже зафиксирована в _ready из export; не трогаем.
 
 	var new_vision_radius := UnitPresetBalance.to_game_vision_radius(range_stat)
 	set_vision_radius(new_vision_radius)
@@ -2721,6 +2836,11 @@ func apply_preset_snapshot(snapshot: Dictionary) -> void:
 	preset_cost = UnitPresetBalance.calculate_cost(snapshot, is_command)
 	preset_stat_sum = UnitPresetBalance.sum_stats(snapshot)
 	_refresh_unit_tracks()
+
+	if is_command:
+		_lock_experience_as_command()
+	else:
+		_apply_rank_bonuses()
 
 	if preset_icon_path == "":
 		var preset_id := str(snapshot.get("preset_id", "default"))
@@ -2751,7 +2871,7 @@ func _deferred_sync_unit_appearance(display_name: String, instance_number: int, 
 	rpc("sync_unit_appearance", display_name, instance_number, icon_path)
 
 
-## Удаляет юнит без death-логики (трансформация КШМ → FOB).
+## Удаляет юнит без death-логики (трансформация КШМ → FOB / promote → КШМ).
 func despawn_for_transform() -> void:
 	if not is_multiplayer_authority():
 		return
@@ -2765,6 +2885,31 @@ func despawn_for_transform() -> void:
 	if is_in_group("units"):
 		remove_from_group("units")
 	queue_free()
+
+
+@rpc("any_peer", "reliable")
+func request_promote_to_command() -> void:
+	if not is_multiplayer_authority():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if sender_id == 0:
+		sender_id = multiplayer.get_unique_id()
+	if owner_id != sender_id:
+		return
+	if is_command_unit():
+		return
+	if _health <= 0:
+		return
+	if rank < UnitPresetBalance.RANK_THRESHOLDS.size():
+		Handlers.dprint("⚠️ PROMOTE: %s rank=%d < 5" % [name, rank])
+		return
+	var cost: int = UnitPresetBalance.PROMOTION_COST
+	if cost > 0:
+		if Handlers.GameHandler == null or not Handlers.GameHandler.validate_unit_spawn(owner_id, cost):
+			Handlers.dprint("⚠️ PROMOTE: недостаточно очков (cost=%d)" % cost)
+			return
+	if Handlers.UnitSpawnHandler and Handlers.UnitSpawnHandler.has_method("promote_unit_to_command"):
+		Handlers.UnitSpawnHandler.promote_unit_to_command(self)
 
 
 @rpc("authority", "call_local", "reliable")

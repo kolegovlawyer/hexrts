@@ -180,7 +180,50 @@ func undeploy_fob_as_command(fob_node: fob) -> void:
 
 	fob_node.pack_fob()
 	_internal_spawn_unit(spawn_pos, "command_unit", player_id, snapshot, false)
-	print("🏭 UNDEPLOY: КШМ создан для игрока ", player_id, " в ", spawn_pos)
+	Handlers.dprint("🏭 UNDEPLOY: КШМ создан для игрока %s в %s" % [player_id, spawn_pos])
+
+
+func promote_unit_to_command(unit: BaseUnit) -> void:
+	"""Ранг 5 → КШМ на той же позиции; статы сохраняются, HP/щит пропорционально."""
+	if not is_multiplayer_authority():
+		return
+	if not is_instance_valid(unit) or not (unit is BaseUnitServer):
+		return
+	var server_unit := unit as BaseUnitServer
+	if server_unit.is_command_unit() or server_unit.rank < UnitPresetBalance.RANK_THRESHOLDS.size():
+		return
+	if server_unit._health <= 0:
+		return
+
+	var spawn_pos := server_unit.global_position
+	var player_id: int = server_unit.owner_id
+	var health_ratio: float = float(server_unit._health) / float(maxi(1, server_unit.max_health))
+	var shield_ratio: float = float(server_unit._shield) / float(maxi(1, server_unit.max_shield)) if server_unit.max_shield > 0 else 0.0
+
+	var snapshot: Dictionary = server_unit.preset_snapshot.duplicate(true)
+	if snapshot.is_empty():
+		snapshot = UnitPresetBalance.default_stats()
+	snapshot["is_command"] = true
+	if str(snapshot.get("preset_name", "")) == "" or str(snapshot.get("preset_name", "")) == UnitPresetBalance.default_preset_name():
+		snapshot["preset_name"] = "КШМ"
+
+	if server_unit.has_method("despawn_for_transform"):
+		server_unit.despawn_for_transform()
+	else:
+		server_unit.queue_free()
+
+	var new_unit = _internal_spawn_unit(spawn_pos, "command_unit", player_id, snapshot, false)
+	if new_unit is BaseUnitServer:
+		var cmd := new_unit as BaseUnitServer
+		cmd._health = clampi(int(round(float(cmd.max_health) * health_ratio)), 1, cmd.max_health)
+		cmd.health = cmd._health
+		cmd._shield = clampi(int(round(float(cmd.max_shield) * shield_ratio)), 0, cmd.max_shield)
+		cmd.shield = cmd._shield
+		cmd._lock_experience_as_command()
+		cmd.update_health_bar()
+		cmd.update_shield_bar()
+		cmd._push_vitals_to_clients()
+	Handlers.dprint("🎖️ PROMOTE: Юнит игрока %s произведён в КШМ в %s" % [player_id, spawn_pos])
 
 
 func _internal_spawn_unit(
@@ -195,7 +238,7 @@ func _internal_spawn_unit(
 	Используется как для RPC, так и для отложенного спавна
 	"""
 	if not is_multiplayer_authority():
-		return
+		return null
 		
 	if apply_scatter:
 		var random_offset = Vector2(
@@ -238,4 +281,5 @@ func _internal_spawn_unit(
 		# Дефолтные юниты без пресета: дублируем shape немедленно,
 		# чтобы не делить CircleShape2D с другими инстансами
 		unit._ensure_unique_vision_shape()
-	print("🏭 СПАВН: Юнит типа '", unit_type, "' создан для игрока ", player_id, " в позиции ", spawn_point)
+	Handlers.dprint("🏭 СПАВН: Юнит типа '%s' создан для игрока %s в позиции %s" % [unit_type, player_id, spawn_point])
+	return unit

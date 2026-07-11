@@ -43,6 +43,7 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/StopButton"
 )
 @onready var deploy_button: Button = %DeployButton
+@onready var promote_command_button: Button = %PromoteCommandButton
 @onready var path_button = get_node(
 	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/PathButton"
 )
@@ -267,6 +268,9 @@ func _setup_hud_order_buttons() -> void:
 	if deploy_button:
 		deploy_button.visible = false
 		deploy_button.pressed.connect(_on_deploy_pressed)
+	if promote_command_button:
+		promote_command_button.visible = false
+		promote_command_button.pressed.connect(_on_promote_command_pressed)
 	_update_hud_mode_button_visuals()
 
 func _register_hud_mode_button(button: BaseButton) -> void:
@@ -566,6 +570,32 @@ func update_deploy_button_visibility() -> void:
 	if deploy_button == null:
 		return
 	deploy_button.visible = _get_deployable_command_unit() != null
+	update_promote_button_visibility()
+
+
+func update_promote_button_visibility() -> void:
+	if promote_command_button == null:
+		return
+	promote_command_button.visible = _get_promotable_unit() != null
+
+
+func _get_promotable_unit() -> BaseUnit:
+	var own_selected: Array = _get_own_selected_units()
+	if own_selected.size() != 1:
+		return null
+	var unit: BaseUnit = own_selected[0]
+	if not is_instance_valid(unit) or unit.is_command_unit():
+		return null
+	if unit.rank < UnitPresetBalance.RANK_THRESHOLDS.size():
+		return null
+	return unit
+
+
+func _on_promote_command_pressed() -> void:
+	var unit := _get_promotable_unit()
+	if unit == null:
+		return
+	unit.rpc_id(1, "request_promote_to_command")
 
 
 func _get_deployable_command_unit() -> BaseUnit:

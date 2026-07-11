@@ -42,6 +42,10 @@ func _ready() -> void:
 	# Вызываем базовый _ready()
 	super._ready()
 	
+	# КШМ сразу ранг 5, опыт заблокирован (даже до/без snapshot).
+	if is_multiplayer_authority():
+		_lock_experience_as_command()
+	
 	# Страховка: доинициализируем команду, если по каким-то причинам еще не установлена
 	if is_multiplayer_authority() and owner_team == null:
 		_initialize_team_and_visibility()
@@ -301,6 +305,12 @@ func request_deploy_fob() -> void:
 	if not _can_start_deploy_fob():
 		return
 	_start_deploy_fob()
+
+
+@rpc("any_peer", "reliable")
+func request_promote_to_command() -> void:
+	# КШМ нельзя произвести в КШМ.
+	pass
 
 
 func _can_start_deploy_fob() -> bool:

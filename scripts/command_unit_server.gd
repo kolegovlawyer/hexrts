@@ -515,18 +515,22 @@ func _emergency_teleport_random() -> void:
 
 func _on_command_unit_under_attack(_attacker: BaseUnit, victim: BaseUnit) -> void:
 	"""
-	Обработчик атаки на CommandUnit - инициирует отступление
+	Авто-отступление к ФОБу только для бот-КШМ.
+	Игрок управляет своим КШМ сам — не угоняем его приём.
 	"""
 	if victim != self:
-		return  # Не наш CommandUnit
-	
+		return
+
+	# Игровой КШМ: не вмешиваемся в приказы владельца.
+	var is_bot := Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
+	if not is_bot:
+		return
+
 	is_under_attack = true
-	
-	# Останавливаем захват при атаке
+
 	if is_capturing:
 		stop_capture("под атакой")
-	
-	# Начинаем отступление к базе
+
 	_initiate_retreat()
 
 func _initiate_retreat() -> void:

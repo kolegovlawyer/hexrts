@@ -339,7 +339,7 @@ func _get_unit_dot_color(unit: BaseUnit) -> Color:
 		if player:
 			unit_team = player.team
 	if unit_team != null and unit_team == Handlers.TeamHandler.my_profile.team:
-		return GameTypes.own_color
+		return GameTypes.ally_color
 	return GameTypes.enemy_color
 
 

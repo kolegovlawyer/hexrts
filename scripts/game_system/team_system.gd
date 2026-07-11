@@ -70,11 +70,10 @@ func add_to_team(player, team: GameTypes.Teams): # player is int, PlayerProfile
 		if fob_node.owner_id == assigned_player_id:
 			existing_fob = fob_node
 			break
-	if existing_fob == null:
-		var team_fobs = get_tree().get_nodes_in_group("team_%d_fobs" % int(team))
-		if not team_fobs.is_empty():
-			existing_fob = team_fobs.pick_random()
-			existing_fob.owner_id = assigned_player_id
+	if existing_fob == null and is_multiplayer_authority():
+		_assign_fob_by_priority(team, assigned_player_id)
+	if is_multiplayer_authority():
+		_sync_fob_owners()
 	print_rich("[color=green][b][TEAM] Player %s joined to team %s[/b][/color]" % [assigned_player_id, team])
 
 	if is_multiplayer_authority() and Handlers.GameHandler:
@@ -85,6 +84,71 @@ func add_to_team(player, team: GameTypes.Teams): # player is int, PlayerProfile
 	if Handlers.UIHandler and multiplayer.get_unique_id() == assigned_player_id \
 			and Handlers.UIHandler.has_method("request_center_camera_on_own_fob"):
 		Handlers.UIHandler.request_center_camera_on_own_fob()
+
+
+func _assign_fob_by_priority(team: GameTypes.Teams, player_id: int) -> void:
+	if not is_multiplayer_authority():
+		return
+	var free_fobs: Array = []
+	for fob_node in get_tree().get_nodes_in_group("team_%d_fobs" % int(team)):
+		if int(fob_node.owner_id) == 0:
+			free_fobs.append(fob_node)
+	if free_fobs.is_empty():
+		print_rich(
+			"[color=yellow][b][TEAM] No free FOB for player %s on team %s[/b][/color]"
+			% [player_id, team]
+		)
+		return
+	free_fobs.sort_custom(func(a, b) -> bool:
+		var pa: int = a.player_slot_priority
+		var pb: int = b.player_slot_priority
+		if pa != pb:
+			return pa < pb
+		return str(a.name) < str(b.name)
+	)
+	free_fobs[0].owner_id = player_id
+
+
+func _sync_fob_owners() -> void:
+	if not is_multiplayer_authority():
+		return
+	var snapshot: Array = []
+	for fob_node in get_tree().get_nodes_in_group("fobs"):
+		snapshot.append({
+			"name": str(fob_node.name),
+			"owner_id": int(fob_node.owner_id),
+		})
+	apply_fob_owners.rpc(snapshot)
+
+
+@rpc("authority", "reliable", "call_local")
+func apply_fob_owners(snapshot: Array) -> void:
+	var by_name: Dictionary = {}
+	for entry in snapshot:
+		by_name[str(entry.get("name", ""))] = int(entry.get("owner_id", 0))
+	for fob_node in get_tree().get_nodes_in_group("fobs"):
+		var fob_name := str(fob_node.name)
+		if not by_name.has(fob_name):
+			continue
+		var new_owner: int = by_name[fob_name]
+		if int(fob_node.owner_id) != new_owner:
+			fob_node.owner_id = new_owner
+		elif fob_node.has_method("update_visual"):
+			fob_node.update_visual()
+	call_deferred("_refresh_client_world_visuals")
+
+
+func is_same_team_as_local(player_id: int) -> bool:
+	if my_profile == null:
+		return false
+	var other = find_player_by_id(player_id)
+	return other != null and other.team == my_profile.team
+
+
+func is_ally_of_local(player_id: int) -> bool:
+	if my_profile == null:
+		return false
+	return is_same_team_as_local(player_id) and player_id != my_profile.PlayerId
 
 
 func _refresh_client_world_visuals() -> void:

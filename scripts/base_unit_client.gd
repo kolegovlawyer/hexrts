@@ -316,8 +316,8 @@ func _apply_sprite_tint() -> void:
 		else:
 			tint = GameTypes.enemy_color
 	else:
-		# Союзник (не свой пир): own-like green
-		tint = GameTypes.own_color
+		# Союзник (не свой пир)
+		tint = GameTypes.ally_color
 
 	sprite.self_modulate = tint
 

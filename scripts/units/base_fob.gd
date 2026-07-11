@@ -45,6 +45,8 @@ var spawn_timer: Timer
 var ui_update_timer: Timer
 
 @export var team: int
+## Меньше значение = раньше выдаётся входящему игроку команды (0, 1, 2, ...)
+@export var player_slot_priority: int = 0
 var owner_id = 0:
 	set(value):
 		var resolved_id := _resolve_owner_id(value)
@@ -123,8 +125,13 @@ func _resolve_owner_team() -> void:
 		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
 		if player:
 			owner_team = player.team
+			return
+	# Fallback: карта уже знает команду FOB через export / группу
+	owner_team = team
 
 func get_owner_team():
+	if owner_team == null:
+		_resolve_owner_team()
 	return owner_team
 
 func is_alive() -> bool:
@@ -149,12 +156,13 @@ func update_visual():
 		sprite.visibility_layer = 2
 		_update_spawn_ui_visibility()
 		return
-	if Handlers.TeamHandler.my_profile:
+	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
 		if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
 			sprite.modulate = GameTypes.own_color
 			sprite.visibility_layer = 1
-		elif owner_id in Handlers.TeamHandler.get_team_players(Handlers.TeamHandler.my_profile.PlayerId):
-			pass
+		elif Handlers.TeamHandler.is_ally_of_local(owner_id):
+			sprite.modulate = GameTypes.ally_color
+			sprite.visibility_layer = 1
 		else:
 			sprite.modulate = GameTypes.enemy_color
 			sprite.visibility_layer = 2

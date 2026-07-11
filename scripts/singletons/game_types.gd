@@ -5,6 +5,7 @@ var enemy_hover_color = Color("#F74B4B")
 var own_color = Color("#9BF985")
 var own_hover_color = Color("#70DB56")
 var own_selected_color = Color("#FFFFFF")
+var ally_color = Color("#11D4F4")
 var hit_flash_color = Color("#FFB966")
 
 @onready var UnitUiThemes = GlobalUiThemes.new()

@@ -691,18 +691,17 @@ func _attempt_initial_spawn() -> void:
 
 
 func _decide_unit_to_spawn(points: float) -> String:
+	# 1) Нет КШМ — строим КШМ.
 	if _total_command_units() == 0 and points >= _command_preset.get_cost():
 		return "command_unit"
+	# 2) Добиваем эскорт (замена убитых / недостающих бойцов и артиллерии).
 	if _total_fighters() < _needed_fighters() and points >= _fighter_preset.get_cost():
 		return "base_unit"
 	if _total_artillery() < _needed_artillery() and points >= _artillery_preset.get_cost():
 		return "artillery"
-	if command_units.size() < 2 and _total_command_units() < 2 and points >= _command_preset.get_cost():
+	# 3) Эскорт укомплектован — расширяемся новым КШМ без верхнего лимита.
+	if points >= _command_preset.get_cost():
 		return "command_unit"
-	if _total_fighters() < _needed_fighters() and points >= _fighter_preset.get_cost():
-		return "base_unit"
-	if _total_artillery() < _needed_artillery() and points >= _artillery_preset.get_cost():
-		return "artillery"
 	return ""
 
 

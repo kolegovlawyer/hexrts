@@ -43,6 +43,8 @@ var match_elapsed_seconds: float = 0.0
 
 # Очки игроков: player_id -> {recruitment_points, victory_points, points_revision}
 var player_points: Dictionary = {}
+# Командный пул VP: team_id -> float (общий прогресс WinBar для союзников)
+var team_victory_points: Dictionary = {}
 
 # peer_id -> nickname (normalized key)
 var _player_nicknames: Dictionary = {}
@@ -120,6 +122,7 @@ func _initialize_active_balance() -> void:
 	active_balance = VictoryBalance.build_active_balance(hex_count, map_name, match_duration_preset)
 	match_elapsed_seconds = 0.0
 	game_ended = false
+	team_victory_points = {0: 0.0, 1: 0.0}
 
 	Handlers.dprint("⚖️ BALANCE: Карта=", map_name, " гексы=", hex_count)
 	Handlers.dprint("  - VP to win: ", active_balance["victory_points_to_win"])
@@ -181,6 +184,14 @@ func on_client_joining(peer_id: int, nickname: String, _team: int) -> void:
 	if _disconnected_sessions.has(nick_key):
 		var saved: Dictionary = _disconnected_sessions[nick_key]
 		player_points[peer_id] = saved["points"].duplicate(true)
+		var saved_team: int = int(saved.get("team", -1))
+		if saved_team >= 0:
+			var saved_team_vp: float = float(saved.get("team_victory_points", player_points[peer_id].get("victory_points", 0.0)))
+			team_victory_points[saved_team] = maxf(
+				float(team_victory_points.get(saved_team, 0.0)),
+				saved_team_vp
+			)
+			player_points[peer_id]["victory_points"] = float(team_victory_points[saved_team])
 		var old_peer_id: int = int(saved.get("old_peer_id", -1))
 		if old_peer_id > 0 and old_peer_id != peer_id:
 			_reassign_owned_entities(old_peer_id, peer_id)
@@ -206,9 +217,11 @@ func _save_disconnected_session(player_id: int) -> void:
 	var nick_key: String = str(_player_nicknames.get(player_id, ""))
 	if nick_key == "" or not player_points.has(player_id):
 		return
+	var team_id := _get_player_team(player_id)
 	_disconnected_sessions[nick_key] = {
 		"points": player_points[player_id].duplicate(true),
-		"team": _get_player_team(player_id),
+		"team": team_id,
+		"team_victory_points": float(team_victory_points.get(team_id, player_points[player_id].get("victory_points", 0.0))),
 		"old_peer_id": player_id,
 	}
 	Handlers.dprint("💾 RECONNECT: Сохранена сессия ", nick_key, " (peer ", player_id, ")")
@@ -229,6 +242,11 @@ func _reassign_owned_entities(old_id: int, new_id: int) -> void:
 func on_player_joined_team(peer_id: int) -> void:
 	if not is_multiplayer_authority():
 		return
+
+	var team_id := _get_player_team(peer_id)
+	if team_id >= 0 and player_points.has(peer_id):
+		player_points[peer_id]["victory_points"] = float(team_victory_points.get(team_id, 0.0))
+		_sync_points_for_player(peer_id, false)
 
 	for unit in get_tree().get_nodes_in_group("units"):
 		if unit is BaseUnitServer:
@@ -274,6 +292,8 @@ func _on_points_timer_timeout() -> void:
 
 	match_elapsed_seconds += 1.0
 
+	_accumulate_team_victory_points()
+
 	for player_id in player_points.keys():
 		_update_player_points(player_id)
 
@@ -283,20 +303,33 @@ func _on_points_timer_timeout() -> void:
 	_check_domination_victory()
 
 
+func _accumulate_team_victory_points() -> void:
+	var teams_seen: Dictionary = {}
+	for player_id in player_points.keys():
+		var team_id := _get_player_team(player_id)
+		if team_id < 0 or teams_seen.has(team_id):
+			continue
+		teams_seen[team_id] = true
+		var hex_count := _count_team_hexes(team_id)
+		var victory_gain := VictoryBalance.calculate_victory_gain(hex_count)
+		team_victory_points[team_id] = float(team_victory_points.get(team_id, 0.0)) + victory_gain
+
+
 func _update_player_points(player_id: int) -> void:
 	if not player_points.has(player_id):
 		return
 
 	var player_hexes_count := _count_player_hexes(player_id)
 	var recruitment_gain := VictoryBalance.calculate_recruitment_gain(player_hexes_count)
-	var victory_gain := VictoryBalance.calculate_victory_gain(player_hexes_count)
-
 	player_points[player_id]["recruitment_points"] += recruitment_gain
-	player_points[player_id]["victory_points"] += victory_gain
+
+	var team_id := _get_player_team(player_id)
+	var team_vp := float(team_victory_points.get(team_id, 0.0)) if team_id >= 0 else 0.0
+	player_points[player_id]["victory_points"] = team_vp
 
 	_sync_points_for_player(player_id, true)
 
-	if _check_vp_threshold_victory(player_id):
+	if team_id >= 0 and _check_vp_threshold_victory(team_id):
 		return
 
 	var is_bot := _is_player_bot(player_id)
@@ -305,20 +338,16 @@ func _update_player_points(player_id: int) -> void:
 			"📊 POINTS: Игрок ", player_id,
 			" гексы: ", player_hexes_count,
 			" найм: +", recruitment_gain,
-			" VP: +", victory_gain
+			" team VP: ", team_vp
 		)
 
 
 func _get_enemy_team_victory_points(player_id: int) -> float:
 	var team := _get_player_team(player_id)
-	if team == -1 or not Handlers.TeamHandler:
+	if team == -1:
 		return 0.0
-	var max_vp := 0.0
-	for enemy in Handlers.TeamHandler.get_enemy_team_players(team):
-		var enemy_id: int = enemy.PlayerId
-		if player_points.has(enemy_id):
-			max_vp = maxf(max_vp, float(player_points[enemy_id]["victory_points"]))
-	return max_vp
+	var enemy_team := 1 - team
+	return float(team_victory_points.get(enemy_team, 0.0))
 
 
 func _is_connected_remote_peer(peer_id: int) -> bool:
@@ -413,14 +442,15 @@ func _get_enemy_human_player_ids(player_id: int) -> Array[int]:
 	return result
 
 
-func _check_vp_threshold_victory(player_id: int) -> bool:
+func _check_vp_threshold_victory(team_id: int) -> bool:
 	if game_ended or active_balance.is_empty():
 		return false
 	var threshold: int = int(active_balance["victory_points_to_win"])
-	if player_points[player_id]["victory_points"] >= threshold:
+	var team_vp := float(team_victory_points.get(team_id, 0.0))
+	if team_vp >= threshold:
 		end_match(
-			[player_id],
-			_get_enemy_human_player_ids(player_id),
+			_get_human_players_on_team(team_id),
+			_get_human_players_on_team(1 - team_id),
 			VictoryBalance.REASON_VP_THRESHOLD
 		)
 		return true
@@ -449,26 +479,31 @@ func _check_time_limit_victory() -> bool:
 		return false
 
 	var best_vp := -1.0
-	var best_players: Array[int] = []
+	var best_teams: Array[int] = []
 
-	for player_id in player_points.keys():
-		if _is_player_bot(player_id):
-			continue
-		var vp: float = player_points[player_id]["victory_points"]
+	for team_id in [0, 1]:
+		var vp := float(team_victory_points.get(team_id, 0.0))
 		if vp > best_vp:
 			best_vp = vp
-			best_players = [player_id]
-		elif is_equal_approx(vp, best_vp) and player_id not in best_players:
-			best_players.append(player_id)
+			best_teams = [team_id]
+		elif is_equal_approx(vp, best_vp) and team_id not in best_teams:
+			best_teams.append(team_id)
 
-	if best_players.is_empty():
+	if best_teams.is_empty():
 		return false
 
-	if best_players.size() > 1:
-		end_match_draw(best_players, VictoryBalance.REASON_TIME_LIMIT)
+	if best_teams.size() > 1:
+		var draw_players: Array[int] = []
+		for team_id in best_teams:
+			draw_players.append_array(_get_human_players_on_team(team_id))
+		end_match_draw(draw_players, VictoryBalance.REASON_TIME_LIMIT)
 	else:
-		var winner_id: int = best_players[0]
-		end_match([winner_id], _get_enemy_human_player_ids(winner_id), VictoryBalance.REASON_TIME_LIMIT)
+		var winner_team: int = best_teams[0]
+		end_match(
+			_get_human_players_on_team(winner_team),
+			_get_human_players_on_team(1 - winner_team),
+			VictoryBalance.REASON_TIME_LIMIT
+		)
 	return true
 
 

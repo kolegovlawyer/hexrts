@@ -3,6 +3,10 @@ extends  Camera2D
 signal camera_moved()
 signal camera_zoomed()
 
+## Сколько гексов от центра до края экрана при максимальном приближении.
+@export var zoom_in_hex_radius: float = 3.0
+## Число шагов колесика между min и max зумом.
+@export var zoom_step_count: int = 10
 @export var edge_margin = 10
 @export var camera_speed = 400.0
 @export var return_speed = 300.0  # Скорость возврата камеры в границы
@@ -10,6 +14,10 @@ signal camera_zoomed()
 @onready var un_zoomed_viewport_size = get_viewport().size#Vector2(640,360)
 var zoom_x = 0.5
 var zoom_y = 0.5
+## Самый дальний план: диагональ карты ≈ диагональ вьюпорта.
+var min_zoom: float = 0.2
+## Самый ближний план: короткий край экрана ≈ 2 * zoom_in_hex_radius гексов.
+var max_zoom: float = 0.8
 var follow_mouse : bool = true
 var has_focus : bool = true
 var TOP_CORNER
@@ -21,19 +29,88 @@ var _last_position: Vector2
 var _last_zoom: Vector2
 var _middle_mouse_dragging: bool = false
 var _middle_drag_last_pos: Vector2 = Vector2.ZERO
+## Расстояние между центрами соседних гексов в мировых пикселях.
+var _hex_spacing: float = 256.0
 
 func _ready():
 	# Инициализируем переменные отслеживания
 	_last_position = position
 	_last_zoom = zoom
+	var viewport := get_viewport()
+	if viewport and not viewport.size_changed.is_connected(_on_viewport_size_changed):
+		viewport.size_changed.connect(_on_viewport_size_changed)
 
 func set_observer_mode(enabled: bool) -> void:
 	observer_mode = enabled
 
 
 func set_bounds():
-	TOP_CORNER = get_node('/root/Game/Map').get_children()[0].get_node('CameraCornerBottomRight').position
-	BOTTOM_CORNER = get_node('/root/Game/Map').get_children()[0].get_node('CameraCornerTopLeft').position
+	var map_root: Node = get_node('/root/Game/Map').get_children()[0]
+	TOP_CORNER = map_root.get_node('CameraCornerBottomRight').position
+	BOTTOM_CORNER = map_root.get_node('CameraCornerTopLeft').position
+	_hex_spacing = _resolve_hex_spacing(map_root)
+	recalculate_zoom_limits()
+
+
+func _on_viewport_size_changed() -> void:
+	if TOP_CORNER != null and BOTTOM_CORNER != null:
+		recalculate_zoom_limits()
+
+
+## Пересчитывает min/max зум по размеру карты и вьюпорта.
+func recalculate_zoom_limits() -> void:
+	if TOP_CORNER == null or BOTTOM_CORNER == null:
+		return
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	if viewport_size.x <= 1.0 or viewport_size.y <= 1.0:
+		return
+
+	var map_size: Vector2 = TOP_CORNER - BOTTOM_CORNER
+	var map_diag: float = map_size.length()
+	var viewport_diag: float = viewport_size.length()
+	if map_diag > 1.0:
+		# Минимальный зум: диагональ поля целиком на экране.
+		min_zoom = viewport_diag / map_diag
+
+	var view_radius_world: float = _hex_spacing * zoom_in_hex_radius
+	var short_side: float = minf(viewport_size.x, viewport_size.y)
+	if view_radius_world > 1.0:
+		# Максимальный зум: от центра до короткого края ≈ N гексов.
+		max_zoom = short_side / (2.0 * view_radius_world)
+
+	if max_zoom < min_zoom:
+		max_zoom = min_zoom
+
+	_set_zoom_value(clampf(zoom_x, min_zoom, max_zoom))
+
+
+func _resolve_hex_spacing(map_root: Node) -> float:
+	var main_map: TileMapLayer = map_root.get_node_or_null("MainMap") as TileMapLayer
+	if main_map == null or main_map.tile_set == null:
+		return 256.0
+	# Реальное расстояние между соседними клетками надёжнее tile_size.
+	var from_cell: Vector2 = main_map.map_to_local(Vector2i(0, 0))
+	var to_cell: Vector2 = main_map.map_to_local(Vector2i(1, 0))
+	var neighbor_dist: float = from_cell.distance_to(to_cell)
+	if neighbor_dist > 1.0:
+		return neighbor_dist
+	return float(main_map.tile_set.tile_size.x)
+
+
+func _get_zoom_step() -> float:
+	var steps: int = maxi(zoom_step_count, 1)
+	return (max_zoom - min_zoom) / float(steps)
+
+
+func _set_zoom_value(value: float) -> void:
+	var clamped: float = clampf(value, min_zoom, max_zoom)
+	zoom_x = clamped
+	zoom_y = clamped
+	var new_zoom := Vector2(clamped, clamped)
+	zoom = new_zoom
+	if new_zoom != _last_zoom:
+		_last_zoom = new_zoom
+		camera_zoomed.emit()
 
 func check_maps_bound(pos):
 	if pos.x > TOP_CORNER.x or pos.y > TOP_CORNER.y:
@@ -194,23 +271,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventMouseButton and event.pressed:
+		var step: float = _get_zoom_step()
 		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			if zoom_x > 0.2:
-				zoom_x -= 0.1
-				zoom_y -= 0.1
-				var new_zoom := Vector2(zoom_x, zoom_y)
-				zoom = new_zoom
-				if new_zoom != _last_zoom:
-					_last_zoom = new_zoom
-					camera_zoomed.emit()
+			if zoom_x > min_zoom:
+				_set_zoom_value(zoom_x - step)
 				get_viewport().set_input_as_handled()
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			if zoom_x < 0.8:
-				zoom_x += 0.1
-				zoom_y += 0.1
-				var new_zoom_up := Vector2(zoom_x, zoom_y)
-				zoom = new_zoom_up
-				if new_zoom_up != _last_zoom:
-					_last_zoom = new_zoom_up
-					camera_zoomed.emit()
+			if zoom_x < max_zoom:
+				_set_zoom_value(zoom_x + step)
 				get_viewport().set_input_as_handled()

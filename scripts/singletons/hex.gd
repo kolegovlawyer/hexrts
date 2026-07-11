@@ -18,6 +18,10 @@ var capture_progress: float = 0.0
 # -1 = никто не захватывает, 0+ = номер команды
 var capturing_team: int = -1
 
+# Кэш линий снабжения: true если гекс связан с FOB команды-владельца
+# Дефолт true — безопасно до первого пересчёта SupplySystem
+var is_supplied: bool = true
+
 func _init(hex_position: Vector2i, initial_team: int = -1):
 	position = hex_position
 	team_owner = initial_team

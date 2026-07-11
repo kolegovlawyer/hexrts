@@ -12,9 +12,14 @@ class_name BaseUnitClient extends BaseUnit
 @onready var shield_bar = get_node("%ShiledBar")
 @onready var unit_name_label: Label = get_node_or_null("%UnitName")
 
+const _SupplySystemScript := preload("res://scripts/supply/supply_system.gd")
+
 ### Характеристики для отображения
 var _health = 30
 var _shield = 15
+var _client_is_supplied: bool = true
+## Базовый tint (команда / выделение) — из него мерцаем к OUT_OF_SUPPLY
+var _supply_base_tint: Color = Color.WHITE
 
 var frame_group : int
 var preview: UnitPreview = null
@@ -62,6 +67,9 @@ func _ready() -> void:
 	# Инициализируем health bar и shield bar
 	init_health_bar()
 	init_shield_bar()
+
+	# _process только для мерцания вне снабжения
+	set_process(false)
 
 	if unit_name_label:
 		unit_name_label.hide()
@@ -272,6 +280,19 @@ func get_current_health() -> int:
 func get_current_shield() -> int:
 	return _shield
 
+func sync_supply_state(is_supplied_flag: bool) -> void:
+	"""RPC от сервера: смена эффективного статуса снабжения (после гистерезиса)."""
+	_client_is_supplied = is_supplied_flag
+	set_process(not _client_is_supplied)
+	_apply_sprite_tint()
+
+
+func _process(_delta: float) -> void:
+	# Мерцание вне снабжения: обновляем каждый кадр
+	if not _client_is_supplied and not _is_hit_flashing:
+		_apply_supply_modulate_from_base()
+
+
 func _sync_preview_vitals() -> void:
 	if preview and is_instance_valid(preview):
 		preview.update_vitals()
@@ -327,7 +348,30 @@ func _apply_sprite_tint() -> void:
 		# Союзник (не свой пир)
 		tint = GameTypes.ally_color
 
-	sprite.self_modulate = tint
+	_supply_base_tint = tint
+	_apply_supply_modulate_from_base()
+
+
+func _supply_pulse_amount() -> float:
+	"""0 → 1 → 0 за OUT_OF_SUPPLY_PULSE_PERIOD секунд."""
+	var period: float = _SupplySystemScript.OUT_OF_SUPPLY_PULSE_PERIOD
+	if period <= 0.0:
+		return 1.0
+	var t: float = Time.get_ticks_msec() * 0.001
+	return 0.5 * (1.0 - cos(t * TAU / period))
+
+
+func _apply_supply_modulate_from_base() -> void:
+	"""Базовый tint, либо мерцание к цвету вне снабжения."""
+	if sprite == null:
+		return
+	if _client_is_supplied:
+		sprite.self_modulate = _supply_base_tint
+		return
+	sprite.self_modulate = _supply_base_tint.lerp(
+		_SupplySystemScript.OUT_OF_SUPPLY_SPRITE_MODULATE,
+		_supply_pulse_amount()
+	)
 
 func _kill_hit_flash() -> void:
 	if _hit_flash_tween and is_instance_valid(_hit_flash_tween):

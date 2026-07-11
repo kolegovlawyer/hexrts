@@ -4,6 +4,8 @@ class_name BaseUnitServer extends BaseUnit
 signal under_attack(attacker: BaseUnit, victim: BaseUnit)
 signal attack_started(attacker: BaseUnit, target: BaseUnit)
 
+const _SupplySystemScript := preload("res://scripts/supply/supply_system.gd")
+
 ### СЕРВЕРНАЯ ЛОГИКА ЮНИТА
 # Содержит только серверные вычисления: навигация, атаки, движение, ИИ
 # Коммуницирует с клиентской частью через RPC
@@ -43,6 +45,11 @@ var _can_see_frame: int = -100
 var _enemies_in_vision: Array[BaseUnitServer] = []
 # peer_id -> видит ли этот peer юнит сейчас (для мгновенного push vitals при reveal)
 var _peer_visibility: Dictionary = {}
+
+# Линии снабжения: гистерезис штрафов
+var _supply_penalties_active: bool = false
+var _out_of_supply_since_msec: int = -1
+var _synced_supply_state: bool = true
 
 # Флаг для отложенной инициализации команды (когда setter вызван до добавления в дерево)
 var _pending_team_initialization: bool = false
@@ -234,6 +241,9 @@ func generate_numeric_id(length: int) -> String:
 func _ready() -> void:
 	# Вызываем базовый _ready()
 	super._ready()
+
+	# _process только для мерцания вне снабжения (Host)
+	set_process(false)
 	
 	# ИСПРАВЛЕНИЕ: Выполняем отложенную инициализацию команды если нужно
 	if _pending_team_initialization:
@@ -765,7 +775,10 @@ func _process_heavy_server_calculations(delta: float) -> void:
 	# === АВТОАТАКА (ПОИСК ЦЕЛЕЙ) - ТОЛЬКО ЕСЛИ НЕТ ПРИКАЗОВ ===
 	elif orders.size() == 0:
 		_process_auto_attack_heavy()
-	
+
+	# === ЛИНИИ СНАБЖЕНИЯ (~1 раз/сек через FrameGroup) ===
+	_update_supply_status()
+
 	_profile_function_end("_process_heavy_server_calculations")
 
 func _process_visibility_heavy() -> void:
@@ -1505,7 +1518,7 @@ func attack(target: BaseUnitServer) -> void:
 		if DEBUG_COMBAT:
 			Handlers.dprint("⚠️ PROJECTILE HANDLER MISSING: %s" % name)
 	
-	reload_timer.wait_time = reload_time  # Убеждаемся, что используется правильное время
+	reload_timer.wait_time = _get_effective_reload_time()
 	reload_timer.start()
 	
 	_last_attack_state = "fired"
@@ -1534,7 +1547,7 @@ func attack_fob(target_fob: fob) -> void:
 		Handlers.ProjectileHandler.rpc(
 			"create_projectile", UID, target_fob.UID, damage, explosion_radius, spread_offset.x, spread_offset.y
 		)
-	reload_timer.wait_time = reload_time
+	reload_timer.wait_time = _get_effective_reload_time()
 	reload_timer.start()
 	
 	_last_attack_state = "fired"
@@ -1558,7 +1571,7 @@ func attack_at_position(target_pos: Vector2) -> void:
 			spread_offset.x,
 			spread_offset.y
 		)
-	reload_timer.wait_time = reload_time
+	reload_timer.wait_time = _get_effective_reload_time()
 	reload_timer.start()
 
 func apply_damage(amount: int, from: BaseUnitServer = null) -> void:
@@ -2028,6 +2041,10 @@ func _on_shield_regeneration_timeout() -> void:
 	# Восстанавливаем щит только в состоянии ожидания
 	if unit_state != UNIT_STATES.IDLE:
 		return
+
+	# Вне снабжения регенерация щита полностью останавливается (HP не трогаем)
+	if has_supply_penalties():
+		return
 	
 	# Если щит уже полный - останавливаем таймер
 	if _shield >= max_shield:
@@ -2047,6 +2064,113 @@ func _on_shield_regeneration_timeout() -> void:
 		shield_regeneration_timer.start()
 	else:
 		shield_regeneration_timer.stop()
+
+
+func has_supply_penalties() -> bool:
+	return _supply_penalties_active
+
+
+func _get_effective_reload_time() -> float:
+	if _supply_penalties_active:
+		return float(reload_time) * _SupplySystemScript.RELOAD_PENALTY_MULT
+	return float(reload_time)
+
+
+func _update_supply_status() -> void:
+	"""
+	Периодическая проверка снабжения юнита (FrameGroup ~1 с).
+	Штрафы включаются после OUT_OF_SUPPLY_DELAY, снимаются мгновенно.
+	"""
+	if not is_multiplayer_authority():
+		return
+	var raw_supplied: bool = true
+	if Handlers.SupplyHandler and Handlers.GameHandler and owner_team != null:
+		var hex = Handlers.GameHandler.get_hex_at_world_position(global_position)
+		if hex != null:
+			raw_supplied = Handlers.SupplyHandler.is_unit_supplied(int(owner_team), hex.position)
+
+	var now_msec: int = Time.get_ticks_msec()
+	var delay_msec: int = int(_SupplySystemScript.OUT_OF_SUPPLY_DELAY * 1000.0)
+
+	if raw_supplied:
+		_out_of_supply_since_msec = -1
+		if _supply_penalties_active:
+			_supply_penalties_active = false
+			_try_resume_shield_regen_after_supply()
+	else:
+		if _out_of_supply_since_msec < 0:
+			_out_of_supply_since_msec = now_msec
+		elif not _supply_penalties_active and (now_msec - _out_of_supply_since_msec) >= delay_msec:
+			_supply_penalties_active = true
+
+	# Эффективный статус для UI: снабжаем пока штрафы не активны
+	var effective_supplied: bool = not _supply_penalties_active
+	if effective_supplied != _synced_supply_state:
+		_synced_supply_state = effective_supplied
+		_apply_supply_indicator_visual(effective_supplied)
+		rpc("sync_supply_state", effective_supplied)
+
+
+func _apply_supply_indicator_visual(is_supplied_flag: bool) -> void:
+	"""Host/сервер: мерцание спрайта вне снабжения (клиенты — через RPC)."""
+	if unit_sprite == null:
+		return
+	if is_supplied_flag:
+		set_process(false)
+		unit_sprite.self_modulate = _host_supply_base_tint()
+		return
+	set_process(true)
+	_update_host_supply_pulse()
+
+
+func _host_supply_base_tint() -> Color:
+	"""База для Host: выделение → белый, иначе салатовый своих / белый."""
+	if selected:
+		return GameTypes.own_selected_color
+	if preselected:
+		return GameTypes.own_hover_color
+	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile \
+			and owner_id == Handlers.TeamHandler.my_profile.PlayerId:
+		return GameTypes.own_color
+	return Color.WHITE
+
+
+func _supply_pulse_amount() -> float:
+	var period: float = _SupplySystemScript.OUT_OF_SUPPLY_PULSE_PERIOD
+	if period <= 0.0:
+		return 1.0
+	var t: float = Time.get_ticks_msec() * 0.001
+	return 0.5 * (1.0 - cos(t * TAU / period))
+
+
+func _update_host_supply_pulse() -> void:
+	if unit_sprite == null:
+		return
+	var base: Color = _host_supply_base_tint()
+	unit_sprite.self_modulate = base.lerp(
+		_SupplySystemScript.OUT_OF_SUPPLY_SPRITE_MODULATE,
+		_supply_pulse_amount()
+	)
+
+
+func _process(_delta: float) -> void:
+	if not _synced_supply_state:
+		_update_host_supply_pulse()
+
+
+func _try_resume_shield_regen_after_supply() -> void:
+	"""После восстановления снабжения возобновляем реген щита в IDLE."""
+	if unit_state != UNIT_STATES.IDLE:
+		return
+	if _shield >= max_shield:
+		return
+	if shield_regeneration_timer == null:
+		return
+	if not shield_regeneration_timer.is_stopped():
+		return
+	shield_regeneration_timer.wait_time = 1.0
+	shield_regeneration_timer.start()
+
 
 ## УЛУЧШЕННАЯ СИСТЕМА НАВИГАЦИИ
 func _reset_move_progress_tracking(goal: Vector2) -> void:

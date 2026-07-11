@@ -249,6 +249,11 @@ func sync_auto_attack_enabled(enabled: bool) -> void:
 	if self in Handlers.UnitSelectionHandler.selected_units:
 		Handlers.UIHandler.call_deferred("_update_auto_attack_button_visual")
 
+@rpc("authority", "call_remote", "reliable")
+func sync_supply_state(_is_supplied: bool) -> void:
+	"""Stub: статус снабжения юнита (BaseUnitClient показывает индикатор)."""
+	pass
+
 @rpc("authority", "call_local", "reliable")
 func sync_unit_appearance(display_name: String, instance_number: int, icon_path: String) -> void:
 	preset_display_name = display_name

@@ -3,6 +3,8 @@ class_name CommandUnitServer extends BaseUnitServer
 ### СЕРВЕРНАЯ ЛОГИКА КОМАНДНОГО ЮНИТА
 # Наследуется от BaseUnitServer и добавляет логику захвата гексов
 
+const _SupplyConsts := preload("res://scripts/supply/supply_system.gd")
+
 # Параметры захвата гексов
 const CAPTURE_TIME: float = 5.0  # Время захвата гекса в секундах
 const CHECK_INTERVAL: float = 1.0  # Проверка каждую секунду (60 фреймов при 60 FPS)
@@ -225,7 +227,9 @@ func _physics_process(delta: float) -> void:
 		
 		# Обновляем прогресс захвата если юнит захватывает гекс - НЕ во время отступления
 		if not is_retreating and not is_deploying_fob and is_capturing and current_hex and current_hex.capturing_team == owner_team:
-			var capture_speed = 1.0 / CAPTURE_TIME  # Скорость захвата
+			var capture_speed = 1.0 / CAPTURE_TIME
+			if has_supply_penalties():
+				capture_speed *= _SupplyConsts.CAPTURE_PENALTY_MULT
 			var old_owner: int = current_hex.team_owner
 			var capture_completed = current_hex.update_capture_progress(delta, capture_speed)
 			

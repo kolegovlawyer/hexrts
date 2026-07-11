@@ -2,6 +2,7 @@ class_name GameManager extends Node
 
 const _BattleLogServiceScript := preload("res://scripts/game_system/battle_log_service.gd")
 const _HexCoordinatesScript := preload("res://scripts/game_system/hex_coordinates.gd")
+const _SupplySystemScript := preload("res://scripts/supply/supply_system.gd")
 
 var game_type = "UNKNOWN"
 var map
@@ -22,6 +23,10 @@ var _hex_intel_timer: float = 0.0
 
 # Ссылка на OverlayMap для обновления тайлов захвата
 var overlay_map: TileMapLayer
+# MainMap — позиции гексов и get_surrounding_cells для снабжения
+var main_map: TileMapLayer
+# Оверлей неснабжаемых гексов своей команды (клиент)
+var supply_overlay_map: TileMapLayer
 
 # Камера наблюдения в режиме dedicated server (без клиентского HUD)
 var observer_camera: Camera2D = null
@@ -66,6 +71,10 @@ var reverse_move_by_player: Dictionary = {}
 func _ready():
 	set_multiplayer_authority(1)
 	Handlers.GameHandler = self
+
+	# Линии снабжения: один узел на сервере и на клиенте (локальный пересчёт)
+	var supply_system = _SupplySystemScript.new()
+	add_child(supply_system)
 	
 	# Инициализируем систему очков только на сервере
 	if is_multiplayer_authority():
@@ -993,7 +1002,7 @@ func initialize_hexes() -> void:
 	Handlers.dprint("🔧 DEBUG: map_node найден: ", map_node)
 	
 	# Ищем MainMap для получения позиций гексов
-	var main_map = map_node.get_node("MainMap")
+	main_map = map_node.get_node("MainMap")
 	if not main_map:
 		Handlers.dprint("⚠️ ГЕКСЫ: MainMap не найден!")
 		return
@@ -1008,6 +1017,8 @@ func initialize_hexes() -> void:
 	else:
 		Handlers.dprint("✅ DEBUG: OverlayMap найден: ", overlay_map)
 		Handlers.dprint("📍 DEBUG: OverlayMap position: ", overlay_map.position)
+
+	supply_overlay_map = map_node.get_node_or_null("SupplyOverlayMap") as TileMapLayer
 	
 	# Получаем все используемые ячейки из MainMap (фактические позиции гексов)
 	var used_cells = main_map.get_used_cells()
@@ -1056,6 +1067,9 @@ func initialize_hexes() -> void:
 	_HexCoordinatesScript.initialize_from_tile_bounds(used_cells)
 	# Метки гексов включаются кнопкой HexInfoButton в HUD, не при старте.
 
+	# Снабжение: FOB могут быть ещё не готовы — отложенный пересчёт
+	call_deferred("_recalculate_supply_after_map_init")
+
 	if not is_multiplayer_authority():
 		last_known_hex_owner.clear()
 		_ever_owned_hexes.clear()
@@ -1065,6 +1079,31 @@ func initialize_hexes() -> void:
 		Handlers.UIHandler.minimap.notify_map_data_ready()
 
 	_try_autoload_unit_presets()
+
+
+func _recalculate_supply_after_map_init() -> void:
+	"""Пересчёт линий снабжения после инициализации карты и FOB."""
+	if Handlers.SupplyHandler:
+		Handlers.SupplyHandler.recalculate_all()
+	_refresh_supply_overlay_visual()
+
+
+func _refresh_supply_overlay_visual() -> void:
+	"""Клиент/Host: затемняет гексы своей команды без снабжения (отдельный слой)."""
+	if supply_overlay_map == null:
+		return
+	supply_overlay_map.clear()
+	if not Handlers.SupplyHandler or not Handlers.TeamHandler:
+		return
+	var profile = Handlers.TeamHandler.my_profile
+	if profile == null:
+		return
+	var my_team: int = int(profile.team)
+	var unsupplied: Array[Vector2i] = Handlers.SupplyHandler.get_unsupplied_owned_hexes(my_team)
+	# Тёмный полупрозрачный тайл поверх OverlayMap (atlas нейтрального гекса)
+	for pos in unsupplied:
+		supply_overlay_map.set_cell(pos, 0, Vector2i(2, 0), 0)
+	supply_overlay_map.notify_runtime_tile_data_update()
 
 
 func _process(delta: float) -> void:
@@ -1126,6 +1165,11 @@ func update_hex_overlay(hex_position: Vector2i, team_owner: int) -> void:
 		_: team_str = str(team_owner)
 	Handlers.dprint("📡 ГЕКСЫ: RPC отправлен всем клиентам о захвате гекса ", hex_position, " командой ", team_str)
 
+	# Пересчёт линий снабжения только по событию смены владельца
+	if Handlers.SupplyHandler:
+		Handlers.SupplyHandler.recalculate_all()
+		_refresh_supply_overlay_visual()
+
 	_check_domination_victory()
 
 @rpc("authority", "call_remote", "reliable")
@@ -1145,6 +1189,10 @@ func sync_hex_capture(hex_position: Vector2i, new_owner_team: int) -> void:
 	if hex:
 		hex.team_owner = new_owner_team
 		Handlers.dprint("✅ КЛИЕНТ: Обновлен локальный объект гекса ", hex_position)
+
+	if Handlers.SupplyHandler:
+		Handlers.SupplyHandler.recalculate_all()
+		_refresh_supply_overlay_visual()
 	
 	# Визуал и last-known только через intel (зона обзора)
 	refresh_client_hex_intel()
@@ -1417,5 +1465,8 @@ func sync_full_map_state(captured_hexes_data: Array):
 			Handlers.dprint("❌ SYNC: Гекс не найден по позиции ", hex_pos)
 	
 	Handlers.dprint("🎯 SYNC: Синхронизация состояния карты завершена")
+	if Handlers.SupplyHandler:
+		Handlers.SupplyHandler.recalculate_all()
+		_refresh_supply_overlay_visual()
 	call_deferred("refresh_client_hex_intel")
 	call_deferred("_refresh_client_world_visuals")

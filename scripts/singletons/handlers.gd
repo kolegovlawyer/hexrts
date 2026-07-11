@@ -44,4 +44,5 @@ var UnitTrackVisualHandler : UnitTrackVisualService
 var UIHandler : GameUI
 #var NavigationHandler : NavHandler # Bad approach, but signals dont work without it
 var FrameGroupHandler : FrameGroup
+var SupplyHandler # SupplySystem — регистрируется в _ready
 #var GameLogHandler : GameLogs

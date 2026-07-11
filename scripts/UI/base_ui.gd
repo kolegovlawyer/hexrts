@@ -52,6 +52,9 @@ ProjectSettings.get_setting("display/window/size/viewport_height"))
 @onready var line_patrol_button = get_node(
 	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/LinePatrolButton"
 )
+@onready var back_move_toggle = get_node(
+	"MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/BackMove"
+)
 
 enum HUD_ORDER_MODES { NONE, POINT_ATTACK, PATH, CIRCLE_PATROL, LINE_PATROL }
 
@@ -226,6 +229,13 @@ func _ready() -> void:
 		_update_movement_attack_toggle_visual(movement_attack_toggle.button_pressed)
 		if Handlers.GameHandler:
 			Handlers.GameHandler.rpc("set_movement_attack_enabled", true)
+	if back_move_toggle:
+		back_move_toggle.toggle_mode = true
+		back_move_toggle.button_pressed = false
+		back_move_toggle.toggled.connect(_on_back_move_toggled)
+		_update_back_move_toggle_visual(back_move_toggle.button_pressed)
+		if Handlers.GameHandler:
+			Handlers.GameHandler.rpc("set_reverse_move_enabled", false)
 	if auto_attack_button:
 		_auto_attack_button_bg = auto_attack_button.get_node_or_null("BGPanel") as Panel
 		auto_attack_button.pressed.connect(_on_auto_attack_pressed)
@@ -478,6 +488,15 @@ func _on_movement_attack_toggled(pressed: bool) -> void:
 func _update_movement_attack_toggle_visual(pressed: bool) -> void:
 	if movement_attack_toggle:
 		movement_attack_toggle.modulate = Color(1.2, 1.2, 1.0) if pressed else Color.WHITE
+
+func _on_back_move_toggled(pressed: bool) -> void:
+	_update_back_move_toggle_visual(pressed)
+	if Handlers.GameHandler:
+		Handlers.GameHandler.rpc("set_reverse_move_enabled", pressed)
+
+func _update_back_move_toggle_visual(pressed: bool) -> void:
+	if back_move_toggle:
+		back_move_toggle.modulate = Color(1.2, 1.2, 1.0) if pressed else Color.WHITE
 
 func _on_auto_attack_pressed() -> void:
 	if Handlers.UnitSelectionHandler == null:

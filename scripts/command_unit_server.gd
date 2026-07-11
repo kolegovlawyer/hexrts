@@ -384,6 +384,7 @@ func _should_defer_route_order() -> bool:
 func _process_move_capture_order_immediate(order: Dictionary, delta: float, is_bot: bool) -> void:
 	var phase: String = order.get("phase", "moving")
 	if phase == "moving":
+		_ensure_move_leg_steering(order)
 		if unit_state != UNIT_STATES.MOVING:
 			unit_state = UNIT_STATES.MOVING
 			_set_navigation_avoidance(true)
@@ -415,6 +416,7 @@ func _process_move_capture_order_immediate(order: Dictionary, delta: float, is_b
 				order["phase"] = "capturing"
 				unit_state = UNIT_STATES.IDLE
 				_clear_active_route_wp(true)
+				_reset_move_steering_state()
 				stuck_timer = 0.0
 				no_progress_timer = 0.0
 				_progress_best_dist = INF
@@ -424,10 +426,13 @@ func _process_move_capture_order_immediate(order: Dictionary, delta: float, is_b
 				check_current_hex()
 				_evaluate_waypoint_capture(order)
 		elif not moved:
-			stuck_timer += delta
-			if stuck_timer > 2.5:
-				_execute_smart_unstuck_maneuver(pos)
+			if not _pivot_done and not _reverse_move_active:
 				stuck_timer = 0.0
+			else:
+				stuck_timer += delta
+				if stuck_timer > 2.5:
+					_execute_smart_unstuck_maneuver(pos)
+					stuck_timer = 0.0
 			_update_move_progress_or_abort(pos, delta)
 		else:
 			stuck_timer = 0.0

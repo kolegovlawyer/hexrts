@@ -20,6 +20,7 @@
 [ext_resource type="Texture2D" uid="uid://cs1se2d3w5hsj" path="res://assets/icons/icon-follow.png" id="12_k0xlx"]
 [ext_resource type="Texture2D" uid="uid://bgwf8quu5yd3a" path="res://assets/icons/icon-spread.png" id="13_swtpc"]
 [ext_resource type="Script" uid="uid://nekxjfqi3n6o" path="res://scripts/UI/minimap.gd" id="14_minimap"]
+[ext_resource type="Texture2D" uid="uid://cfhusselvwg2j" path="res://assets/icons/icon-dots.png" id="21_li2bh"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wce3n"]
 bg_color = Color(0.6, 0.6, 0.6, 0)
@@ -524,7 +525,7 @@ z_index = 1
 layout_mode = 2
 theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 16
-columns = 4
+columns = 5
 
 [node name="PointAttack" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=272547014]
 unique_name_in_owner = true
@@ -679,6 +680,26 @@ texture_pressed = ExtResource("13_swtpc")
 stretch_mode = 0
 
 [node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/SpreadButton" unique_id=1985433059]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_mn1js")
+
+[node name="BackMove" type="TextureButton" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer" unique_id=714535416]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+texture_normal = ExtResource("21_li2bh")
+texture_pressed = ExtResource("21_li2bh")
+stretch_mode = 0
+
+[node name="BGPanel" type="Panel" parent="MarginContainer/MainRack/HUDBoard/RightButtonsContainer/MarginContainer/GridContainer/BackMove" unique_id=1276048259]
 z_index = -1
 layout_mode = 1
 anchors_preset = 15

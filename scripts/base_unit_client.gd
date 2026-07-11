@@ -7,6 +7,7 @@ class_name BaseUnitClient extends BaseUnit
 @onready var selection_ring = get_node("%UnitSelectionRing")
 @onready var sprite = get_node("%UnitSelfSprite")
 @onready var arrow = get_node("%ArrowSprite")
+@onready var barrel_arrow: Sprite2D = get_node_or_null("%BarrelArrowSprite") as Sprite2D
 @onready var health_bar = get_node("%HealthBar")
 @onready var shield_bar = get_node("%ShiledBar")
 @onready var unit_name_label: Label = get_node_or_null("%UnitName")
@@ -224,6 +225,13 @@ func apply_visual_scale() -> void:
 		sprite.scale = v
 	if selection_ring:
 		selection_ring.scale = v
+	if arrow:
+		arrow.visible = true
+		arrow.modulate = Color.WHITE
+		arrow.scale = v * BaseUnitServer.HULL_ARROW_SCALE_MULT
+	if barrel_arrow:
+		barrel_arrow.visible = true
+		barrel_arrow.scale = v
 	# ProgressBar scale идёт от pivot (по умолчанию левый верх) — центрируем относительно юнита.
 	_center_bar_pivot_and_scale(health_bar, v)
 	_center_bar_pivot_and_scale(shield_bar, v)

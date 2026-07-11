@@ -18,15 +18,18 @@ radius = 15.0
 properties/0/path = NodePath(".:position")
 properties/0/spawn = true
 properties/0/replication_mode = 1
-properties/1/path = NodePath("UnitSelfSprite:rotation")
+properties/1/path = NodePath("ArrowSprite:rotation")
 properties/1/spawn = true
 properties/1/replication_mode = 1
-properties/2/path = NodePath(".:owner_id")
+properties/2/path = NodePath("BarrelArrowSprite:rotation")
 properties/2/spawn = true
-properties/2/replication_mode = 2
-properties/3/path = NodePath(".:UID")
+properties/2/replication_mode = 1
+properties/3/path = NodePath(".:owner_id")
 properties/3/spawn = true
 properties/3/replication_mode = 2
+properties/4/path = NodePath(".:UID")
+properties/4/spawn = true
+properties/4/replication_mode = 2
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_ryk4y"]
 radius = 400.0
@@ -55,7 +58,11 @@ texture = ExtResource("2_o02ba")
 
 [node name="ArrowSprite" type="Sprite2D" parent="." unique_id=257922206]
 unique_name_in_owner = true
-visible = false
+texture = ExtResource("3_o3c7t")
+
+[node name="BarrelArrowSprite" type="Sprite2D" parent="." unique_id=257922207]
+unique_name_in_owner = true
+modulate = Color(0.607843, 0.976471, 0.521569, 1)
 texture = ExtResource("3_o3c7t")
 
 [node name="UnitSelfSprite" type="Sprite2D" parent="." unique_id=1053653237]

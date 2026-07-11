@@ -46,6 +46,16 @@ const MASS_MAX := 36.0
 const TURN_SPEED_MULT_MIN := 0.7
 const TURN_SPEED_MULT_MAX := 1.4
 
+## Множитель скорости в режиме заднего хода (BackMove).
+const REVERSE_SPEED_MULT := 0.5
+
+## Половина конуса огня от оси ствола (градусы). Огонь только если цель внутри конуса.
+const BARREL_FIRE_HALF_ANGLE_DEG := 35.0
+
+
+static func barrel_fire_half_angle_rad() -> float:
+	return deg_to_rad(BARREL_FIRE_HALF_ANGLE_DEG)
+
 
 static func default_stats() -> Dictionary:
 	return {

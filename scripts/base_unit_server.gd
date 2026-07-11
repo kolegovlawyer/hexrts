@@ -16,6 +16,8 @@ const SPEED = 300.0
 @onready var reload_timer = get_node("%ReloadTimer")
 @onready var aim_timer = get_node("%AimTimer")
 @onready var unit_sprite: Sprite2D = get_node_or_null("%UnitSelfSprite") as Sprite2D
+@onready var arrow_sprite: Sprite2D = get_node_or_null("%ArrowSprite") as Sprite2D
+@onready var barrel_arrow_sprite: Sprite2D = get_node_or_null("%BarrelArrowSprite") as Sprite2D
 
 # Таймер для автоматической атаки (проверка каждую секунду)
 var auto_attack_timer: Timer
@@ -81,8 +83,26 @@ var accel = 7
 @export var reload_time = 3
 ## Рад/с; задаётся из пресета (UnitPresetBalance.to_game_turn_rate).
 var turn_rate: float = UnitPresetBalance.to_game_turn_rate(UnitPresetBalance.default_stats())
-## Логический курс (рад). Крутим только UnitSelfSprite — бары/имя/кольцо остаются upright.
+## Логический курс корпуса (рад). Визуально — ArrowSprite; иконка upright.
 var facing_angle: float = 0.0
+## Угол ствола (рад), независимо от корпуса. Визуально — BarrelArrowSprite.
+var barrel_angle: float = 0.0
+var _barrel_desired_angle: float = 0.0
+var _barrel_has_aim: bool = false
+## Последнее известное направление на цель (держим, пока нет приказа движения).
+var _barrel_hold_angle: float = 0.0
+var _barrel_has_hold: bool = false
+## После move-ордера ствол доворачивается к корпусу, а не к hold.
+var _barrel_follow_hull: bool = true
+## Мягкая цель ствола (оппортунистический огонь / манс без attack-ордера).
+var _barrel_soft_aim_pos = null
+var _barrel_soft_aim_uid: String = ""
+## Ордер принят уже в движении → дуга; иначе pivot на месте.
+var _move_started_while_moving: bool = false
+var _pivot_done: bool = false
+var _reverse_move_active: bool = false
+var _locked_facing_angle: float = 0.0
+var _steering_leg_position: Vector2 = Vector2.INF
 @export var shield_regen_rate = 1.5  # Щит в секунду при восстановлении (15/10 = 1.5)
 @export var shield_regen_delay = 3.0  # Задержка начала восстановления щита после получения урона
 
@@ -175,6 +195,16 @@ const MOVE_ALIGN_MIN_SPEED: float = 0.35
 const TURN_AIM_THRESHOLD_RAD: float = deg_to_rad(10.0)
 ## Множитель точности при довороте (аналог hit_chance *= TURN_ACC_MULT → раздутие spread).
 const TURN_ACC_MULT: float = 0.6
+## Порог выравнивания перед стартом с места (рад).
+const PIVOT_ALIGN_RAD: float = deg_to_rad(12.0)
+## При ошибке курса больше этого — всегда pivot (не дуга через дыры navmesh).
+const FORCE_PIVOT_RAD: float = deg_to_rad(90.0)
+## Текстура ArrowSprite смотрит вверх (local -Y); Vector2.angle() = 0 вдоль +X.
+const ARROW_ROTATION_OFFSET: float = PI * 0.5
+## Цвет стрелки ствола (#9BF985).
+const BARREL_ARROW_MODULATE := Color(0.607843, 0.976471, 0.521569, 1.0)
+## Корпус чуть крупнее ствола, иначе зелёная стрелка полностью его перекрывает.
+const HULL_ARROW_SCALE_MULT: float = 1.4
 
 enum RoutePatrolMode { NONE, LOOP, PING_PONG }
 
@@ -241,6 +271,8 @@ func _ready() -> void:
 		navagent.avoidance_priority = CROWD_PRIORITY_IDLE
 		# Avoidance всегда включён, чтобы idle-юниты оставались препятствиями для RVO
 		_set_navigation_avoidance(true)
+		_sync_facing_visual()
+		_sync_barrel_visual()
 		visibility_area.connect("body_entered", visibility_check_in)
 		visibility_area.connect("body_exited", visibility_check_out)
 		
@@ -294,6 +326,10 @@ func on_velocity_computed(safe_velocity: Vector2) -> void:
 	"""RVO callback. Idle-юниты LOCKED: не применяем safe_velocity (анти-подхват)."""
 	if not _is_actively_moving:
 		# Locked stationary: остаёмся в avoidance-симуляции, но физически не двигаемся
+		velocity = Vector2.ZERO
+		return
+	# Pivot на месте: RVO не должен сдвигать юнита (иначе уезд с navmesh / хайграунд).
+	if not _pivot_done and not _reverse_move_active:
 		velocity = Vector2.ZERO
 		return
 	if safe_velocity.length_squared() < 1.0 and _desired_velocity.length_squared() > 100.0:
@@ -352,7 +388,10 @@ func _physics_process(delta: float) -> void:
 		# RVO: moving — full avoidance; idle — LOCKED (set_velocity ZERO, no move_and_slide).
 		# Locked stationary agents stay in the RVO sim as obstacles without being dragged.
 		_set_navigation_avoidance(true)
-		navagent.max_speed = float(speed)
+		var move_speed_cap: float = float(speed)
+		if _reverse_move_active:
+			move_speed_cap = float(speed) * UnitPresetBalance.REVERSE_SPEED_MULT
+		navagent.max_speed = move_speed_cap
 		var wants_move: bool = not navagent.is_navigation_finished()
 		_is_actively_moving = wants_move
 		if wants_move:
@@ -363,11 +402,7 @@ func _physics_process(delta: float) -> void:
 			var next_path_position: Vector2 = navagent.get_next_path_position()
 			# Инерция поворота ДО avoidance: RVO получает курс «по носу», а не мгновенный
 			# вектор к waypoint. Post-safe_velocity ломал бы обход (курс дрался бы с RVO).
-			var desired_angle: float = global_position.direction_to(next_path_position).angle()
-			_apply_facing_toward(desired_angle, delta)
-			var align: float = maxf(0.0, cos(angle_difference(facing_angle, desired_angle)))
-			var steered_speed: float = float(speed) * lerpf(MOVE_ALIGN_MIN_SPEED, 1.0, align)
-			_desired_velocity = Vector2.RIGHT.rotated(facing_angle) * steered_speed
+			_desired_velocity = _compute_steered_desired_velocity(next_path_position, delta)
 			# Soft lateral bias away from locked blockers so RVO prefers a side early
 			_desired_velocity = _apply_lateral_crowd_bias(_desired_velocity)
 			navagent.set_velocity(_desired_velocity)
@@ -380,7 +415,9 @@ func _physics_process(delta: float) -> void:
 			_static_block_frames = 0
 			_unit_block_frames = 0
 			_reset_jitter_stuck_tracking()
-			_update_combat_facing(delta)
+		
+		# Ствол: к цели стрельбы или к корпусу (независимо от движения).
+		_update_barrel_facing(delta)
 		
 		if not _is_bot:
 			_try_opportunistic_attack_while_moving()
@@ -393,6 +430,7 @@ func _physics_process(delta: float) -> void:
 
 func _process_move_order_immediate(order: Dictionary, delta: float, is_bot: bool) -> void:
 	"""МГНОВЕННАЯ обработка приказов движения для отзывчивости игрока"""
+	_ensure_move_leg_steering(order)
 	# Переключаемся в состояние движения
 	if unit_state != UNIT_STATES.MOVING:
 		unit_state = UNIT_STATES.MOVING
@@ -430,10 +468,14 @@ func _process_move_order_immediate(order: Dictionary, delta: float, is_bot: bool
 		else:
 			_complete_move_order()
 	elif not moved:
-		stuck_timer += delta
-		if stuck_timer > 2.5:
-			_execute_smart_unstuck_maneuver(pos)
+		# Pivot на месте — не считаем застреванием.
+		if not _pivot_done and not _reverse_move_active:
 			stuck_timer = 0.0
+		else:
+			stuck_timer += delta
+			if stuck_timer > 2.5:
+				_execute_smart_unstuck_maneuver(pos)
+				stuck_timer = 0.0
 		_update_move_progress_or_abort(pos, delta)
 	else:
 		stuck_timer = 0.0
@@ -490,12 +532,21 @@ func _process_attack_position_order_immediate(order: Dictionary) -> void:
 	attack_at_position(target_pos)
 
 func _make_move_order(target_pos: Vector2) -> Dictionary:
+	var reverse := false
+	if Handlers.GameHandler and Handlers.GameHandler.has_method("is_reverse_move_enabled"):
+		reverse = Handlers.GameHandler.is_reverse_move_enabled(owner_id)
 	if is_command_unit():
-		return {"type": "move_capture", "position": target_pos, "phase": "moving"}
-	return {"type": "move", "position": target_pos}
+		return {
+			"type": "move_capture",
+			"position": target_pos,
+			"phase": "moving",
+			"reverse": reverse,
+		}
+	return {"type": "move", "position": target_pos, "reverse": reverse}
 
 
 func _complete_move_order() -> void:
+	_reset_move_steering_state()
 	_pop_current_order()
 	_advance_queue_after_move_leg()
 
@@ -725,6 +776,7 @@ func _process_visibility_heavy() -> void:
 
 func _process_move_order_heavy_bot(order: Dictionary, delta: float) -> void:
 	"""ОТЛОЖЕННАЯ обработка приказов движения для БОТОВ (FrameGroup оптимизация)"""
+	_ensure_move_leg_steering(order)
 	# Переключаемся в состояние движения
 	if unit_state != UNIT_STATES.MOVING:
 		unit_state = UNIT_STATES.MOVING
@@ -759,10 +811,13 @@ func _process_move_order_heavy_bot(order: Dictionary, delta: float) -> void:
 		else:
 			_complete_move_order()
 	elif not moved:
-		stuck_timer += delta
-		if stuck_timer > 3.0:  # Ботам можно дать больше времени
-			_execute_smart_unstuck_maneuver(pos)
+		if not _pivot_done and not _reverse_move_active:
 			stuck_timer = 0.0
+		else:
+			stuck_timer += delta
+			if stuck_timer > 3.0:  # Ботам можно дать больше времени
+				_execute_smart_unstuck_maneuver(pos)
+				stuck_timer = 0.0
 		_update_move_progress_or_abort(pos, delta)
 	else:
 		stuck_timer = 0.0
@@ -773,6 +828,7 @@ func _process_move_capture_order_heavy_bot(order: Dictionary, delta: float) -> v
 	"""Отложенная обработка move_capture для бот-КШМ."""
 	var phase: String = order.get("phase", "moving")
 	if phase == "moving":
+		_ensure_move_leg_steering(order)
 		if unit_state != UNIT_STATES.MOVING:
 			unit_state = UNIT_STATES.MOVING
 			_set_navigation_avoidance(true)
@@ -804,6 +860,7 @@ func _process_move_capture_order_heavy_bot(order: Dictionary, delta: float) -> v
 				order["phase"] = "capturing"
 				unit_state = UNIT_STATES.IDLE
 				_clear_active_route_wp(true)
+				_reset_move_steering_state()
 				stuck_timer = 0.0
 				no_progress_timer = 0.0
 				_progress_best_dist = INF
@@ -815,10 +872,13 @@ func _process_move_capture_order_heavy_bot(order: Dictionary, delta: float) -> v
 					command_unit.check_current_hex()
 					command_unit._evaluate_waypoint_capture(order)
 		elif not moved:
-			stuck_timer += delta
-			if stuck_timer > 3.0:
-				_execute_smart_unstuck_maneuver(pos)
+			if not _pivot_done and not _reverse_move_active:
 				stuck_timer = 0.0
+			else:
+				stuck_timer += delta
+				if stuck_timer > 3.0:
+					_execute_smart_unstuck_maneuver(pos)
+					stuck_timer = 0.0
 			_update_move_progress_or_abort(pos, delta)
 		else:
 			stuck_timer = 0.0
@@ -1007,18 +1067,129 @@ func _apply_facing_toward(desired_angle: float, delta: float) -> void:
 	_facing_desired_angle = desired_angle
 	_has_facing_desired = true
 	facing_angle = rotate_toward(facing_angle, desired_angle, turn_rate * delta)
-	# Только спрайт юнита — корень CharacterBody2D не крутим (бары, имя, ring).
+	_sync_facing_visual()
+
+
+func _sync_facing_visual() -> void:
+	# Курс корпуса — ArrowSprite; иконка upright.
+	# Текстура стрелки смотрит вверх; angle()=0 — вправо → +ARROW_ROTATION_OFFSET.
+	if arrow_sprite:
+		arrow_sprite.visible = true
+		arrow_sprite.rotation = facing_angle + ARROW_ROTATION_OFFSET
+		arrow_sprite.modulate = Color.WHITE
 	if unit_sprite:
-		unit_sprite.rotation = facing_angle
+		unit_sprite.rotation = 0.0
+
+
+func _sync_barrel_visual() -> void:
+	if barrel_arrow_sprite:
+		barrel_arrow_sprite.visible = true
+		barrel_arrow_sprite.rotation = barrel_angle + ARROW_ROTATION_OFFSET
+		barrel_arrow_sprite.modulate = BARREL_ARROW_MODULATE
+
+
+func _update_barrel_facing(delta: float) -> void:
+	"""Ствол → живая цель; иначе hold последнего направления; после move → к корпусу."""
+	var desired: float = facing_angle
+	_barrel_has_aim = false
+	var aim_pos = _resolve_aim_world_position()
+	if aim_pos != null:
+		var aim_vec: Vector2 = aim_pos as Vector2
+		if not aim_vec.is_equal_approx(global_position):
+			desired = global_position.direction_to(aim_vec).angle()
+			_barrel_desired_angle = desired
+			_barrel_has_aim = true
+			_barrel_hold_angle = desired
+			_barrel_has_hold = true
+			_barrel_follow_hull = false
+	elif _barrel_follow_hull:
+		desired = facing_angle
+	elif _barrel_has_hold:
+		desired = _barrel_hold_angle
+	else:
+		desired = facing_angle
+	barrel_angle = rotate_toward(barrel_angle, desired, turn_rate * delta)
+	_sync_barrel_visual()
+
+
+func _get_barrel_aim_error_rad(world_pos: Vector2) -> float:
+	if world_pos.is_equal_approx(global_position):
+		return 0.0
+	return absf(angle_difference(barrel_angle, global_position.direction_to(world_pos).angle()))
+
+
+func _is_barrel_in_fire_cone(world_pos: Vector2) -> bool:
+	return _get_barrel_aim_error_rad(world_pos) <= UnitPresetBalance.barrel_fire_half_angle_rad()
+
+
+func _compute_steered_desired_velocity(next_path_position: Vector2, delta: float) -> Vector2:
+	var to_next: Vector2 = global_position.direction_to(next_path_position)
+	if to_next.length_squared() < 0.0001:
+		return Vector2.ZERO
+	var desired_angle: float = to_next.angle()
+	if _reverse_move_active:
+		facing_angle = _locked_facing_angle
+		_facing_desired_angle = _locked_facing_angle
+		_has_facing_desired = true
+		_sync_facing_visual()
+		return to_next * float(speed) * UnitPresetBalance.REVERSE_SPEED_MULT
+	# U-turn / резкий курс — только разворот на месте (дуга у края дырявит navmesh).
+	if absf(angle_difference(facing_angle, desired_angle)) > FORCE_PIVOT_RAD:
+		_pivot_done = false
+	_apply_facing_toward(desired_angle, delta)
+	if not _pivot_done:
+		if absf(angle_difference(facing_angle, desired_angle)) > PIVOT_ALIGN_RAD:
+			return Vector2.ZERO
+		_pivot_done = true
+	var align: float = maxf(0.0, cos(angle_difference(facing_angle, desired_angle)))
+	var steered_speed: float = float(speed) * lerpf(MOVE_ALIGN_MIN_SPEED, 1.0, align)
+	return Vector2.RIGHT.rotated(facing_angle) * steered_speed
+
+
+func _ensure_move_leg_steering(order: Dictionary) -> void:
+	var pos: Vector2 = order.get("position", Vector2.ZERO)
+	if pos.is_equal_approx(_steering_leg_position):
+		return
+	_steering_leg_position = pos
+	_on_move_order_accepted(order)
+
+
+func _on_move_order_accepted(order: Dictionary) -> void:
+	# Только реальная скорость: _is_actively_moving=true и во время pivot (nav не finished),
+	# из-за этого ошибочно включалась дуга и «отменялась» инерция / pivot.
+	_move_started_while_moving = velocity.length() > MOVING_ATTACK_MIN_SPEED
+	_reverse_move_active = bool(order.get("reverse", false))
+	# Ствол к оси движения только если нет живой цели наводки.
+	# Манс (цель + маршрут): soft UID / attack-ордер сохраняются, ствол на цели.
+	if _has_live_barrel_target():
+		_barrel_follow_hull = false
+	else:
+		_barrel_follow_hull = true
+		_barrel_has_hold = false
+		_clear_barrel_soft_aim()
+	if _reverse_move_active:
+		_locked_facing_angle = facing_angle
+		_pivot_done = true
+		_sync_facing_visual()
+	else:
+		_pivot_done = _move_started_while_moving
+
+
+func _reset_move_steering_state() -> void:
+	_move_started_while_moving = false
+	_pivot_done = false
+	_reverse_move_active = false
+	_steering_leg_position = Vector2.INF
 
 
 func _is_turning_to_aim() -> bool:
-	if not _has_facing_desired:
+	# Штраф точности — по стволу относительно цели, не по корпусу.
+	if not _barrel_has_aim:
 		return false
-	return absf(angle_difference(facing_angle, _facing_desired_angle)) > TURN_AIM_THRESHOLD_RAD
+	return absf(angle_difference(barrel_angle, _barrel_desired_angle)) > TURN_AIM_THRESHOLD_RAD
 
 
-## Мировая позиция цели для доворота на месте, или null если цели нет.
+## Мировая позиция цели для доворота ствола, или null если цели нет.
 func _resolve_aim_world_position():
 	var attack_order: Dictionary = _find_first_order(["attack"])
 	if not attack_order.is_empty() and is_instance_valid(attack_order.get("target")):
@@ -1029,26 +1200,76 @@ func _resolve_aim_world_position():
 	var pos_order: Dictionary = _find_first_order(["attack_position"])
 	if not pos_order.is_empty() and pos_order.has("position"):
 		return pos_order.get("position", Vector2.ZERO)
+	return _resolve_barrel_soft_aim_position()
+
+
+func _resolve_barrel_soft_aim_position():
+	if _barrel_soft_aim_uid != "":
+		var soft_unit: BaseUnitServer = find_target_by_UID(_barrel_soft_aim_uid)
+		if is_valid_unit(soft_unit):
+			_barrel_soft_aim_pos = soft_unit.global_position
+			return soft_unit.global_position
+		var soft_fob: fob = _find_fob_by_uid(_barrel_soft_aim_uid)
+		if soft_fob != null:
+			_barrel_soft_aim_pos = soft_fob.global_position
+			return soft_fob.global_position
+		# Цель умерла / пропала — soft больше не держим.
+		_clear_barrel_soft_aim()
+		return null
+	if _barrel_soft_aim_pos != null:
+		return _barrel_soft_aim_pos
 	return null
 
 
-func _update_combat_facing(delta: float) -> void:
-	var aim_pos = _resolve_aim_world_position()
-	if aim_pos == null:
-		_has_facing_desired = false
-		return
-	var aim_vec: Vector2 = aim_pos as Vector2
-	if aim_vec.is_equal_approx(global_position):
-		_has_facing_desired = false
-		return
-	_apply_facing_toward(global_position.direction_to(aim_vec).angle(), delta)
+func _find_fob_by_uid(uid: String) -> fob:
+	if uid == "" or not is_inside_tree():
+		return null
+	for node in get_tree().get_nodes_in_group("fobs"):
+		if node is fob and (node as fob).UID == uid and (node as fob).is_alive():
+			return node as fob
+	return null
 
 
-func _compute_projectile_spread_offset() -> Vector2:
+func _has_live_barrel_target() -> bool:
+	var attack_order: Dictionary = _find_first_order(["attack"])
+	if not attack_order.is_empty() and is_instance_valid(attack_order.get("target")):
+		return true
+	var fob_order: Dictionary = _find_first_order(["attack_fob"])
+	if not fob_order.is_empty() and is_instance_valid(fob_order.get("target")):
+		return true
+	var pos_order: Dictionary = _find_first_order(["attack_position"])
+	if not pos_order.is_empty() and pos_order.has("position"):
+		return true
+	if _barrel_soft_aim_uid != "":
+		if is_valid_unit(find_target_by_UID(_barrel_soft_aim_uid)):
+			return true
+		if _find_fob_by_uid(_barrel_soft_aim_uid) != null:
+			return true
+		_clear_barrel_soft_aim()
+	return false
+
+
+func _clear_barrel_soft_aim() -> void:
+	_barrel_soft_aim_pos = null
+	_barrel_soft_aim_uid = ""
+
+
+func _remember_barrel_aim_pos(world_pos: Vector2, target_uid: String = "") -> void:
+	_barrel_soft_aim_pos = world_pos
+	_barrel_soft_aim_uid = target_uid
+	_barrel_follow_hull = false
+
+
+func _compute_projectile_spread_offset(target_pos: Vector2 = Vector2.INF) -> Vector2:
 	var ratio: float = _get_move_speed_ratio()
 	var spread_radius: float = ratio * MOVING_SHOOT_MAX_SPREAD
-	# Нет дискретного hit_chance: TURN_ACC_MULT как множитель точности → раздутие spread.
-	if _is_turning_to_aim():
+	# Разброс от несовпадения ствола с целью (и от движения).
+	var barrel_misaligned: bool = false
+	if target_pos.is_finite():
+		barrel_misaligned = _get_barrel_aim_error_rad(target_pos) > TURN_AIM_THRESHOLD_RAD
+	elif _is_turning_to_aim():
+		barrel_misaligned = true
+	if barrel_misaligned:
 		spread_radius = maxf(spread_radius, MOVING_SHOOT_MAX_SPREAD * (1.0 - TURN_ACC_MULT))
 		spread_radius /= TURN_ACC_MULT
 	if spread_radius <= 0.0:
@@ -1099,6 +1320,7 @@ func clear_orders() -> void:
 		_clear_active_route_wp()
 		_reset_route_patrol()
 		_reset_jitter_stuck_tracking()
+		_reset_move_steering_state()
 		navagent.target_position = global_position
 		_sync_order_queue_to_owner()
 
@@ -1252,6 +1474,12 @@ func attack(target: BaseUnitServer) -> void:
 		_profile_function_end("attack")
 		return
 	
+	_remember_barrel_aim_pos(target.global_position, target.UID)
+	# Огонь только если цель в конусе ствола (ствол доворачивается отдельно).
+	if not _is_barrel_in_fire_cone(target.global_position):
+		_profile_function_end("attack")
+		return
+	
 	current_state = "ready"
 	if _last_attack_state != current_state:
 		if _last_attack_state == "cooldown":
@@ -1267,7 +1495,7 @@ func attack(target: BaseUnitServer) -> void:
 	# Делегируем создание снаряда централизованной системе ProjectileSystem
 	if Handlers.ProjectileHandler:
 		var explosion_radius = 50.0  # Радиус взрыва (можно сделать настраиваемым параметром юнита)
-		var spread_offset: Vector2 = _compute_projectile_spread_offset()
+		var spread_offset: Vector2 = _compute_projectile_spread_offset(target.global_position)
 		if DEBUG_COMBAT:
 			Handlers.dprint("🚀 PROJECTILE: %s -> %s dmg=%d" % [name, target.name, damage])
 		Handlers.ProjectileHandler.rpc(
@@ -1296,9 +1524,13 @@ func attack_fob(target_fob: fob) -> void:
 	if reload_timer.time_left > 0:
 		_profile_function_end("attack_fob")
 		return
+	_remember_barrel_aim_pos(target_fob.global_position, target_fob.UID)
+	if not _is_barrel_in_fire_cone(target_fob.global_position):
+		_profile_function_end("attack_fob")
+		return
 	if Handlers.ProjectileHandler:
 		var explosion_radius = 50.0
-		var spread_offset: Vector2 = _compute_projectile_spread_offset()
+		var spread_offset: Vector2 = _compute_projectile_spread_offset(target_fob.global_position)
 		Handlers.ProjectileHandler.rpc(
 			"create_projectile", UID, target_fob.UID, damage, explosion_radius, spread_offset.x, spread_offset.y
 		)
@@ -1310,6 +1542,9 @@ func attack_fob(target_fob: fob) -> void:
 
 func attack_at_position(target_pos: Vector2) -> void:
 	if reload_timer.time_left > 0:
+		return
+	_remember_barrel_aim_pos(target_pos)
+	if not _is_barrel_in_fire_cone(target_pos):
 		return
 	if Handlers.ProjectileHandler:
 		var explosion_radius := 50.0
@@ -1881,6 +2116,10 @@ func _update_move_progress_or_abort(goal: Vector2, delta: float) -> void:
 	Если нет существенного приближения к финальной цели приказа —
 	abort + отход к FOB (battle log). На маршруте — дольше ждём и пробуем unstuck.
 	"""
+	# Разворот на месте — прогресса по дистанции нет, это не stuck.
+	if not _pivot_done and not _reverse_move_active:
+		no_progress_timer = 0.0
+		return
 	var dist: float = global_position.distance_to(goal)
 	if dist < _progress_best_dist - STUCK_PROGRESS_EPS:
 		_progress_best_dist = dist
@@ -1917,6 +2156,7 @@ func _abort_move_due_to_stuck() -> void:
 	_desired_velocity = Vector2.ZERO
 	velocity = Vector2.ZERO
 	_reset_jitter_stuck_tracking()
+	_reset_move_steering_state()
 	orders.clear()
 	var target_fob: fob = _find_nearest_own_fob()
 	if target_fob != null and target_fob.is_alive():

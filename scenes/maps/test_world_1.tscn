@@ -64,7 +64,7 @@ position = Vector2(911, -2528)
 player_slot_priority = 1
 
 [node name="SpawnerB" parent="MainMap" unique_id=1226671335 groups=["team_1_fobs"] instance=ExtResource("2_ptgwm")]
-position = Vector2(648, -1795)
+position = Vector2(611, -1961)
 team = 1
 
 [node name="OverlayMap" type="TileMapLayer" parent="." unique_id=253188926]

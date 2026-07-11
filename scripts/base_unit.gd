@@ -45,6 +45,8 @@ var preset_display_name: String = ""
 var preset_instance_number: int = 0
 var preset_icon_path: String = ""
 var preset_cost: int = 0
+## Макс. скорость из пресета (для клиента / pitch звука движения).
+var move_speed_max: int = 300
 
 # Сигнал смерти (общий для client/server)
 signal unit_died(dead_unit: BaseUnit)
@@ -215,6 +217,7 @@ func sync_preset_stats(
 	) -> void:
 	max_health = new_max_health
 	max_shield = new_max_shield
+	move_speed_max = _new_speed
 	preset_cost = new_preset_cost
 	set_vision_radius(new_vision_radius)
 	_refresh_unit_tracks()

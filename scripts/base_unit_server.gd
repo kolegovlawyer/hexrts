@@ -1325,20 +1325,11 @@ func _push_vitals_to_clients() -> void:
 	update_shield_bar()
 	if UID == "" or Handlers.GameHandler == null:
 		return
-	var game_handler := Handlers.GameHandler
 	for peer_id in multiplayer.get_peers():
 		if peer_id == multiplayer.get_unique_id():
 			continue
 		if _peer_should_get_vitals(peer_id):
-			game_handler.rpc_id(
-				peer_id,
-				"deliver_unit_vitals",
-				UID,
-				_health,
-				_shield,
-				max_health,
-				max_shield
-			)
+			_push_vitals_to_peer(peer_id)
 
 func _peer_should_get_vitals(peer_id: int) -> bool:
 	if bool(_peer_visibility.get(peer_id, false)):
@@ -1361,7 +1352,20 @@ func _push_vitals_to_peer(peer_id: int) -> void:
 	if UID == "" or Handlers.GameHandler == null:
 		return
 	Handlers.GameHandler.rpc_id(
-		peer_id, "deliver_unit_vitals", UID, _health, _shield, max_health, max_shield
+		peer_id,
+		"deliver_unit_vitals",
+		UID,
+		_health,
+		_shield,
+		max_health,
+		max_shield,
+		preset_cost,
+		vision_radius,
+		speed,
+		damage,
+		preset_display_name,
+		preset_instance_number,
+		preset_icon_path
 	)
 
 func _set_peer_visible(peer_id: int, is_visible_flag: bool) -> void:
@@ -1493,9 +1497,10 @@ func _safe_set_visibility(peer_id: int, is_visible_flag: bool) -> void:
 
 	synchronizer.set_visibility_for(peer_id, is_visible_flag)
 	_set_peer_visible(peer_id, is_visible_flag)
-	# При появлении из тумана сразу шлём актуальные vitals + caps.
+	# При появлении из тумана шлём vitals + preset (скейл/иконка).
+	# deferred: MultiplayerSynchronizer успевает заспавнить ноду на клиенте.
 	if is_visible_flag:
-		_push_vitals_to_peer(peer_id)
+		call_deferred("_push_vitals_to_peer", peer_id)
 			
 func set_visibility_for_enemy(is_visible_flag: bool) -> void:
 	"""Установка видимости для врагов с кэшированием + мгновенный push vitals."""

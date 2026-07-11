@@ -601,12 +601,30 @@ func deliver_unit_vitals(
 		health_value: int,
 		shield_value: int,
 		max_health_value: int,
-		max_shield_value: int
+		max_shield_value: int,
+		preset_cost_value: int = 0,
+		vision_radius_value: float = -1.0,
+		speed_value: int = 0,
+		damage_value: int = 0,
+		display_name: String = "",
+		instance_number: int = 0,
+		icon_path: String = ""
 	) -> void:
 	if multiplayer.is_server():
 		return
 	_deliver_unit_vitals_local(
-		unit_uid, health_value, shield_value, max_health_value, max_shield_value
+		unit_uid,
+		health_value,
+		shield_value,
+		max_health_value,
+		max_shield_value,
+		preset_cost_value,
+		vision_radius_value,
+		speed_value,
+		damage_value,
+		display_name,
+		instance_number,
+		icon_path
 	)
 
 
@@ -615,7 +633,14 @@ func _deliver_unit_vitals_local(
 		health_value: int,
 		shield_value: int,
 		max_health_value: int,
-		max_shield_value: int
+		max_shield_value: int,
+		preset_cost_value: int = 0,
+		vision_radius_value: float = -1.0,
+		speed_value: int = 0,
+		damage_value: int = 0,
+		display_name: String = "",
+		instance_number: int = 0,
+		icon_path: String = ""
 	) -> void:
 	for node in get_tree().get_nodes_in_group("units"):
 		if not node is BaseUnit:
@@ -627,6 +652,20 @@ func _deliver_unit_vitals_local(
 			unit.apply_vitals_from_network(
 				health_value, shield_value, max_health_value, max_shield_value
 			)
+		# FoW reveal: preset_cost/иконка не в SceneReplicationConfig и не доходят
+		# через spawn RPC, если peer не видел юнит в момент спавна.
+		if preset_cost_value > 0 or icon_path != "" or vision_radius_value > 0.0:
+			if unit.has_method("sync_preset_stats"):
+				unit.sync_preset_stats(
+					max_health_value if max_health_value > 0 else unit.max_health,
+					max_shield_value if max_shield_value > 0 else unit.max_shield,
+					speed_value,
+					damage_value,
+					vision_radius_value if vision_radius_value > 0.0 else unit.vision_radius,
+					preset_cost_value
+				)
+			if unit.has_method("sync_unit_appearance") and (display_name != "" or icon_path != ""):
+				unit.sync_unit_appearance(display_name, instance_number, icon_path)
 		return
 
 func register_fob(fob_node: fob) -> void:

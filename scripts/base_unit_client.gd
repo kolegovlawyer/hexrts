@@ -407,6 +407,7 @@ func sync_preset_stats(
 	# иначе при позднем reveal враг видит «полный» бар после урона.
 	max_health = new_max_health
 	max_shield = new_max_shield
+	move_speed_max = _new_speed
 	preset_cost = new_preset_cost
 	set_vision_radius(new_vision_radius)
 	if health_bar:

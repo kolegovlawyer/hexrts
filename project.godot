@@ -25,6 +25,7 @@ Handlers="*res://scripts/singletons/handlers.gd"
 GameTypes="*res://scripts/singletons/game_types.gd"
 PerfOverlay="*res://scenes/perf_overlay.tscn"
 UnitPresetManager="*res://scripts/units/unit_preset_manager.gd"
+AudioManager="*res://scripts/audio/audio_manager.gd"
 
 [file_customization]
 

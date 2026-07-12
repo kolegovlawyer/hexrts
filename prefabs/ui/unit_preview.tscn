@@ -1,13 +1,16 @@
-[gd_scene load_steps=6 format=3 uid="uid://mtmo2upuarub"]
+[gd_scene format=3 uid="uid://mtmo2upuarub"]
 
 [ext_resource type="Script" uid="uid://cl5tty8f5vcxp" path="res://scripts/UI/unit_preview.gd" id="1_cf8uu"]
+[ext_resource type="Theme" uid="uid://cs6k2aheouulp" path="res://prefabs/themes/main_theme.tres" id="1_ciobm"]
 [ext_resource type="Texture2D" uid="uid://xtpmtnqgkqlg" path="res://assets/all_icons/firing-no.png" id="2_ciobm"]
 [ext_resource type="Texture2D" uid="uid://bgictbaui21g2" path="res://assets/all_icons/rank-4.png" id="3_24qdo"]
 [ext_resource type="Texture2D" uid="uid://dxb6rm5gu5jv3" path="res://assets/all_icons/cross-l.png" id="4_cf8uu"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_ho80l"]
 
-[node name="UnitPreview" type="PanelContainer"]
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_cf8uu"]
+
+[node name="UnitPreview" type="PanelContainer" unique_id=24344194]
 anchors_preset = -1
 anchor_left = 0.457465
 anchor_top = 0.435957
@@ -18,56 +21,60 @@ grow_vertical = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 mouse_filter = 1
+theme = ExtResource("1_ciobm")
 theme_override_styles/panel = SubResource("StyleBoxEmpty_ho80l")
 script = ExtResource("1_cf8uu")
 metadata/_edit_use_anchors_ = true
 
-[node name="MainRack" type="VBoxContainer" parent="."]
+[node name="MainRack" type="VBoxContainer" parent="." unique_id=2061749264]
 layout_mode = 2
 
-[node name="StatusBoard" type="HBoxContainer" parent="MainRack"]
+[node name="StatusBoard" type="HBoxContainer" parent="MainRack" unique_id=791281917]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 3
 
-[node name="FireStatusIcon" type="TextureRect" parent="MainRack/StatusBoard"]
+[node name="FireStatusIcon" type="TextureRect" parent="MainRack/StatusBoard" unique_id=1664564312]
+visible = false
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("2_ciobm")
 
-[node name="Control" type="PanelContainer" parent="MainRack/StatusBoard"]
+[node name="Control" type="PanelContainer" parent="MainRack/StatusBoard" unique_id=207618943]
 custom_minimum_size = Vector2(50, 20)
 layout_mode = 2
 mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxEmpty_cf8uu")
 
-[node name="BarsDeck" type="VBoxContainer" parent="MainRack/StatusBoard/Control"]
+[node name="BarsDeck" type="VBoxContainer" parent="MainRack/StatusBoard/Control" unique_id=790227360]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 4
 theme_override_constants/separation = 1
 alignment = 1
 
-[node name="HPBar" type="ProgressBar" parent="MainRack/StatusBoard/Control/BarsDeck"]
+[node name="HPBar" type="ProgressBar" parent="MainRack/StatusBoard/Control/BarsDeck" unique_id=1351065851]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 3
+size_flags_vertical = 1
 show_percentage = false
 
-[node name="ShieldBar" type="ProgressBar" parent="MainRack/StatusBoard/Control/BarsDeck"]
+[node name="ShieldBar" type="ProgressBar" parent="MainRack/StatusBoard/Control/BarsDeck" unique_id=2146364428]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 3
+size_flags_vertical = 1
 value = 20.0
 show_percentage = false
 
-[node name="RankIcon" type="TextureRect" parent="MainRack/StatusBoard"]
+[node name="RankIcon" type="TextureRect" parent="MainRack/StatusBoard" unique_id=1234066707]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 texture = ExtResource("3_24qdo")
 
-[node name="SpriteIcon" type="TextureRect" parent="MainRack"]
+[node name="SpriteIcon" type="TextureRect" parent="MainRack" unique_id=1289074402]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
@@ -75,9 +82,10 @@ size_flags_vertical = 4
 texture = ExtResource("4_cf8uu")
 stretch_mode = 2
 
-[node name="NameLabel" type="Label" parent="MainRack"]
+[node name="NameLabel" type="Label" parent="MainRack" unique_id=1165827816]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
 text = "ШТ-21"
 horizontal_alignment = 1
+autowrap_mode = 2

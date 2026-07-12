@@ -199,11 +199,9 @@ func get_display_name() -> String:
 	if preset_display_name != "" and preset_instance_number > 0:
 		base = "%s #%d" % [preset_display_name, preset_instance_number]
 	else:
-		base = "Командир" if is_command_unit() else "Боец"
+		base = "Боец"
 		if UID.length() >= 4:
 			base = "%s %s" % [base, UID.right(4)]
-	if is_command_unit():
-		return "%s Командирский" % base
 	return base
 
 func _update_unit_name_label() -> void:

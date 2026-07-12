@@ -87,6 +87,10 @@ func update_visual() -> void:
 	sprite.scale = Vector2(icon_scale, icon_scale)
 
 	if rank:
+		# Фиксированный размер: иначе большая текстура ранга раздувает StatusBoard и бары.
+		rank.custom_minimum_size = Vector2(18, 18)
+		rank.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		rank.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		if unit.rank <= 0:
 			rank.hide()
 		else:

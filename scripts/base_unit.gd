@@ -294,7 +294,7 @@ func get_display_name() -> String:
 	"""Имя для UI/battle log. Переопределяется на клиенте при необходимости."""
 	if preset_display_name != "" and preset_instance_number > 0:
 		return "%s #%d" % [preset_display_name, preset_instance_number]
-	var base_name := "Командир" if is_command_unit() else "Боец"
+	var base_name := "Боец"
 	if UID.length() >= 4:
 		return "%s %s" % [base_name, UID.right(4)]
 	return base_name

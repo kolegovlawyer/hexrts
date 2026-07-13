@@ -22,23 +22,25 @@ func broadcast_sample(
 	) -> void:
 	if unit_uid == "":
 		return
-	if multiplayer.is_server():
-		if DisplayServer.get_name() != "headless":
-			_add_sample_local(unit_uid, from_pos, to_pos, settings)
-		rpc(
-			"receive_track_sample",
-			unit_uid,
-			from_pos.x,
-			from_pos.y,
-			to_pos.x,
-			to_pos.y,
-			settings.line_width,
-			settings.lifetime_sec,
-			settings.fade_window_sec,
-			settings.line_half_spacing,
-			settings.track_color,
-			settings.dissolve_color
-		)
+	if not multiplayer.is_server():
+		return
+	# Dedicated headless: только RPC клиентам. Host (с дисплеем) рисует локально как клиент.
+	if DisplayServer.get_name() != "headless":
+		_add_sample_local(unit_uid, from_pos, to_pos, settings)
+	rpc(
+		"receive_track_sample",
+		unit_uid,
+		from_pos.x,
+		from_pos.y,
+		to_pos.x,
+		to_pos.y,
+		settings.line_width,
+		settings.lifetime_sec,
+		settings.fade_window_sec,
+		settings.line_half_spacing,
+		settings.track_color,
+		settings.dissolve_color
+	)
 
 
 func stop_unit_tracks(unit_uid: String) -> void:

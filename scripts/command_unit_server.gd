@@ -199,7 +199,7 @@ func _unit_state_enter(state: int) -> void:
 # Переопределяем _physics_process для системы захвата гексов
 func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority() and orders.size() > 0 and orders[0].type == "move_capture":
-		var is_bot := Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
+		var is_bot := _cached_is_bot
 		if not is_bot and not _should_defer_route_order():
 			_process_move_capture_order_immediate(orders[0], delta, is_bot)
 	
@@ -637,7 +637,7 @@ func _on_command_unit_under_attack(_attacker: BaseUnit, victim: BaseUnit) -> voi
 		_cancel_deploy_fob("под атакой")
 
 	# Игровой КШМ: не вмешиваемся в приказы владельца.
-	var is_bot := Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
+	var is_bot := _cached_is_bot
 	if not is_bot:
 		return
 

@@ -50,6 +50,12 @@ var _debug_units_culled: int = 0
 
 func _ready() -> void:
 	"""Инициализация менеджера тумана войны"""
+	# Dedicated headless: FoW только для клиентов / Host. На сервере без дисплея — no-op.
+	if DisplayServer.get_name() == "headless":
+		set_process(false)
+		Handlers.dprint("🌫️ FOG_MANAGER: headless — disabled")
+		return
+
 	Handlers.dprint("🌫️ FOG_MANAGER: Инициализация")
 	
 	# Инициализируем массивы для данных юнитов

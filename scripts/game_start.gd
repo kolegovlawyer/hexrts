@@ -37,6 +37,8 @@ var observer_camera: Camera2D = null
 
 # Список активных ботов
 var active_bots: Array[Bot] = []
+# bot_id -> team_id: O(1) индекс к active_bots (массив остаётся для итераций)
+var _bot_team_by_id: Dictionary = {}
 
 ### POINTS SYSTEM ###
 
@@ -837,13 +839,32 @@ func create_ui():
 	var ui = load("res://scenes/client/base_ui.tscn").instantiate()
 	$"%UICanvasLayer".add_child(ui)
 
+# 30 Гц достаточно для RTS-симуляции на выделенном сервере.
+const SERVER_PHYSICS_TICKS: int = 30
+# Лимит догоняющих шагов не дает войти в спираль смерти физики —
+# лучше кратковременное замедление симуляции в пике, чем лавинообразный рост времени кадра.
+const SERVER_MAX_PHYSICS_STEPS: int = 4
+
 func set_type_server(port: int) -> void:
 	game_type = "Server"
+	_apply_dedicated_server_physics_budget()
 
 	instantiate_network()
 	create_camera(game_type)
 
 	Handlers.NetworkHandler.start_server(port)
+
+
+func _apply_dedicated_server_physics_budget() -> void:
+	# Только headless dedicated. Host из Lobby (с дисплеем) и клиент остаются на 60 Гц.
+	if DisplayServer.get_name() != "headless":
+		return
+	Engine.physics_ticks_per_second = SERVER_PHYSICS_TICKS
+	Engine.max_physics_steps_per_frame = SERVER_MAX_PHYSICS_STEPS
+	Handlers.dprint(
+		"Dedicated server physics: %d Hz, max_steps=%d"
+		% [SERVER_PHYSICS_TICKS, SERVER_MAX_PHYSICS_STEPS]
+	)
 
 func set_type_client(host:String, port:int, nickname:String):
 	game_type = "Client"
@@ -889,18 +910,10 @@ func _is_player_bot(player_id: int) -> bool:
 	"""
 	Проверяет является ли игрок ботом
 	"""
-	for bot in active_bots:
-		if bot.bot_id == player_id:
-			return true
-	return false
+	return _bot_team_by_id.has(player_id)
 
 func get_bot_team_by_id(player_id: int) -> int:
-	if active_bots.is_empty():
-		return -1
-	for bot in active_bots:
-		if bot.bot_id == player_id:
-			return int(bot.bot_team)
-	return -1
+	return int(_bot_team_by_id.get(player_id, -1))
 
 
 @rpc("any_peer", "reliable")
@@ -913,8 +926,10 @@ func set_movement_attack_enabled(enabled: bool) -> void:
 	movement_attack_by_player[player_id] = enabled
 
 
-func is_movement_attack_enabled(player_id: int) -> bool:
-	if get_bot_team_by_id(player_id) != -1:
+func is_movement_attack_enabled(player_id: int, known_is_bot: Variant = null) -> bool:
+	# known_is_bot: если юнит уже знает _cached_is_bot — не ходим в словарь лишний раз.
+	var is_bot: bool = bool(known_is_bot) if known_is_bot != null else (get_bot_team_by_id(player_id) != -1)
+	if is_bot:
 		return false
 	return movement_attack_by_player.get(player_id, true)
 
@@ -947,6 +962,7 @@ func register_bot(bot: Bot) -> void:
 	
 	if bot not in active_bots:
 		active_bots.append(bot)
+		_bot_team_by_id[bot.bot_id] = int(bot.bot_team)
 		Handlers.dprint("🤖 GAME: Зарегистрирован бот ", bot.bot_name, " (всего ботов: ", active_bots.size(), ")")
 		
 		# Убеждаемся что у бота есть очки в системе
@@ -965,6 +981,7 @@ func unregister_bot(bot: Bot) -> void:
 	"""
 	if bot in active_bots:
 		active_bots.erase(bot)
+		_bot_team_by_id.erase(bot.bot_id)
 		
 		# Удаляем бота из системы команд
 		if Handlers.TeamHandler:
@@ -978,6 +995,8 @@ func _connect_existing_units_to_bot(bot: Bot) -> void:
 	"""
 	var all_units = get_tree().get_nodes_in_group("units")
 	for unit in all_units:
+		if unit is BaseUnitServer and unit.owner_id == bot.bot_id:
+			unit._refresh_cached_is_bot()
 		if unit is BaseUnit:
 			_connect_unit_signals_to_bots(unit)
 

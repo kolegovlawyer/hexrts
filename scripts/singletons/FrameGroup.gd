@@ -5,7 +5,9 @@ var groups : Dictionary = {}
 
 func _ready():
 	Handlers.FrameGroupHandler = self
-	num_groups = ProjectSettings.get_setting("physics/common/physics_ticks_per_second")
+	# Engine.*, не ProjectSettings: на dedicated runtime может быть 30 Гц вместо 60.
+	# num_groups == ticks/sec → каждый юнит получает heavy-pass ~раз в секунду.
+	num_groups = Engine.physics_ticks_per_second
 	populate_groups()
   
 func _exit_tree():

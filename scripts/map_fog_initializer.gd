@@ -18,6 +18,13 @@ var fog_material: ShaderMaterial
 
 func _ready() -> void:
 	"""Инициализация системы тумана войны"""
+	# Dedicated headless: не строим оверлеи и не крутим FoW process.
+	if DisplayServer.get_name() == "headless":
+		if fog_manager:
+			fog_manager.set_process(false)
+		Handlers.dprint("🗺️ MAP_FOG_INIT: headless — skip fog setup")
+		return
+
 	Handlers.dprint("🗺️ MAP_FOG_INIT: Начало инициализации системы тумана войны")
 	
 	# Загружаем шейдер

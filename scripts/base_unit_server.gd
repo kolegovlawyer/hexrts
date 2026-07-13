@@ -37,11 +37,15 @@ var DEBUG_COMBAT: bool = false
 var _visibility_state_cached: bool = false
 var _last_enemy_visibility: bool = false
 var _last_enemy_visibility_valid: bool = false
-var _last_visibility_update_frame: int = -100
+# Было 10 физ. кадров при 60 Гц (~167 мс) — время, чтобы интервал не зависел от tick rate.
+const VISIBILITY_UPDATE_INTERVAL_MSEC: int = 167
+var _last_visibility_update_msec: int = -100000
 var _team_resolve_error_logged: bool = false
 var _can_see_target_uid: String = ""
 var _can_see_result: bool = false
-var _can_see_frame: int = -100
+# Было 3 физ. кадра при 60 Гц (~50 мс).
+const CAN_SEE_CACHE_MSEC: int = 50
+var _can_see_msec: int = -100000
 var _enemies_in_vision: Array[BaseUnitServer] = []
 # peer_id -> видит ли этот peer юнит сейчас (для мгновенного push vitals при reveal)
 var _peer_visibility: Dictionary = {}
@@ -53,6 +57,14 @@ var _synced_supply_state: bool = true
 
 # Флаг для отложенной инициализации команды (когда setter вызван до добавления в дерево)
 var _pending_team_initialization: bool = false
+# owner_id бота vs игрока не меняется в матче (кроме reconnect reassign) — кэш для горячих путей
+var _cached_is_bot: bool = false
+
+func _refresh_cached_is_bot() -> void:
+	if Handlers.GameHandler:
+		_cached_is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
+	else:
+		_cached_is_bot = false
 
 func _initialize_team_and_visibility() -> void:
 	"""
@@ -63,6 +75,7 @@ func _initialize_team_and_visibility() -> void:
 		return
 	
 	synchronizer.owner_id = owner_id
+	_refresh_cached_is_bot()
 	
 	# Безопасно получаем команду для серверных ботов и обычных игроков
 	var bot_team = Handlers.GameHandler.get_bot_team_by_id(owner_id)
@@ -178,9 +191,10 @@ const STUCK_ABORT_SECONDS: float = 5.0
 const STUCK_ABORT_ROUTE_SECONDS: float = 14.0
 const STUCK_PROGRESS_EPS: float = 12.0  # сколько нужно приблизиться к цели, чтобы сбросить таймер
 var _route_abort_unstuck_used: bool = false
-# Сколько кадров подряд упираемся в StaticBody — ранний обход без ожидания stuck 2.5s
-var _static_block_frames: int = 0
-var _unit_block_frames: int = 0
+# Ранний обход при упоре в StaticBody/юнита (было 10 кадров при 60 Гц ≈ 0.167 с).
+const BLOCK_UNSTUCK_SECONDS: float = 10.0 / 60.0
+var _static_block_time: float = 0.0
+var _unit_block_time: float = 0.0
 var _desired_velocity: Vector2 = Vector2.ZERO
 ## Желаемый угол курса (path или aim); для штрафа точности при довороте.
 var _facing_desired_angle: float = 0.0
@@ -189,19 +203,29 @@ var _has_facing_desired: bool = false
 # Кэш crowd-detour (дорогая проверка по группе units)
 var _crowd_cache_wp: Vector2 = Vector2.ZERO
 var _crowd_cache_final: Vector2 = Vector2.ZERO
-var _crowd_cache_frame: int = -999
+var _crowd_cache_msec: int = -999999
 # Липкий промежуточный waypoint (толпа), пока не доедем
 var _active_route_wp: Vector2 = Vector2.ZERO
 var _has_active_route_wp: bool = false
 # Зафиксированная сторона объезда: -1 left, +1 right, 0 unset (анти-трэшинг)
 var _crowd_commit_side: int = 0
 var _is_actively_moving: bool = false
+## Прореживание lateral bias: тяжёлый цикл раз в N тиков, между ними — кэш.
+const CROWD_BIAS_RECALC_TICKS: int = 3
+var _cached_crowd_bias: float = 0.0
+var _crowd_bias_has_neighbors: bool = false
+var _crowd_bias_tick_offset: int = 0
+## Статус блокера для соседей: каждый юнит обновляет сам в начале своего _physics_process.
+## Соседи, чей тик раньше, читают флаги с прошлого тика — для crowd это приемлемо.
+var is_stationary_blocker_flag: bool = true
+var is_soft_moving_blocker_flag: bool = false
 
 # Обход стоящих групп юнитов (маршрут, не только RVO)
 const CROWD_MIN_UNITS: int = 2
 const CROWD_CORRIDOR: float = 90.0
 const CROWD_DETOUR_MARGIN: float = 90.0
-const CROWD_CACHE_FRAMES: int = 12
+# Было 12 физ. кадров при 60 Гц (200 мс) — уже дольше CROWD_BIAS_RECALC_TICKS, не режем.
+const CROWD_CACHE_MSEC: int = 200
 const CROWD_REACH_DIST: float = 40.0
 const CROWD_PRIORITY_IDLE: float = 1.0
 const CROWD_PRIORITY_MOVING: float = 0.2
@@ -211,6 +235,7 @@ const CROWD_SCAN_RADIUS: float = 280.0
 const CROWD_SCAN_RADIUS_SQ: float = CROWD_SCAN_RADIUS * CROWD_SCAN_RADIUS
 const CLOSE_ENOUGH_ROUTE: float = 26.0
 const MOVING_ATTACK_MIN_SPEED: float = 8.0
+const MOVING_ATTACK_MIN_SPEED_SQ: float = MOVING_ATTACK_MIN_SPEED * MOVING_ATTACK_MIN_SPEED
 ## Минимальная доля скорости при полном рассогласовании курса (мягкая модель).
 const MOVE_ALIGN_MIN_SPEED: float = 0.35
 ## Порог «доворачивается» для штрафа точности (рад).
@@ -261,6 +286,8 @@ func _ready() -> void:
 	_base_reload_time = float(reload_time)
 	_base_shield_regen_rate = float(shield_regen_rate)
 	_base_turn_rate = turn_rate
+	# Фаза прореживания crowd-bias: юниты не бьют в один тик.
+	_crowd_bias_tick_offset = posmod(get_instance_id(), CROWD_BIAS_RECALC_TICKS)
 
 	# _process только для мерцания вне снабжения (Host)
 	set_process(false)
@@ -283,11 +310,12 @@ func _ready() -> void:
 			frame_group = Handlers.FrameGroupHandler.add_to_framegroup(self)
 			Handlers.dprint("🔧 FRAMEGROUP: %s группа %d" % [name, frame_group])
 		else:
-			frame_group = randi() % 60
+			frame_group = randi() % maxi(Engine.physics_ticks_per_second, 1)
 			Handlers.dprint("⚠️ FRAMEGROUP: %s случайная группа %d (handler недоступен)" % [name, frame_group])
 	
 	if is_multiplayer_authority():
 		UID = str(generate_numeric_id(10))
+		_refresh_cached_is_bot()
 		# Регистрируем серверный юнит для корректных ссылок и поиска
 		if not is_in_group("units"):
 			add_to_group("units")
@@ -390,13 +418,16 @@ func _physics_process(delta: float) -> void:
 	_profile_function_start("_physics_process")
 	
 	if is_multiplayer_authority():
+		# Один раз за тик: соседи читают эти флаги без вызовов функций / str(orders).
+		# Отставание на 1 тик для юнитов, обработанных раньше в том же кадре, OK для crowd.
+		_update_blocker_flags()
 		
 		# === ЛЕГКИЕ ВЫЧИСЛЕНИЯ (КАЖДЫЙ ФРЕЙМ - МГНОВЕННАЯ РЕАКЦИЯ) ===
 		# Быстрая локальная проверка видимости (без сетевых операций)
 		_quick_visibility_check()
 		
 		# ⚡ КРИТИЧЕСКИ ВАЖНО: Обработка приказов ТОЛЬКО ИГРОКОВ мгновенно!
-		var _is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
+		var _is_bot = _cached_is_bot
 		if not _is_bot and orders.size() > 0:
 			# move_capture обрабатывает CommandUnitServer — не как обычный move
 			var move_order: Dictionary = _find_first_order(["move"])
@@ -444,14 +475,14 @@ func _physics_process(delta: float) -> void:
 			# Soft lateral bias away from locked blockers so RVO prefers a side early
 			_desired_velocity = _apply_lateral_crowd_bias(_desired_velocity)
 			navagent.set_velocity(_desired_velocity)
-			_check_early_block_unstuck()
+			_check_early_block_unstuck(delta)
 		else:
 			navagent.avoidance_priority = CROWD_PRIORITY_IDLE
 			_desired_velocity = Vector2.ZERO
 			velocity = Vector2.ZERO
 			navagent.set_velocity(Vector2.ZERO)
-			_static_block_frames = 0
-			_unit_block_frames = 0
+			_static_block_time = 0.0
+			_unit_block_time = 0.0
 			_reset_jitter_stuck_tracking()
 		
 		# Ствол: к цели стрельбы или к корпусу (независимо от движения).
@@ -597,15 +628,15 @@ func _advance_queue_after_move_leg() -> void:
 		stuck_timer = 0.0
 		no_progress_timer = 0.0
 		_progress_best_dist = INF
-		_static_block_frames = 0
-		_unit_block_frames = 0
+		_static_block_time = 0.0
+		_unit_block_time = 0.0
 		return
 	_clear_active_route_wp(true)
 	stuck_timer = 0.0
 	no_progress_timer = 0.0
 	_progress_best_dist = INF
-	_static_block_frames = 0
-	_unit_block_frames = 0
+	_static_block_time = 0.0
+	_unit_block_time = 0.0
 	if orders.is_empty():
 		unit_state = UNIT_STATES.IDLE
 	elif not _has_order_type("attack") and not _has_order_type("attack_fob") \
@@ -780,7 +811,7 @@ func _process_heavy_server_calculations(delta: float) -> void:
 	"""
 	_profile_function_start("_process_heavy_server_calculations")
 	
-	var is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
+	var is_bot = _cached_is_bot
 	
 	# === ТЯЖЕЛЫЕ СЕТЕВЫЕ ОПЕРАЦИИ ВИДИМОСТИ ===
 	_process_visibility_heavy()
@@ -1001,7 +1032,7 @@ func toggle_auto_attack() -> void:
 func add_order(order_obj, clear_queue: bool = false, _capture_at_destination: bool = false) -> void:
 	# Проверка владельца: обычные игроки или сервер для ботов
 	var sender_id = multiplayer.get_remote_sender_id()
-	var is_bot = Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1
+	var is_bot = _cached_is_bot
 	
 	# Для прямых вызовов от ботов на сервере - разрешаем без проверки sender_id
 	if is_bot and is_multiplayer_authority():
@@ -1056,7 +1087,7 @@ func _build_order_queue_snapshot() -> Array:
 func _sync_order_queue_to_owner() -> void:
 	if not is_multiplayer_authority():
 		return
-	if Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1:
+	if _cached_is_bot:
 		return
 	rpc_id(owner_id, "sync_order_queue", _build_order_queue_snapshot())
 
@@ -1095,7 +1126,7 @@ func _should_preserve_moving_state() -> bool:
 func _is_movement_attack_enabled() -> bool:
 	if not Handlers.GameHandler:
 		return false
-	return Handlers.GameHandler.is_movement_attack_enabled(owner_id)
+	return Handlers.GameHandler.is_movement_attack_enabled(owner_id, _cached_is_bot)
 
 
 func _get_move_speed_ratio() -> float:
@@ -1445,23 +1476,23 @@ func rpc_apply_aoe_damage(center: Vector2, radius: float, amount: int, instigato
 				unit.apply_damage(amount, instigator)
 
 func can_see_target(target: BaseUnitServer) -> bool:
-	"""Проверяет, может ли юнит видеть указанную цель (кэш на 3 физ. кадра)."""
+	"""Проверяет, может ли юнит видеть указанную цель (кэш ~50 мс реального времени)."""
 	if not is_instance_valid(target):
 		return false
 	
-	var current_frame := Engine.get_physics_frames()
-	if target.UID == _can_see_target_uid and current_frame - _can_see_frame < 3:
+	var now_msec := Time.get_ticks_msec()
+	if target.UID == _can_see_target_uid and now_msec - _can_see_msec < CAN_SEE_CACHE_MSEC:
 		return _can_see_result
 	
 	var can_see := false
-	if Handlers.GameHandler.get_bot_team_by_id(owner_id) != -1:
+	if _cached_is_bot:
 		can_see = global_position.distance_squared_to(target.global_position) <= 160000.0
 	else:
 		can_see = has_vision_on.has(target)
 	
 	_can_see_target_uid = target.UID
 	_can_see_result = can_see
-	_can_see_frame = current_frame
+	_can_see_msec = now_msec
 	return can_see
 
 func can_see_fob(target_fob: fob) -> bool:
@@ -1853,7 +1884,7 @@ func is_valid_unit(unit) -> bool:
 
 
 func _get_living_unit_servers() -> Array[BaseUnitServer]:
-	"""Снапшот живых юнитов без get_nodes_in_group (O(1) доступ к массиву)."""
+	"""Ссылка на кэш живых юнитов GameHandler (без копии/фильтра на каждый вызов)."""
 	if Handlers.GameHandler != null and Handlers.GameHandler.has_method("get_living_unit_servers"):
 		return Handlers.GameHandler.get_living_unit_servers()
 	var fallback: Array[BaseUnitServer] = []
@@ -1874,12 +1905,13 @@ func server_reassign_owner(new_owner_id: int) -> void:
 	owner_team = null
 	_team_resolve_error_logged = false
 	_last_enemy_visibility_valid = false
+	_refresh_cached_is_bot()
 
 
 func force_update_visibility() -> void:
 	if not is_multiplayer_authority():
 		return
-	_last_visibility_update_frame = -100
+	_last_visibility_update_msec = -100000
 	_last_enemy_visibility_valid = false
 	update_visibility()
 
@@ -1889,10 +1921,10 @@ func update_visibility():
 	if not is_multiplayer_authority():
 		return
 	
-	var current_frame := Engine.get_physics_frames()
-	if current_frame - _last_visibility_update_frame < 10:
+	var now_msec := Time.get_ticks_msec()
+	if now_msec - _last_visibility_update_msec < VISIBILITY_UPDATE_INTERVAL_MSEC:
 		return
-	_last_visibility_update_frame = current_frame
+	_last_visibility_update_msec = now_msec
 	
 	var unit_team = _get_cached_team()
 	if unit_team == null:
@@ -2063,7 +2095,7 @@ func _fix_visibility_after_init() -> void:
 	if not is_multiplayer_authority():
 		return
 	
-	_last_visibility_update_frame = -100
+	_last_visibility_update_msec = -100000
 	update_visibility()
 	_rebuild_enemies_in_vision()
 
@@ -2413,8 +2445,8 @@ func _abort_move_due_to_stuck() -> void:
 	stuck_timer = 0.0
 	no_progress_timer = 0.0
 	_progress_best_dist = INF
-	_static_block_frames = 0
-	_unit_block_frames = 0
+	_static_block_time = 0.0
+	_unit_block_time = 0.0
 	_route_abort_unstuck_used = false
 	_desired_velocity = Vector2.ZERO
 	velocity = Vector2.ZERO
@@ -2487,7 +2519,7 @@ func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
 	Выход из застревания: маршрутный detour (толпа),
 	потом боковой hop с той же commit-стороны. Random — только крайний случай.
 	"""
-	_crowd_cache_frame = -999
+	_crowd_cache_msec = -999999
 	# Не сбрасываем _crowd_commit_side — иначе начинается метание left/right
 	
 	var smart: Vector2 = _route_smart_target(original_target)
@@ -2531,7 +2563,7 @@ func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
 	_set_active_route_wp(random_position)
 
 
-func _check_early_block_unstuck() -> void:
+func _check_early_block_unstuck(delta: float) -> void:
 	"""Ранний detour при упирании в статику/юнитов — без сброса стороны и без random thrash."""
 	var hit_static := false
 	var hit_unit := false
@@ -2547,26 +2579,26 @@ func _check_early_block_unstuck() -> void:
 		elif collider is BaseUnitServer and collider != self:
 			hit_unit = true
 	if hit_static:
-		_static_block_frames += 1
-		if _static_block_frames >= 10:
-			_crowd_cache_frame = -999
+		_static_block_time += delta
+		if _static_block_time >= BLOCK_UNSTUCK_SECONDS:
+			_crowd_cache_msec = -999999
 			var order_target: Vector2 = _get_current_order_target()
 			var smart: Vector2 = _route_smart_target(order_target)
 			navagent.target_position = smart
-			_static_block_frames = 0
+			_static_block_time = 0.0
 	else:
-		_static_block_frames = 0
+		_static_block_time = 0.0
 	if hit_unit:
-		_unit_block_frames += 1
-		if _unit_block_frames >= 10:
-			_crowd_cache_frame = -999
+		_unit_block_time += delta
+		if _unit_block_time >= BLOCK_UNSTUCK_SECONDS:
+			_crowd_cache_msec = -999999
 			# Только пересчёт маршрута, без clear side / random
 			var order_target2: Vector2 = _get_current_order_target()
 			var smart2: Vector2 = _route_smart_target(order_target2)
 			navagent.target_position = smart2
-			_unit_block_frames = 0
+			_unit_block_time = 0.0
 	else:
-		_unit_block_frames = 0
+		_unit_block_time = 0.0
 
 
 func _get_current_order_target() -> Vector2:
@@ -2593,40 +2625,64 @@ func _set_active_route_wp(wp: Vector2) -> void:
 	_has_active_route_wp = true
 
 
-func _is_unit_stationary_blocker(other: BaseUnitServer) -> bool:
+func _update_blocker_flags() -> void:
+	"""Вычисляет флаги блокера один раз за тик (логика бывших _is_*_blocker без caller-зависимых проверок)."""
+	is_stationary_blocker_flag = _eval_is_stationary_blocker()
+	is_soft_moving_blocker_flag = _eval_is_soft_moving_blocker()
+
+
+func _eval_is_stationary_blocker() -> bool:
 	"""Юнит без активного move — препятствие (locked idle)."""
-	if not is_instance_valid(other):
-		return false
-	if other.orders.size() > 0:
-		var ot: String = str(other.orders[0].get("type", ""))
+	if orders.size() > 0:
+		var ot: String = str(orders[0].get("type", ""))
 		if ot == "move" or ot == "move_capture":
 			return false
-	# Нет move-приказа — даже если RVO когда-то дёргал velocity
 	return true
 
 
+func _eval_is_soft_moving_blocker() -> bool:
+	"""Есть move-приказ и почти нет скорости. Проверку союзности (owner_id) делает вызывающий."""
+	if orders.is_empty():
+		return false
+	var ot: String = str(orders[0].get("type", ""))
+	if ot != "move" and ot != "move_capture":
+		return false
+	return velocity.length_squared() < MOVING_ATTACK_MIN_SPEED_SQ
+
+
+func _is_unit_stationary_blocker(other: BaseUnitServer) -> bool:
+	"""Не для горячих циклов: читать other.is_stationary_blocker_flag."""
+	return is_instance_valid(other) and other.is_stationary_blocker_flag
+
+
 func _is_soft_moving_blocker(other: BaseUnitServer) -> bool:
-	"""Союзник с move-приказом, но почти не движется — мягкое препятствие."""
+	"""Не для горячих циклов: флаг + локальная проверка союзности."""
 	if not is_instance_valid(other) or other == self:
 		return false
 	if other.owner_id != owner_id:
 		return false
-	if other.orders.is_empty():
-		return false
-	var ot: String = str(other.orders[0].get("type", ""))
-	if ot != "move" and ot != "move_capture":
-		return false
-	return other.velocity.length() < MOVING_ATTACK_MIN_SPEED
+	return other.is_soft_moving_blocker_flag
 
 
 func _apply_lateral_crowd_bias(desired: Vector2) -> Vector2:
 	"""
 	Лёгкий боковой bias от ближайших locked-юнитов и медленных союзников впереди.
+	Тяжёлый цикл — раз в CROWD_BIAS_RECALC_TICKS; между тиками применяется _cached_crowd_bias.
 	"""
 	if desired.length_squared() < 1.0 or not is_inside_tree():
 		return desired
 	var fwd: Vector2 = desired.normalized()
 	var left: Vector2 = Vector2(-fwd.y, fwd.x)
+
+	var tick: int = Engine.get_physics_frames()
+	if ((tick + _crowd_bias_tick_offset) % CROWD_BIAS_RECALC_TICKS) == 0:
+		_recalc_cached_crowd_bias(fwd, left)
+
+	return _apply_cached_crowd_bias(desired, left)
+
+
+func _recalc_cached_crowd_bias(fwd: Vector2, left: Vector2) -> void:
+	"""Тяжёлый цикл по соседям; обновляет _cached_crowd_bias и _crowd_commit_side."""
 	var lateral_sum: float = 0.0
 	var samples: int = 0
 	for ou in _get_living_unit_servers():
@@ -2635,10 +2691,12 @@ func _apply_lateral_crowd_bias(desired: Vector2) -> Vector2:
 		var dist_sq: float = global_position.distance_squared_to(ou.global_position)
 		if dist_sq > CROWD_SCAN_RADIUS_SQ:
 			continue
-		var is_stationary: bool = _is_unit_stationary_blocker(ou)
+		# Флаги сосед обновляет в своём _physics_process (возможен лаг 1 тик).
+		var is_stationary: bool = ou.is_stationary_blocker_flag
 		var is_soft_moving: bool = false
 		if not is_stationary:
-			is_soft_moving = _is_soft_moving_blocker(ou)
+			# Союзность — дешёвое сравнение int на стороне вызывающего.
+			is_soft_moving = ou.is_soft_moving_blocker_flag and ou.owner_id == owner_id
 			if not is_soft_moving:
 				continue
 		var to_other: Vector2 = ou.global_position - global_position
@@ -2654,18 +2712,30 @@ func _apply_lateral_crowd_bias(desired: Vector2) -> Vector2:
 		samples += 1
 		if samples >= 6:
 			break
+
 	if samples == 0:
-		# Если уже закоммитили сторону объезда — soft bias в ту же сторону
-		if _crowd_commit_side != 0:
-			return (desired + left * float(_crowd_commit_side) * speed * 0.25).normalized() * desired.length()
-		return desired
+		_cached_crowd_bias = 0.0
+		_crowd_bias_has_neighbors = false
+		return
+
 	var bias: float = clampf(lateral_sum / float(samples), -1.0, 1.0)
-	# Commit side from bias when strong enough
+	# Commit side from bias when strong enough (только в тики пересчёта)
 	if _crowd_commit_side == 0 and absf(bias) > 0.25:
 		_crowd_commit_side = 1 if bias > 0.0 else -1
 	elif _crowd_commit_side != 0:
 		bias = float(_crowd_commit_side) * maxf(absf(bias), 0.5)
-	var biased: Vector2 = desired + left * bias * speed * LATERAL_PUSH_STRENGTH
+	_cached_crowd_bias = bias
+	_crowd_bias_has_neighbors = true
+
+
+func _apply_cached_crowd_bias(desired: Vector2, left: Vector2) -> Vector2:
+	"""Применяет кэш bias к текущему desired; left — от текущего desired."""
+	if not _crowd_bias_has_neighbors:
+		# Семантика samples == 0: commit side всё ещё даёт soft bias.
+		if _crowd_commit_side != 0:
+			return (desired + left * float(_crowd_commit_side) * speed * 0.25).normalized() * desired.length()
+		return desired
+	var biased: Vector2 = desired + left * _cached_crowd_bias * speed * LATERAL_PUSH_STRENGTH
 	if biased.length_squared() < 1.0:
 		return desired
 	return biased.normalized() * desired.length()
@@ -2695,15 +2765,15 @@ func _get_crowd_detour_waypoint(final_target: Vector2) -> Vector2:
 	if not is_inside_tree():
 		return final_target
 	
-	var frame: int = Engine.get_physics_frames()
-	if frame - _crowd_cache_frame < CROWD_CACHE_FRAMES and _crowd_cache_final.distance_squared_to(final_target) < 64.0:
+	var now_msec: int = Time.get_ticks_msec()
+	if now_msec - _crowd_cache_msec < CROWD_CACHE_MSEC and _crowd_cache_final.distance_squared_to(final_target) < 64.0:
 		return _crowd_cache_wp
 	
 	var from: Vector2 = global_position
 	var segment: Vector2 = final_target - from
 	var seg_len_sq: float = segment.length_squared()
 	if seg_len_sq < 1600.0:
-		_store_crowd_cache(final_target, final_target, frame)
+		_store_crowd_cache(final_target, final_target, now_msec)
 		return final_target
 	
 	var along: Vector2 = segment.normalized()
@@ -2715,7 +2785,7 @@ func _get_crowd_detour_waypoint(final_target: Vector2) -> Vector2:
 			continue
 		if global_position.distance_squared_to(ou.global_position) > CROWD_SCAN_RADIUS_SQ:
 			continue
-		if not _is_unit_stationary_blocker(ou):
+		if not ou.is_stationary_blocker_flag:
 			continue
 		var op: Vector2 = ou.global_position
 		var t: float = clampf(((op - from).dot(segment)) / seg_len_sq, 0.0, 1.0)
@@ -2726,7 +2796,7 @@ func _get_crowd_detour_waypoint(final_target: Vector2) -> Vector2:
 			blockers.append(op)
 	
 	if blockers.size() < CROWD_MIN_UNITS:
-		_store_crowd_cache(final_target, final_target, frame)
+		_store_crowd_cache(final_target, final_target, now_msec)
 		return final_target
 	
 	var centroid: Vector2 = Vector2.ZERO
@@ -2765,20 +2835,20 @@ func _get_crowd_detour_waypoint(final_target: Vector2) -> Vector2:
 		navagent.target_position = other
 		if navagent.is_target_reachable():
 			_crowd_commit_side = 1 if other == right_wp else -1
-			_store_crowd_cache(final_target, other, frame)
+			_store_crowd_cache(final_target, other, now_msec)
 			return other
 		navagent.target_position = prev_target
-		_store_crowd_cache(final_target, final_target, frame)
+		_store_crowd_cache(final_target, final_target, now_msec)
 		return final_target
 	
-	_store_crowd_cache(final_target, chosen, frame)
+	_store_crowd_cache(final_target, chosen, now_msec)
 	return chosen
 
 
-func _store_crowd_cache(final_target: Vector2, wp: Vector2, frame: int) -> void:
+func _store_crowd_cache(final_target: Vector2, wp: Vector2, now_msec: int) -> void:
 	_crowd_cache_final = final_target
 	_crowd_cache_wp = wp
-	_crowd_cache_frame = frame
+	_crowd_cache_msec = now_msec
 
 
 func _crowd_side_score(waypoint: Vector2, blockers: Array[Vector2]) -> float:

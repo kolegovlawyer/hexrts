@@ -35,7 +35,7 @@ const RECRUITMENT_QUADRATIC_COEF := 0.00002
 # Максимальный бонус найма от гексов (сверх BASE_RECRUITMENT_RATE), в очках/сек
 const RECRUITMENT_BONUS_CAP := 10.0
 # Стартовые очки найма у игрока при входе в матч
-const INITIAL_RECRUITMENT_POINTS := 100.0
+const INITIAL_RECRUITMENT_POINTS := 1000.0
 
 # Дефолтная длительность матча (минуты) для каждой карты из лобби, если хост не менял preset
 const MAP_DEFAULT_DURATION_MINUTES: Dictionary = {

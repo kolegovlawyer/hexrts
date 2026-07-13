@@ -1,7 +1,8 @@
 class_name MiniMap extends PanelContainer
 
 const MARKER_TEX_SIZE := 16
-const UPDATE_INTERVAL := 0.1
+const UPDATE_INTERVAL := 0.1 ## Гексовый слой ~10 Hz
+const UNIT_MARKER_UPDATE_INTERVAL := 0.066 ## Маркеры юнитов ~15 Hz
 const BACKGROUND_COLOR := Color(0.12, 0.12, 0.16, 1.0)
 const HEX_FILL_ALPHA := 0.38
 const HEX_RADIUS_TILE_FRACTION := 0.32 * 1.8
@@ -27,6 +28,7 @@ var _marker_texture: Texture2D = null
 var _unit_marker_world_size: float = 48.0
 
 var _update_timer: float = 0.0
+var _unit_marker_timer: float = 0.0
 var _camera_connected: bool = false
 
 
@@ -109,7 +111,10 @@ func minimap_to_world(minimap_pos: Vector2) -> Vector2:
 func _process(delta: float) -> void:
 	if _world == null:
 		return
-	_refresh_unit_markers()
+	_unit_marker_timer -= delta
+	if _unit_marker_timer <= 0.0:
+		_unit_marker_timer = UNIT_MARKER_UPDATE_INTERVAL
+		_refresh_unit_markers()
 	_update_timer -= delta
 	if _update_timer <= 0.0:
 		_update_timer = UPDATE_INTERVAL

@@ -15,7 +15,7 @@ var camera: Camera2D
 # Настройки производительности
 @export_group("Performance Settings")
 @export var max_units_processed: int = 64 ## Максимальное количество обрабатываемых юнитов
-@export var update_frequency: float = 0.05  ## 20 Hz; 0.0 = каждый фрейм
+@export var update_frequency: float = 0.05  ## 20 Hz; не ставить 0 (каждый кадр) без нужды
 # Удаляем неиспользуемые настройки отсечения по расстоянию
 #@export var distance_culling_enabled: bool = true
 #@export var max_visibility_distance: float = 2000.0
@@ -37,6 +37,11 @@ var _current_viewport_size: Vector2
 var _unit_positions: PackedFloat32Array
 var _unit_radii: PackedFloat32Array
 var _active_unit_count: int = 0
+
+## Кэш союзных источников зрения: пересобирается раз за обновление тумана.
+var _ally_vision_sources_cache: Array = []
+var _ally_vision_cache_built: bool = false
+
 
 # Отладочная информация
 var _debug_enabled: bool = false
@@ -118,6 +123,9 @@ func _update_fog_system() -> void:
 	# Обновляем данные камеры
 	_update_camera_data()
 	
+	# Один раз за тик тумана: кэш источников для шейдера и get_visibility_at_world
+	_rebuild_ally_vision_sources_cache()
+	
 	# Собираем данные видимых юнитов
 	_collect_unit_data()
 	
@@ -135,34 +143,39 @@ func _update_camera_data() -> void:
 	_current_viewport_size = get_viewport().get_visible_rect().size
 
 
-
-func _get_ally_vision_sources() -> Array:
-	var sources: Array = []
+func _rebuild_ally_vision_sources_cache() -> void:
+	_ally_vision_sources_cache.clear()
+	_ally_vision_cache_built = true
 	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
-		return sources
+		return
 	var player_team = Handlers.TeamHandler.my_profile.team
 	if player_team == null:
-		return sources
+		return
 
 	for fob_node in get_tree().get_nodes_in_group("fobs"):
-		if sources.size() >= max_units_processed:
+		if _ally_vision_sources_cache.size() >= max_units_processed:
 			break
 		if not is_instance_valid(fob_node) or not fob_node is fob:
 			continue
 		if not _is_ally_fob(fob_node, player_team):
 			continue
-		sources.append(fob_node)
+		_ally_vision_sources_cache.append(fob_node)
 
+	# Группа units есть и на клиенте, и на сервере; living_unit_servers — только authority.
 	for unit in get_tree().get_nodes_in_group("units"):
-		if sources.size() >= max_units_processed:
+		if _ally_vision_sources_cache.size() >= max_units_processed:
 			break
 		if not is_instance_valid(unit) or not unit is BaseUnit:
 			continue
 		if not _is_ally_unit(unit, player_team):
 			continue
-		sources.append(unit)
+		_ally_vision_sources_cache.append(unit)
 
-	return sources
+
+func _get_ally_vision_sources() -> Array:
+	if not _ally_vision_cache_built:
+		_rebuild_ally_vision_sources_cache()
+	return _ally_vision_sources_cache
 
 
 func get_visibility_at_world(world_pos: Vector2) -> float:
@@ -364,16 +377,16 @@ func set_performance_preset(preset: String) -> void:
 	match preset.to_lower():
 		"low":
 			max_units_processed = 16
-			update_frequency = 0.033 # 30 FPS
+			update_frequency = 0.1 # 10 Hz
 		"medium":
 			max_units_processed = 32
-			update_frequency = 0.025 # 40 FPS
+			update_frequency = 0.05 # 20 Hz
 		"high":
 			max_units_processed = 48
-			update_frequency = 0.020 # 50 FPS
+			update_frequency = 0.05 # 20 Hz
 		"ultra":
 			max_units_processed = 64
-			update_frequency = 0.016 # 60 FPS
+			update_frequency = 0.033 # ~30 Hz
 		_:
 			Handlers.dprint("⚠️ FOG_MANAGER: неизвестная предустановка: %s" % preset)
 			return

@@ -7,6 +7,8 @@ const _SupplySystemScript := preload("res://scripts/supply/supply_system.gd")
 var game_type = "UNKNOWN"
 var map
 @onready var units_dict: Dictionary[String, BaseUnit] = {}
+## Живые серверные юниты: обновляется на спавне/смерти, без get_nodes_in_group.
+var living_unit_servers: Array[BaseUnitServer] = []
 var fobs_dict: Dictionary = {}
 
 # Словарь гексов карты: позиция_гекса -> объект Hex
@@ -862,6 +864,24 @@ func get_unit_by_name(node_name):
 	
 func get_all_units():
 	return get_node("Spawnables").get_children()
+
+
+func get_living_unit_servers() -> Array[BaseUnitServer]:
+	return living_unit_servers
+
+
+func register_living_unit_server(unit: BaseUnitServer) -> void:
+	if unit == null or not is_instance_valid(unit):
+		return
+	if not living_unit_servers.has(unit):
+		living_unit_servers.append(unit)
+
+
+func unregister_living_unit_server(unit: BaseUnitServer) -> void:
+	if unit == null:
+		return
+	living_unit_servers.erase(unit)
+
 
 ### BOT MANAGEMENT FUNCTIONS ###
 

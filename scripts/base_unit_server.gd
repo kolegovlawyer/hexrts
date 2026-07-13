@@ -206,6 +206,9 @@ const CROWD_REACH_DIST: float = 40.0
 const CROWD_PRIORITY_IDLE: float = 1.0
 const CROWD_PRIORITY_MOVING: float = 0.2
 const CROWD_PRIORITY_ROUTE: float = 0.05
+## Ранний отсев в crowd-циклах (bias ~70px, corridor ~90px).
+const CROWD_SCAN_RADIUS: float = 280.0
+const CROWD_SCAN_RADIUS_SQ: float = CROWD_SCAN_RADIUS * CROWD_SCAN_RADIUS
 const CLOSE_ENOUGH_ROUTE: float = 26.0
 const MOVING_ATTACK_MIN_SPEED: float = 8.0
 ## Минимальная доля скорости при полном рассогласовании курса (мягкая модель).
@@ -291,6 +294,8 @@ func _ready() -> void:
 		if Handlers.GameHandler and Handlers.GameHandler.has_method("get"):
 			if not Handlers.GameHandler.units_dict.has(UID):
 				Handlers.GameHandler.units_dict[UID] = self
+			if Handlers.GameHandler.has_method("register_living_unit_server"):
+				Handlers.GameHandler.register_living_unit_server(self)
 		if Handlers.GameHandler and Handlers.GameHandler.has_method("register_new_unit"):
 			Handlers.GameHandler.register_new_unit(self)
 		navagent.connect("velocity_computed", on_velocity_computed)
@@ -320,6 +325,8 @@ func _exit_tree() -> void:
 	if Handlers.GameHandler and Handlers.GameHandler.has_method("get"):
 		if Handlers.GameHandler.units_dict.has(UID):
 			Handlers.GameHandler.units_dict.erase(UID)
+		if Handlers.GameHandler.has_method("unregister_living_unit_server"):
+			Handlers.GameHandler.unregister_living_unit_server(self)
 	if is_in_group("units"):
 		remove_from_group("units")
 	# Listen-server рисует BaseUnitServer — без клиентского _exit_tree выделение
@@ -1368,10 +1375,9 @@ func find_target_by_UID(target_uid: String) -> BaseUnitServer:
 		if target:
 			return target
 	
-	# Альтернативный поиск через группы
-	var units = get_tree().get_nodes_in_group("units")
-	for unit in units:
-		if unit.has_method("get") and unit.get("UID") == target_uid:
+	# Альтернативный поиск через кэш живых юнитов
+	for unit in _get_living_unit_servers():
+		if unit.UID == target_uid:
 			return unit
 	
 	return null
@@ -1422,9 +1428,9 @@ func rpc_apply_aoe_damage(center: Vector2, radius: float, amount: int, instigato
 	if instigator_uid != "":
 		instigator = find_target_by_UID(instigator_uid)
 	
-	var units = get_tree().get_nodes_in_group("units")
+	var units = _get_living_unit_servers()
 	for unit in units:
-		if unit is BaseUnitServer and unit != null and is_instance_valid(unit):
+		if unit != null and is_instance_valid(unit):
 			var d2 = center.distance_squared_to(unit.global_position)
 			if d2 <= radius_sq:
 				# FF фильтр с логом
@@ -1826,6 +1832,8 @@ func die() -> void:
 	if Handlers.GameHandler and Handlers.GameHandler.has_method("get"):
 		if Handlers.GameHandler.units_dict.has(UID):
 			Handlers.GameHandler.units_dict.erase(UID)
+		if Handlers.GameHandler.has_method("unregister_living_unit_server"):
+			Handlers.GameHandler.unregister_living_unit_server(self)
 	if is_in_group("units"):
 		remove_from_group("units")
 	queue_free()
@@ -1842,6 +1850,20 @@ func _on_unit_died(dead_unit: BaseUnit) -> void:
 func is_valid_unit(unit) -> bool:
 	"""Проверяет, что объект существует и является BaseUnitServer"""
 	return unit != null and is_instance_valid(unit) and unit is BaseUnitServer
+
+
+func _get_living_unit_servers() -> Array[BaseUnitServer]:
+	"""Снапшот живых юнитов без get_nodes_in_group (O(1) доступ к массиву)."""
+	if Handlers.GameHandler != null and Handlers.GameHandler.has_method("get_living_unit_servers"):
+		return Handlers.GameHandler.get_living_unit_servers()
+	var fallback: Array[BaseUnitServer] = []
+	if not is_inside_tree():
+		return fallback
+	for node in get_tree().get_nodes_in_group("units"):
+		if node is BaseUnitServer:
+			fallback.append(node as BaseUnitServer)
+	return fallback
+
 
 func server_reassign_owner(new_owner_id: int) -> void:
 	if not is_multiplayer_authority():
@@ -2607,10 +2629,12 @@ func _apply_lateral_crowd_bias(desired: Vector2) -> Vector2:
 	var left: Vector2 = Vector2(-fwd.y, fwd.x)
 	var lateral_sum: float = 0.0
 	var samples: int = 0
-	for other in get_tree().get_nodes_in_group("units"):
-		if other == self or not (other is BaseUnitServer):
+	for ou in _get_living_unit_servers():
+		if ou == self or not is_instance_valid(ou):
 			continue
-		var ou: BaseUnitServer = other as BaseUnitServer
+		var dist_sq: float = global_position.distance_squared_to(ou.global_position)
+		if dist_sq > CROWD_SCAN_RADIUS_SQ:
+			continue
 		var is_stationary: bool = _is_unit_stationary_blocker(ou)
 		var is_soft_moving: bool = false
 		if not is_stationary:
@@ -2618,7 +2642,7 @@ func _apply_lateral_crowd_bias(desired: Vector2) -> Vector2:
 			if not is_soft_moving:
 				continue
 		var to_other: Vector2 = ou.global_position - global_position
-		var dist: float = to_other.length()
+		var dist: float = sqrt(dist_sq)
 		if dist > LATERAL_PUSH_RADIUS or dist < 1.0:
 			continue
 		# Только кто примерно впереди
@@ -2686,10 +2710,11 @@ func _get_crowd_detour_waypoint(final_target: Vector2) -> Vector2:
 	var left_dir: Vector2 = Vector2(-along.y, along.x)
 	var blockers: Array[Vector2] = []
 	
-	for other in get_tree().get_nodes_in_group("units"):
-		if other == self or not is_instance_valid(other) or not (other is BaseUnitServer):
+	for ou in _get_living_unit_servers():
+		if ou == self or not is_instance_valid(ou):
 			continue
-		var ou: BaseUnitServer = other as BaseUnitServer
+		if global_position.distance_squared_to(ou.global_position) > CROWD_SCAN_RADIUS_SQ:
+			continue
 		if not _is_unit_stationary_blocker(ou):
 			continue
 		var op: Vector2 = ou.global_position
@@ -2886,6 +2911,8 @@ func despawn_for_transform() -> void:
 	_enemies_in_vision.clear()
 	if Handlers.GameHandler and Handlers.GameHandler.units_dict.has(UID):
 		Handlers.GameHandler.units_dict.erase(UID)
+	if Handlers.GameHandler and Handlers.GameHandler.has_method("unregister_living_unit_server"):
+		Handlers.GameHandler.unregister_living_unit_server(self)
 	if is_in_group("units"):
 		remove_from_group("units")
 	queue_free()

@@ -550,11 +550,11 @@ func _clear_nearby_defenders() -> void:
 	"""
 	Отгоняет ближайших союзных юнитов чтобы освободить место для CommandUnit
 	"""
-	var nearby_units = get_tree().get_nodes_in_group("units")
+	var nearby_units = _get_living_unit_servers()
 	var cleared_count = 0
 	
 	for unit in nearby_units:
-		if unit is BaseUnitServer and unit != self:
+		if unit != self:
 			var distance = global_position.distance_to(unit.global_position)
 			if distance <= 80.0 and unit.owner_id == owner_id:  # Союзные юниты в радиусе 80px
 				# Отправляем защитника на случайную позицию в стороне
@@ -568,7 +568,7 @@ func _clear_nearby_defenders() -> void:
 	
 	if cleared_count > 0 and not has_meta("defenders_cleared_logged"):
 		set_meta("defenders_cleared_logged", true)
-		print("🚨 COMMAND ESCAPE: Отогнано ", cleared_count, " защитников от застрявшего CommandUnit")
+		Handlers.dprint("🚨 COMMAND ESCAPE: Отогнано ", cleared_count, " защитников от застрявшего CommandUnit")
 
 func _emergency_teleport_short() -> void:
 	"""
@@ -582,18 +582,18 @@ func _emergency_teleport_short() -> void:
 	
 	if not has_meta("short_teleport_logged"):
 		set_meta("short_teleport_logged", true)
-		print("🔄 COMMAND ESCAPE: Короткая телепортация CommandUnit на ", int(teleport_distance), "px")
+		Handlers.dprint("🔄 COMMAND ESCAPE: Короткая телепортация CommandUnit на ", int(teleport_distance), "px")
 
 func _emergency_teleport_to_ally() -> void:
 	"""
 	Телепортация к ближайшему союзному юниту
 	"""
-	var allied_units = get_tree().get_nodes_in_group("units")
+	var allied_units = _get_living_unit_servers()
 	var closest_ally = null
 	var min_distance = 9999.0
 	
 	for unit in allied_units:
-		if unit is BaseUnitServer and unit != self and unit.owner_id == owner_id:
+		if unit != self and unit.owner_id == owner_id:
 			var distance = global_position.distance_to(unit.global_position)
 			if distance < min_distance and distance > 100.0:  # Не слишком близко
 				min_distance = distance
@@ -606,7 +606,7 @@ func _emergency_teleport_to_ally() -> void:
 		
 		if not has_meta("ally_teleport_logged"):
 			set_meta("ally_teleport_logged", true)
-			print("🤝 COMMAND ESCAPE: Телепортация CommandUnit к союзнику")
+			Handlers.dprint("🤝 COMMAND ESCAPE: Телепортация CommandUnit к союзнику")
 	else:
 		# Если союзников нет, делаем случайную телепортацию
 		_emergency_teleport_random()
@@ -623,7 +623,7 @@ func _emergency_teleport_random() -> void:
 	
 	if not has_meta("random_teleport_logged"):
 		set_meta("random_teleport_logged", true)
-		print("🎲 COMMAND ESCAPE: Случайная телепортация CommandUnit на ", int(teleport_distance), "px")
+		Handlers.dprint("🎲 COMMAND ESCAPE: Случайная телепортация CommandUnit на ", int(teleport_distance), "px")
 
 func _on_command_unit_under_attack(_attacker: BaseUnit, victim: BaseUnit) -> void:
 	"""
@@ -671,7 +671,7 @@ func _initiate_retreat() -> void:
 	_sync_order_queue_to_owner()
 	unit_state = UNIT_STATES.MOVING
 	
-	print("🏃 RETREAT: CommandUnit ", name, " начинает отступление к безопасной позиции")
+	Handlers.dprint("🏃 RETREAT: CommandUnit ", name, " начинает отступление к безопасной позиции")
 
 func _find_safe_retreat_position() -> Vector2:
 	"""
@@ -753,7 +753,7 @@ func _check_retreat_safety() -> void:
 		is_under_attack = false
 		is_retreating = false
 		retreat_target_position = Vector2.ZERO
-		print("✅ RETREAT: CommandUnit ", name, " в безопасности, отступление завершено")
+		Handlers.dprint("✅ RETREAT: CommandUnit ", name, " в безопасности, отступление завершено")
 
 func die() -> void:
 	if is_deploying_fob:

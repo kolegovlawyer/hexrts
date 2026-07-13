@@ -322,6 +322,10 @@ func _exit_tree() -> void:
 			Handlers.GameHandler.units_dict.erase(UID)
 	if is_in_group("units"):
 		remove_from_group("units")
+	# Listen-server рисует BaseUnitServer — без клиентского _exit_tree выделение
+	# могло держать уже уничтоженный юнит и падать при следующем приказе.
+	if Handlers.UnitSelectionHandler:
+		Handlers.UnitSelectionHandler.remove_unit_from_selection(self)
 	
 func visibility_check_in(body) -> void:
 	"""Быстрая проверка входа в зону видимости"""
@@ -2875,8 +2879,8 @@ func _deferred_sync_unit_appearance(display_name: String, instance_number: int, 
 func despawn_for_transform() -> void:
 	if not is_multiplayer_authority():
 		return
-	if Handlers.UnitSelectionHandler and self in Handlers.UnitSelectionHandler.selected_units:
-		Handlers.UnitSelectionHandler.selected_units.erase(self)
+	if Handlers.UnitSelectionHandler:
+		Handlers.UnitSelectionHandler.remove_unit_from_selection(self)
 	visible_by.clear()
 	has_vision_on.clear()
 	_enemies_in_vision.clear()

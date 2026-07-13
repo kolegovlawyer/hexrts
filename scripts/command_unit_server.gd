@@ -772,3 +772,4 @@ func _exit_tree() -> void:
 	# Останавливаем захват при удалении юнита
 	if is_capturing:
 		stop_capture("удаление юнита")
+	super._exit_tree()

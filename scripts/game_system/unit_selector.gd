@@ -98,15 +98,16 @@ func set_selected(unit:Node):
 
 func remove_unit_from_selection(unit: BaseUnit):
 	"""Удаляет конкретный юнит из выделения (используется при смерти юнита)"""
-	if unit in selected_units:
+	_prune_selected_units()
+	if unit != null and is_instance_valid(unit) and unit in selected_units:
 		selected_units.erase(unit)
 		print("🗑️ SELECTION: Погибший юнит ", unit.name, " удален из выделения")
-		
-		# Если это был последний выделенный юнит, сбрасываем input_state
-		if selected_units.is_empty():
-			if Handlers.UIHandler:
-				Handlers.UIHandler.input_state = 0
-				if Handlers.UIHandler.has_method("reset_patrol_hud_on_selection_change"):
-					Handlers.UIHandler.reset_patrol_hud_on_selection_change()
+
+	# Если это был последний выделенный юнит, сбрасываем input_state
+	if selected_units.is_empty():
+		if Handlers.UIHandler:
+			Handlers.UIHandler.input_state = 0
+			if Handlers.UIHandler.has_method("reset_patrol_hud_on_selection_change"):
+				Handlers.UIHandler.reset_patrol_hud_on_selection_change()
 	_refresh_waypoint_markers()
 	_sync_unit_rack_selection()

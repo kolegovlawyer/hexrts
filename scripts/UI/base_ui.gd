@@ -135,11 +135,19 @@ func input_state_enter(STATE:int)->void:
 		INPUT_STATES.UNITS_CONTROL:
 			pass
 		INPUT_STATES.FOB_INTERACT:
-			if selection_box != null:
-				selection_box.queue_free()
+			cancel_draw_selection_box()
 	
 func _input(event:InputEvent) -> void:
-	
+	# Завершение marquee всегда через _input: отпускание ЛКМ над HUD/_gui_input
+	# раньше глоталось → рамка оставалась и копилась при каждом новом drag.
+	# Не помечаем event handled — клик по юниту должен дойти до Area2D.
+	if event is InputEventMouseButton \
+			and event.button_index == MOUSE_BUTTON_LEFT \
+			and not event.pressed \
+			and _is_selection_box_active():
+		_on_selection_box_released()
+		return
+
 	match input_state:
 		INPUT_STATES.IDLE:
 			pass #сброс фокуса на юнитах и фобе
@@ -169,15 +177,6 @@ func _gui_input(event: InputEvent) -> void:
 					
 			elif event is InputEventMouseButton and event.button_index == 1 and event.pressed == true:
 				start_draw_selection_box(camera.get_global_mouse_position())
-			
-			# Delete bound box for selection
-			elif event is InputEventMouseButton and event.button_index == 1 and event.pressed == false:
-				input_state = 0
-				Handlers.UnitSelectionHandler.clear_selection()
-				if selection_box != null:
-					end_draw_selection_box()
-				if camera.check_maps_bound(camera.get_global_mouse_position()) == true:
-					camera.position = camera.get_global_mouse_position()
 		
 		
 		INPUT_STATES.UNITS_CONTROL:
@@ -186,15 +185,6 @@ func _gui_input(event: InputEvent) -> void:
 					_handle_units_control_rmb()
 			elif event is InputEventMouseButton and event.button_index == 1 and event.pressed == true:
 				start_draw_selection_box(camera.get_global_mouse_position())
-			
-			# Delete bound box for selection
-			elif event is InputEventMouseButton and event.button_index == 1 and event.pressed == false:
-				if Input.is_key_pressed(KEY_SHIFT):
-					end_draw_selection_box()
-				else:
-					input_state = 0
-					Handlers.UnitSelectionHandler.clear_selection()
-					end_draw_selection_box()
 		
 		INPUT_STATES.FOB_INTERACT:
 			if event is InputEventMouseButton and event.button_index == 1:
@@ -996,22 +986,51 @@ func show_game_over(is_winner: bool, reason: String, is_draw: bool = false) -> v
 	if screen.has_method("setup"):
 		screen.setup(is_winner, reason, is_draw)
 	
-func start_draw_selection_box(init_position):
+func _is_selection_box_active() -> bool:
+	return selection_box != null and is_instance_valid(selection_box)
+
+func _on_selection_box_released() -> void:
+	var do_camera_recenter: bool = input_state == INPUT_STATES.IDLE
+	# Shift+добор только в UNITS_CONTROL (как раньше); в IDLE всегда сбрасываем.
+	var additive: bool = input_state == INPUT_STATES.UNITS_CONTROL \
+			and Input.is_key_pressed(KEY_SHIFT)
+	if additive:
+		end_draw_selection_box()
+	else:
+		input_state = INPUT_STATES.IDLE
+		Handlers.UnitSelectionHandler.clear_selection()
+		end_draw_selection_box()
+	if do_camera_recenter and camera != null:
+		if camera.check_maps_bound(camera.get_global_mouse_position()) == true:
+			camera.position = camera.get_global_mouse_position()
+
+func start_draw_selection_box(init_position) -> void:
 	if world == null:
 		bind_map_world()
 	if world == null:
 		return
+	# Старый бокс без end_draw (отпускание над HUD и т.п.) иначе остаётся в world навсегда.
+	cancel_draw_selection_box()
 	var new_selection_box = preload("res://prefabs/ui/selectoin_box.tscn").instantiate()
 	world.add_child(new_selection_box)
 	selection_box = new_selection_box
 	selection_box.init_draw_position = init_position
 	print('start draw selection box')
-	
-func end_draw_selection_box():
+
+func end_draw_selection_box() -> void:
+	if not _is_selection_box_active():
+		selection_box = null
+		return
 	selection_box.select_units()
 	selection_box.queue_free()
+	selection_box = null
 	print('end draw selection box')
-	
+
+func cancel_draw_selection_box() -> void:
+	if _is_selection_box_active():
+		selection_box.queue_free()
+	selection_box = null
+
 	
 #func _unhandled_input(event: InputEvent) -> void:
 	#if event is InputEventMouseButton:

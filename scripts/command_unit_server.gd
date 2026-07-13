@@ -344,7 +344,7 @@ func _is_on_friendly_hex() -> bool:
 func _start_deploy_fob() -> void:
 	if is_capturing:
 		stop_capture("развёртывание FOB")
-	orders.clear()
+	_orders_clear()
 	unit_state = UNIT_STATES.IDLE
 	if navagent:
 		navagent.target_position = global_position
@@ -562,7 +562,6 @@ func _clear_nearby_defenders() -> void:
 				var escape_position = unit.global_position + escape_direction * 150.0
 				
 				# Очищаем приказы и отправляем в сторону
-				unit.orders.clear()
 				unit.add_order(escape_position, true)
 				cleared_count += 1
 	
@@ -664,9 +663,9 @@ func _initiate_retreat() -> void:
 	retreat_target_position = _find_safe_retreat_position()
 	
 	# Очищаем текущие приказы и отступаем (plain move — без захвата по пути)
-	orders.clear()
+	_orders_clear()
 	_sync_order_queue_to_owner()
-	orders.append({"type": "move", "position": retreat_target_position})
+	_orders_append({"type": "move", "position": retreat_target_position})
 	_reset_move_progress_tracking(retreat_target_position)
 	_sync_order_queue_to_owner()
 	unit_state = UNIT_STATES.MOVING

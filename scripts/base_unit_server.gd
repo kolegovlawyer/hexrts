@@ -59,6 +59,20 @@ var _synced_supply_state: bool = true
 var _pending_team_initialization: bool = false
 # owner_id бота vs игрока не меняется в матче (кроме reconnect reassign) — кэш для горячих путей
 var _cached_is_bot: bool = false
+## Средний ярус (~6 физ. тиков): visibility / stuck / выбор opportunistic target.
+const MEDIUM_PASS_TICKS: int = 6
+var _medium_pass_tick_offset: int = 0
+## Накопленная delta пока юнит активно движется (для stuck-детекторов на medium).
+var _stuck_medium_delta_accum: float = 0.0
+## Кэш очереди приказов: пересчёт только при мутации orders.
+var _first_order_by_type: Dictionary = {}
+var _first_order_index_by_type: Dictionary = {}
+var _current_order_type: String = ""
+## Opportunistic: выбор цели на medium, стрельба каждый тик по кэшу.
+var _cached_opportunistic_target: Variant = null
+const VISUAL_ROTATION_EPSILON: float = 0.001
+var _last_synced_facing_rotation: float = INF
+var _last_synced_barrel_rotation: float = INF
 
 func _refresh_cached_is_bot() -> void:
 	if Handlers.GameHandler:
@@ -288,6 +302,8 @@ func _ready() -> void:
 	_base_turn_rate = turn_rate
 	# Фаза прореживания crowd-bias: юниты не бьют в один тик.
 	_crowd_bias_tick_offset = posmod(get_instance_id(), CROWD_BIAS_RECALC_TICKS)
+	_medium_pass_tick_offset = posmod(get_instance_id(), MEDIUM_PASS_TICKS)
+	_rebuild_order_cache()
 
 	# _process только для мерцания вне снабжения (Host)
 	set_process(false)
@@ -405,14 +421,17 @@ func on_velocity_computed(safe_velocity: Vector2) -> void:
 	else:
 		velocity = safe_velocity
 	move_and_slide()
-	if _is_actively_moving:
-		_update_jitter_stuck_detection(get_physics_process_delta_time())
+	# Jitter stuck — в medium-пассе с накопленной delta (пороги в секундах).
 
 func is_time_to_heavy_calculations() -> bool:
 	if not Handlers.FrameGroupHandler or Handlers.FrameGroupHandler.num_groups <= 0:
 		return false
 	
 	return (Engine.get_physics_frames() % Handlers.FrameGroupHandler.num_groups) == frame_group
+
+
+func is_time_to_medium_calculations() -> bool:
+	return ((Engine.get_physics_frames() + _medium_pass_tick_offset) % MEDIUM_PASS_TICKS) == 0
 
 func _physics_process(delta: float) -> void:
 	_profile_function_start("_physics_process")
@@ -421,10 +440,6 @@ func _physics_process(delta: float) -> void:
 		# Один раз за тик: соседи читают эти флаги без вызовов функций / str(orders).
 		# Отставание на 1 тик для юнитов, обработанных раньше в том же кадре, OK для crowd.
 		_update_blocker_flags()
-		
-		# === ЛЕГКИЕ ВЫЧИСЛЕНИЯ (КАЖДЫЙ ФРЕЙМ - МГНОВЕННАЯ РЕАКЦИЯ) ===
-		# Быстрая локальная проверка видимости (без сетевых операций)
-		_quick_visibility_check()
 		
 		# ⚡ КРИТИЧЕСКИ ВАЖНО: Обработка приказов ТОЛЬКО ИГРОКОВ мгновенно!
 		var _is_bot = _cached_is_bot
@@ -464,6 +479,7 @@ func _physics_process(delta: float) -> void:
 		var wants_move: bool = not navagent.is_navigation_finished()
 		_is_actively_moving = wants_move
 		if wants_move:
+			_stuck_medium_delta_accum += delta
 			if _has_committed_route():
 				navagent.avoidance_priority = CROWD_PRIORITY_ROUTE
 			else:
@@ -475,7 +491,6 @@ func _physics_process(delta: float) -> void:
 			# Soft lateral bias away from locked blockers so RVO prefers a side early
 			_desired_velocity = _apply_lateral_crowd_bias(_desired_velocity)
 			navagent.set_velocity(_desired_velocity)
-			_check_early_block_unstuck(delta)
 		else:
 			navagent.avoidance_priority = CROWD_PRIORITY_IDLE
 			_desired_velocity = Vector2.ZERO
@@ -483,13 +498,26 @@ func _physics_process(delta: float) -> void:
 			navagent.set_velocity(Vector2.ZERO)
 			_static_block_time = 0.0
 			_unit_block_time = 0.0
+			_stuck_medium_delta_accum = 0.0
 			_reset_jitter_stuck_tracking()
 		
 		# Ствол: к цели стрельбы или к корпусу (независимо от движения).
 		_update_barrel_facing(delta)
 		
+		# Каждый тик: только валидация кэша + выстрел (выбор цели — medium).
 		if not _is_bot:
-			_try_opportunistic_attack_while_moving()
+			_try_fire_cached_opportunistic_target()
+		
+		# === СРЕДНИЙ ЯРУС (~раз в MEDIUM_PASS_TICKS) ===
+		if is_time_to_medium_calculations():
+			_quick_visibility_check()
+			if _is_actively_moving:
+				# Пороги stuck в секундах; delta = сумма тиков с прошлого medium.
+				_update_jitter_stuck_detection(_stuck_medium_delta_accum)
+				_check_early_block_unstuck(_stuck_medium_delta_accum)
+				_stuck_medium_delta_accum = 0.0
+			if not _is_bot:
+				_refresh_opportunistic_attack_target()
 		
 		# === ТЯЖЕЛЫЕ ВЫЧИСЛЕНИЯ (РАСПРЕДЕЛЕННЫЕ ПО ФРЕЙМАМ - АВТОМАТИКА) ===
 		if is_time_to_heavy_calculations():
@@ -699,7 +727,7 @@ func _enqueue_next_patrol_leg() -> void:
 		return
 	var canonical: Vector2 = route_waypoints[_route_patrol_index]
 	var move_target: Vector2 = _route_move_target(canonical)
-	orders.append(_make_move_order(move_target))
+	_orders_append(_make_move_order(move_target))
 	_sync_order_queue_to_owner()
 	_advance_patrol_index()
 
@@ -749,7 +777,7 @@ func add_patrol_waypoint(
 		return
 	var canonical := Vector2(world_x, world_y)
 	if is_first:
-		orders.clear()
+		_orders_clear()
 		_clear_active_route_wp()
 		_reset_route_patrol()
 		route_patrol_mode = mode
@@ -761,7 +789,7 @@ func add_patrol_waypoint(
 		route_patrol_mode = mode
 	route_waypoints.append(canonical)
 	var move_target: Vector2 = _route_move_target(canonical)
-	orders.append(_make_move_order(move_target))
+	_orders_append(_make_move_order(move_target))
 	_reset_move_progress_tracking(move_target)
 	_sync_order_queue_to_owner()
 
@@ -778,10 +806,10 @@ func add_attack_position_order(
 		return
 	var pos := Vector2(world_x, world_y)
 	if clear_queue:
-		orders.clear()
+		_orders_clear()
 		_clear_active_route_wp()
 		_reset_route_patrol()
-	orders.append({"type": "attack_position", "position": pos})
+	_orders_append({"type": "attack_position", "position": pos})
 	_sync_order_queue_to_owner()
 
 func _quick_visibility_check() -> void:
@@ -1009,12 +1037,12 @@ func _process_auto_attack_heavy() -> void:
 			if is_valid_unit(target_enemy):
 				if DEBUG_COMBAT:
 					Handlers.dprint("🎯 ATTACK: %s -> %s" % [name, target_enemy.name])
-				orders.append({"type": "attack", "target": target_enemy})
+				_orders_append({"type": "attack", "target": target_enemy})
 				unit_state = UNIT_STATES.AUTO_ATTACKING
 		else:
 			var target_fob = _get_best_enemy_fob_target()
 			if target_fob:
-				orders.append({"type": "attack_fob", "target": target_fob})
+				_orders_append({"type": "attack_fob", "target": target_fob})
 				unit_state = UNIT_STATES.AUTO_ATTACKING
 
 @rpc("any_peer", "reliable")
@@ -1045,10 +1073,10 @@ func add_order(order_obj, clear_queue: bool = false, _capture_at_destination: bo
 		match typeof(order_obj):
 			TYPE_VECTOR2:
 				if clear_queue:
-					orders.clear()
+					_orders_clear()
 					_clear_active_route_wp()
 					_reset_route_patrol()
-				orders.append(_make_move_order(order_obj))
+				_orders_append(_make_move_order(order_obj))
 				_reset_move_progress_tracking(order_obj)
 				_sync_order_queue_to_owner()
 			TYPE_STRING:
@@ -1056,9 +1084,9 @@ func add_order(order_obj, clear_queue: bool = false, _capture_at_destination: bo
 				if target_unit is BaseUnitServer:
 					if can_see_target(target_unit):
 						if clear_queue:
-							orders.clear()
+							_orders_clear()
 							_clear_active_route_wp()
-						orders.append({"type": "attack", "target": target_unit})
+						_orders_append({"type": "attack", "target": target_unit})
 						_sync_order_queue_to_owner()
 
 @rpc("any_peer", "reliable")
@@ -1091,30 +1119,73 @@ func _sync_order_queue_to_owner() -> void:
 		return
 	rpc_id(owner_id, "sync_order_queue", _build_order_queue_snapshot())
 
-func _pop_current_order() -> void:
+
+func _rebuild_order_cache() -> void:
+	_first_order_by_type.clear()
+	_first_order_index_by_type.clear()
+	_current_order_type = ""
+	if orders.is_empty():
+		return
+	_current_order_type = str(orders[0].get("type", ""))
+	for i in range(orders.size()):
+		var t: String = str(orders[i].get("type", ""))
+		if t != "" and not _first_order_index_by_type.has(t):
+			_first_order_index_by_type[t] = i
+			_first_order_by_type[t] = orders[i]
+
+
+func _orders_append(order: Dictionary) -> void:
+	orders.append(order)
+	_rebuild_order_cache()
+
+
+func _orders_clear() -> void:
+	orders.clear()
+	_rebuild_order_cache()
+
+
+func _orders_pop_front() -> void:
 	if orders.is_empty():
 		return
 	orders.pop_front()
+	_rebuild_order_cache()
+
+
+func _orders_remove_at(index: int) -> void:
+	orders.remove_at(index)
+	_rebuild_order_cache()
+
+
+func _pop_current_order() -> void:
+	if orders.is_empty():
+		return
+	_orders_pop_front()
 	_sync_order_queue_to_owner()
 
 
 func _pop_order_by_type(order_type: String) -> void:
 	for i in range(orders.size()):
 		if orders[i].get("type", "") == order_type:
-			orders.remove_at(i)
+			_orders_remove_at(i)
 			_sync_order_queue_to_owner()
 			return
 
 
 func _find_first_order(types: Array) -> Dictionary:
-	for order in orders:
-		if order.has("type") and order.type in types:
-			return order
-	return {}
+	var best_i: int = 2147483647
+	var best: Dictionary = {}
+	for t in types:
+		if not _first_order_index_by_type.has(t):
+			continue
+		var i: int = int(_first_order_index_by_type[t])
+		if i < best_i and i >= 0 and i < orders.size():
+			best_i = i
+			best = orders[i]
+	return best
 
 
 func _has_order_type(order_type: String) -> bool:
-	return not _find_first_order([order_type]).is_empty()
+	return _first_order_by_type.has(order_type)
 
 
 func _should_preserve_moving_state() -> bool:
@@ -1145,19 +1216,27 @@ func _apply_facing_toward(desired_angle: float, delta: float) -> void:
 func _sync_facing_visual() -> void:
 	# Курс корпуса — ArrowSprite; иконка upright.
 	# Текстура стрелки смотрит вверх; angle()=0 — вправо → +ARROW_ROTATION_OFFSET.
+	var target_rot: float = facing_angle + ARROW_ROTATION_OFFSET
 	if arrow_sprite:
-		arrow_sprite.visible = true
-		arrow_sprite.rotation = facing_angle + ARROW_ROTATION_OFFSET
-		arrow_sprite.modulate = Color.WHITE
-	if unit_sprite:
+		if absf(angle_difference(_last_synced_facing_rotation, target_rot)) > VISUAL_ROTATION_EPSILON:
+			arrow_sprite.visible = true
+			arrow_sprite.rotation = target_rot
+			arrow_sprite.modulate = Color.WHITE
+			_last_synced_facing_rotation = target_rot
+	if unit_sprite and unit_sprite.rotation != 0.0:
 		unit_sprite.rotation = 0.0
 
 
 func _sync_barrel_visual() -> void:
-	if barrel_arrow_sprite:
-		barrel_arrow_sprite.visible = true
-		barrel_arrow_sprite.rotation = barrel_angle + ARROW_ROTATION_OFFSET
-		barrel_arrow_sprite.modulate = BARREL_ARROW_MODULATE
+	if barrel_arrow_sprite == null:
+		return
+	var target_rot: float = barrel_angle + ARROW_ROTATION_OFFSET
+	if absf(angle_difference(_last_synced_barrel_rotation, target_rot)) <= VISUAL_ROTATION_EPSILON:
+		return
+	barrel_arrow_sprite.visible = true
+	barrel_arrow_sprite.rotation = target_rot
+	barrel_arrow_sprite.modulate = BARREL_ARROW_MODULATE
+	_last_synced_barrel_rotation = target_rot
 
 
 func _update_barrel_facing(delta: float) -> void:
@@ -1353,25 +1432,65 @@ func _compute_projectile_spread_offset(target_pos: Vector2 = Vector2.INF) -> Vec
 
 
 func _try_opportunistic_attack_while_moving() -> void:
+	"""Совместимость: полный путь = выбор (medium) + выстрел. Предпочтительны раздельные методы."""
+	_refresh_opportunistic_attack_target()
+	_try_fire_cached_opportunistic_target()
+
+
+func _refresh_opportunistic_attack_target() -> void:
+	"""MEDIUM: сканирование целей, результат в _cached_opportunistic_target."""
+	_cached_opportunistic_target = null
 	if not _is_movement_attack_enabled():
 		return
-	if velocity.length() < MOVING_ATTACK_MIN_SPEED:
+	if velocity.length_squared() < MOVING_ATTACK_MIN_SPEED_SQ:
+		return
+	if _has_order_type("attack") or _has_order_type("attack_fob") or _has_order_type("attack_position"):
+		return
+	var visible_enemies: Array[BaseUnitServer] = _get_visible_enemies()
+	if not visible_enemies.is_empty():
+		var target_enemy: BaseUnitServer = _select_best_target(visible_enemies)
+		if is_valid_unit(target_enemy) and target_enemy._health > 0:
+			_cached_opportunistic_target = target_enemy
+			return
+	var target_fob: fob = _get_best_enemy_fob_target()
+	if target_fob:
+		_cached_opportunistic_target = target_fob
+
+
+func _try_fire_cached_opportunistic_target() -> void:
+	"""Каждый тик: дешёвая валидация кэша и выстрел."""
+	if not _is_movement_attack_enabled():
+		return
+	if velocity.length_squared() < MOVING_ATTACK_MIN_SPEED_SQ:
 		return
 	if reload_timer.time_left > 0:
 		return
 	if _has_order_type("attack") or _has_order_type("attack_fob") or _has_order_type("attack_position"):
+		_cached_opportunistic_target = null
 		return
-	
-	var visible_enemies: Array[BaseUnitServer] = _get_visible_enemies()
-	if not visible_enemies.is_empty():
-		var target_enemy: BaseUnitServer = _select_best_target(visible_enemies)
-		if is_valid_unit(target_enemy):
-			attack(target_enemy)
+	var target: Variant = _cached_opportunistic_target
+	if target == null:
+		return
+	var vision_sq: float = vision_radius * vision_radius
+	if target is BaseUnitServer:
+		var unit_target: BaseUnitServer = target as BaseUnitServer
+		if not is_instance_valid(unit_target) or unit_target._health <= 0:
+			_cached_opportunistic_target = null
 			return
-	
-	var target_fob: fob = _get_best_enemy_fob_target()
-	if target_fob:
-		attack_fob(target_fob)
+		if global_position.distance_squared_to(unit_target.global_position) > vision_sq:
+			_cached_opportunistic_target = null
+			return
+		attack(unit_target)
+		return
+	if target is fob:
+		var fob_target: fob = target as fob
+		if not is_instance_valid(fob_target) or not fob_target.is_alive():
+			_cached_opportunistic_target = null
+			return
+		if global_position.distance_squared_to(fob_target.global_position) > vision_sq:
+			_cached_opportunistic_target = null
+			return
+		attack_fob(fob_target)
 
 @rpc("any_peer", "reliable")
 func get_unit_info() -> void:
@@ -1390,7 +1509,7 @@ func clear_orders() -> void:
 		return
 		
 	if is_multiplayer_authority():
-		orders.clear()
+		_orders_clear()
 		unit_state = UNIT_STATES.IDLE
 		_clear_active_route_wp()
 		_reset_route_patrol()
@@ -2377,6 +2496,8 @@ func _update_jitter_stuck_detection(delta: float) -> void:
 	"""
 	Дешёвая детекция застревания в геометрии: долго остаёмся в малом радиусе
 	при контакте со slide-коллизией → отход к FOB.
+	MEDIUM_PASS: вызывается раз в MEDIUM_PASS_TICKS; delta — сумма секунд за пропущенные тики.
+	Порог JITTER_STUCK_SECONDS в реальном времени не меняется.
 	"""
 	if unit_state != UNIT_STATES.MOVING or orders.is_empty():
 		_reset_jitter_stuck_tracking()
@@ -2452,11 +2573,11 @@ func _abort_move_due_to_stuck() -> void:
 	velocity = Vector2.ZERO
 	_reset_jitter_stuck_tracking()
 	_reset_move_steering_state()
-	orders.clear()
+	_orders_clear()
 	var target_fob: fob = _find_nearest_own_fob()
 	if target_fob != null and target_fob.is_alive():
 		var approach: Vector2 = _fob_approach_position(target_fob)
-		orders.append({"type": "move", "position": approach})
+		_orders_append({"type": "move", "position": approach})
 		unit_state = UNIT_STATES.MOVING
 		_reset_move_progress_tracking(approach)
 		if navagent:
@@ -2564,7 +2685,10 @@ func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
 
 
 func _check_early_block_unstuck(delta: float) -> void:
-	"""Ранний detour при упирании в статику/юнитов — без сброса стороны и без random thrash."""
+	"""
+	Ранний detour при упирании в статику/юнитов — без сброса стороны и без random thrash.
+	MEDIUM_PASS: delta — сумма секунд за пропущенные тики; BLOCK_UNSTUCK_SECONDS без изменений.
+	"""
 	var hit_static := false
 	var hit_unit := false
 	for i in range(get_slide_collision_count()):

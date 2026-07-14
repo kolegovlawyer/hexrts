@@ -273,7 +273,7 @@ func interrupt_capture_for_direct_order(prepare_move: bool = true) -> void:
 		if first_type == "move_capture":
 			orders[0]["phase"] = "moving"
 	if navagent:
-		navagent.target_position = global_position
+		_set_nav_target(global_position)
 		navagent.set_velocity(Vector2.ZERO)
 	if prepare_move:
 		unit_state = UNIT_STATES.MOVING
@@ -347,7 +347,7 @@ func _start_deploy_fob() -> void:
 	_orders_clear()
 	unit_state = UNIT_STATES.IDLE
 	if navagent:
-		navagent.target_position = global_position
+		_set_nav_target(global_position)
 		navagent.set_velocity(Vector2.ZERO)
 	is_deploying_fob = true
 	deploy_fob_timer = 0.0
@@ -405,11 +405,11 @@ func _process_move_capture_order_immediate(order: Dictionary, delta: float, is_b
 			_reset_move_progress_tracking(order.position)
 		
 		var pos: Vector2 = order.position
-		navagent.target_position = _route_smart_target(pos)
-		
-		if not navagent.is_target_reachable():
-			var alternative_target = _find_alternative_path_target(pos)
-			navagent.target_position = _route_smart_target(alternative_target)
+		var smart_target: Vector2 = _route_smart_target(pos)
+		if _set_nav_target(smart_target):
+			if not navagent.is_target_reachable():
+				var alternative_target = _find_alternative_path_target(pos)
+				_set_nav_target(_route_smart_target(alternative_target))
 		
 		var distance_to_target = global_position.distance_to(pos)
 		var close_enough_threshold: float = _get_close_enough_threshold(is_bot)
@@ -423,7 +423,7 @@ func _process_move_capture_order_immediate(order: Dictionary, delta: float, is_b
 				if next_wp.distance_to(global_position) <= close_enough_threshold:
 					_release_route_wp_keep_side()
 					next_wp = pos
-				navagent.target_position = next_wp
+				_set_nav_target(next_wp)
 				stuck_timer = 0.0
 				_update_move_progress_or_abort(pos, delta)
 			else:
@@ -435,7 +435,7 @@ func _process_move_capture_order_immediate(order: Dictionary, delta: float, is_b
 				no_progress_timer = 0.0
 				_progress_best_dist = INF
 				if navagent:
-					navagent.target_position = global_position
+					_set_nav_target(global_position)
 					navagent.set_velocity(Vector2.ZERO)
 				check_current_hex()
 				_evaluate_waypoint_capture(order)
@@ -455,7 +455,7 @@ func _process_move_capture_order_immediate(order: Dictionary, delta: float, is_b
 	elif phase == "capturing":
 		unit_state = UNIT_STATES.IDLE
 		if navagent:
-			navagent.target_position = global_position
+			_set_nav_target(global_position)
 			navagent.set_velocity(Vector2.ZERO)
 		_evaluate_waypoint_capture(order)
 

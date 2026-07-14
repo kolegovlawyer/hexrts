@@ -218,6 +218,11 @@ var _has_facing_desired: bool = false
 var _crowd_cache_wp: Vector2 = Vector2.ZERO
 var _crowd_cache_final: Vector2 = Vector2.ZERO
 var _crowd_cache_msec: int = -999999
+## Последняя реально выставленная цель NavigationAgent2D (анти-spam перепрокладки).
+const NAV_TARGET_EPSILON: float = 2.0
+const NAV_TARGET_EPSILON_SQ: float = NAV_TARGET_EPSILON * NAV_TARGET_EPSILON
+var _last_nav_target: Vector2 = Vector2.ZERO
+var _has_nav_target: bool = false
 # Липкий промежуточный waypoint (толпа), пока не доедем
 var _active_route_wp: Vector2 = Vector2.ZERO
 var _has_active_route_wp: bool = false
@@ -525,6 +530,18 @@ func _physics_process(delta: float) -> void:
 	
 	_profile_function_end("_physics_process")
 
+func _set_nav_target(p: Vector2) -> bool:
+	"""Ставит navagent.target_position только если цель сдвинулась > NAV_TARGET_EPSILON."""
+	if navagent == null:
+		return false
+	if _has_nav_target and _last_nav_target.distance_squared_to(p) <= NAV_TARGET_EPSILON_SQ:
+		return false
+	navagent.target_position = p
+	_last_nav_target = p
+	_has_nav_target = true
+	return true
+
+
 func _process_move_order_immediate(order: Dictionary, delta: float, is_bot: bool) -> void:
 	"""МГНОВЕННАЯ обработка приказов движения для отзывчивости игрока"""
 	_ensure_move_leg_steering(order)
@@ -535,13 +552,12 @@ func _process_move_order_immediate(order: Dictionary, delta: float, is_bot: bool
 		_reset_move_progress_tracking(order.position)
 	
 	var pos = order.position
-	navagent.target_position = _route_smart_target(pos)
-	
-	# УЛУЧШЕННАЯ НАВИГАЦИЯ: Проверяем доступность и используем альтернативы
-	if not navagent.is_target_reachable():
-		# Цель недоступна - используем систему умных альтернатив
-		var alternative_target = _find_alternative_path_target(pos)
-		navagent.target_position = _route_smart_target(alternative_target)
+	var smart_target: Vector2 = _route_smart_target(pos)
+	# Reachability / альтернатива — только при реальной смене цели.
+	if _set_nav_target(smart_target):
+		if not navagent.is_target_reachable():
+			var alternative_target = _find_alternative_path_target(pos)
+			_set_nav_target(_route_smart_target(alternative_target))
 	
 	# Увеличенный порог для ботов (проблема малых расстояний!)
 	var distance_to_target = global_position.distance_to(pos)
@@ -559,7 +575,7 @@ func _process_move_order_immediate(order: Dictionary, delta: float, is_bot: bool
 			if next_wp.distance_to(global_position) <= close_enough_threshold:
 				_release_route_wp_keep_side()
 				next_wp = pos
-			navagent.target_position = next_wp
+			_set_nav_target(next_wp)
 			stuck_timer = 0.0
 			_update_move_progress_or_abort(pos, delta)
 		else:
@@ -884,13 +900,11 @@ func _process_move_order_heavy_bot(order: Dictionary, delta: float) -> void:
 		_reset_move_progress_tracking(order.position)
 	
 	var pos = order.position
-	navagent.target_position = _route_smart_target(pos)
-	
-	# УЛУЧШЕННАЯ НАВИГАЦИЯ: Проверяем доступность и используем альтернативы
-	if not navagent.is_target_reachable():
-		# Цель недоступна - используем систему умных альтернатив
-		var alternative_target = _find_alternative_path_target(pos)
-		navagent.target_position = _route_smart_target(alternative_target)
+	var smart_target: Vector2 = _route_smart_target(pos)
+	if _set_nav_target(smart_target):
+		if not navagent.is_target_reachable():
+			var alternative_target = _find_alternative_path_target(pos)
+			_set_nav_target(_route_smart_target(alternative_target))
 	
 	# Увеличенный порог для ботов (проблема малых расстояний!)
 	var distance_to_target = global_position.distance_to(pos)
@@ -905,7 +919,7 @@ func _process_move_order_heavy_bot(order: Dictionary, delta: float) -> void:
 			if next_wp.distance_to(global_position) <= close_enough_threshold:
 				_release_route_wp_keep_side()
 				next_wp = pos
-			navagent.target_position = next_wp
+			_set_nav_target(next_wp)
 			stuck_timer = 0.0
 			_update_move_progress_or_abort(pos, delta)
 		else:
@@ -935,11 +949,11 @@ func _process_move_capture_order_heavy_bot(order: Dictionary, delta: float) -> v
 			_reset_move_progress_tracking(order.position)
 
 		var pos: Vector2 = order.position
-		navagent.target_position = _route_smart_target(pos)
-
-		if not navagent.is_target_reachable():
-			var alternative_target = _find_alternative_path_target(pos)
-			navagent.target_position = _route_smart_target(alternative_target)
+		var smart_target: Vector2 = _route_smart_target(pos)
+		if _set_nav_target(smart_target):
+			if not navagent.is_target_reachable():
+				var alternative_target = _find_alternative_path_target(pos)
+				_set_nav_target(_route_smart_target(alternative_target))
 
 		var distance_to_target = global_position.distance_to(pos)
 		var close_enough_threshold := 36.0
@@ -953,7 +967,7 @@ func _process_move_capture_order_heavy_bot(order: Dictionary, delta: float) -> v
 				if next_wp.distance_to(global_position) <= close_enough_threshold:
 					_release_route_wp_keep_side()
 					next_wp = pos
-				navagent.target_position = next_wp
+				_set_nav_target(next_wp)
 				stuck_timer = 0.0
 				_update_move_progress_or_abort(pos, delta)
 			else:
@@ -965,7 +979,7 @@ func _process_move_capture_order_heavy_bot(order: Dictionary, delta: float) -> v
 				no_progress_timer = 0.0
 				_progress_best_dist = INF
 				if navagent:
-					navagent.target_position = global_position
+					_set_nav_target(global_position)
 					navagent.set_velocity(Vector2.ZERO)
 				if self is CommandUnitServer:
 					var command_unit := self as CommandUnitServer
@@ -987,7 +1001,7 @@ func _process_move_capture_order_heavy_bot(order: Dictionary, delta: float) -> v
 	elif phase == "capturing":
 		unit_state = UNIT_STATES.IDLE
 		if navagent:
-			navagent.target_position = global_position
+			_set_nav_target(global_position)
 			navagent.set_velocity(Vector2.ZERO)
 		if self is CommandUnitServer:
 			(self as CommandUnitServer)._evaluate_waypoint_capture(order)
@@ -1515,7 +1529,7 @@ func clear_orders() -> void:
 		_reset_route_patrol()
 		_reset_jitter_stuck_tracking()
 		_reset_move_steering_state()
-		navagent.target_position = global_position
+		_set_nav_target(global_position)
 		_sync_order_queue_to_owner()
 
 func find_target_by_UID(target_uid: String) -> BaseUnitServer:
@@ -2581,12 +2595,12 @@ func _abort_move_due_to_stuck() -> void:
 		unit_state = UNIT_STATES.MOVING
 		_reset_move_progress_tracking(approach)
 		if navagent:
-			navagent.target_position = _route_smart_target(approach)
+			_set_nav_target(_route_smart_target(approach))
 	else:
 		unit_state = UNIT_STATES.IDLE
 		if navagent:
 			navagent.set_velocity(Vector2.ZERO)
-			navagent.target_position = global_position
+			_set_nav_target(global_position)
 	_sync_order_queue_to_owner()
 
 
@@ -2625,14 +2639,12 @@ func _find_alternative_path_target(original_target: Vector2) -> Vector2:
 		for angle in test_angles:
 			var test_offset = Vector2(cos(angle), sin(angle)) * distance
 			var test_position = original_target + test_offset
-			
-			# Проверяем доступность этой точки
-			navagent.target_position = test_position
+			_set_nav_target(test_position)
 			if navagent.is_target_reachable():
 				return test_position
 	
 	# Если ничего не найдено, используем ближайшую доступную точку
-	navagent.target_position = original_target
+	_set_nav_target(original_target)
 	return navagent.get_final_position()
 
 func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
@@ -2645,7 +2657,7 @@ func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
 	
 	var smart: Vector2 = _route_smart_target(original_target)
 	if smart.distance_squared_to(original_target) > 100.0:
-		navagent.target_position = smart
+		_set_nav_target(smart)
 		if navagent.is_target_reachable():
 			return
 	
@@ -2666,13 +2678,13 @@ func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
 	
 	for side_dir in sides:
 		var detour_position = global_position + side_dir * 160.0
-		navagent.target_position = detour_position
+		_set_nav_target(detour_position)
 		if navagent.is_target_reachable():
 			_set_active_route_wp(detour_position)
 			return
 	
 	var retreat_position = global_position - direction_to_target * 80.0
-	navagent.target_position = retreat_position
+	_set_nav_target(retreat_position)
 	if navagent.is_target_reachable():
 		_set_active_route_wp(retreat_position)
 		return
@@ -2680,7 +2692,7 @@ func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
 	# Random только если реально всё глухо
 	var random_direction = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
 	var random_position = global_position + random_direction * 130.0
-	navagent.target_position = random_position
+	_set_nav_target(random_position)
 	_set_active_route_wp(random_position)
 
 
@@ -2708,7 +2720,7 @@ func _check_early_block_unstuck(delta: float) -> void:
 			_crowd_cache_msec = -999999
 			var order_target: Vector2 = _get_current_order_target()
 			var smart: Vector2 = _route_smart_target(order_target)
-			navagent.target_position = smart
+			_set_nav_target(smart)
 			_static_block_time = 0.0
 	else:
 		_static_block_time = 0.0
@@ -2719,7 +2731,7 @@ func _check_early_block_unstuck(delta: float) -> void:
 			# Только пересчёт маршрута, без clear side / random
 			var order_target2: Vector2 = _get_current_order_target()
 			var smart2: Vector2 = _route_smart_target(order_target2)
-			navagent.target_position = smart2
+			_set_nav_target(smart2)
 			_unit_block_time = 0.0
 	else:
 		_unit_block_time = 0.0
@@ -2745,7 +2757,7 @@ func _release_route_wp_keep_side() -> void:
 
 
 func _set_active_route_wp(wp: Vector2) -> void:
-	_active_route_wp = wp
+	_active_route_wp = _stabilize_nav_point(wp)
 	_has_active_route_wp = true
 
 
@@ -2876,9 +2888,16 @@ func _route_smart_target(final_target: Vector2) -> Vector2:
 	
 	var after_crowd: Vector2 = _get_crowd_detour_waypoint(final_target)
 	if after_crowd.distance_squared_to(final_target) > 1.0:
+		# Стабильный Vector2 для _set_nav_target (без дрожи на доли пикселя).
+		after_crowd = _stabilize_nav_point(after_crowd)
 		_set_active_route_wp(after_crowd)
 		return after_crowd
 	return final_target
+
+
+func _stabilize_nav_point(p: Vector2) -> Vector2:
+	"""Округление до пикселя: detour не дёргает перепрокладку между тиками."""
+	return Vector2(roundf(p.x), roundf(p.y))
 
 
 func _get_crowd_detour_waypoint(final_target: Vector2) -> Vector2:
@@ -2933,8 +2952,8 @@ func _get_crowd_detour_waypoint(final_target: Vector2) -> Vector2:
 		max_lateral = maxf(max_lateral, absf((p - centroid).dot(left_dir)))
 	
 	var offset_dist: float = maxf(max_lateral + CROWD_DETOUR_MARGIN, 120.0)
-	var left_wp: Vector2 = centroid + left_dir * offset_dist
-	var right_wp: Vector2 = centroid - left_dir * offset_dist
+	var left_wp: Vector2 = _stabilize_nav_point(centroid + left_dir * offset_dist)
+	var right_wp: Vector2 = _stabilize_nav_point(centroid - left_dir * offset_dist)
 	
 	# Стабильный commit стороны (анти-безумие)
 	var chosen: Vector2
@@ -2952,16 +2971,18 @@ func _get_crowd_detour_waypoint(final_target: Vector2) -> Vector2:
 			chosen = right_wp
 			_crowd_commit_side = 1
 	
-	var prev_target: Vector2 = navagent.target_position
-	navagent.target_position = chosen
+	var prev_target: Vector2 = _last_nav_target if _has_nav_target else navagent.target_position
+	# Достижимость форсим только при реальной смене цели (иначе spam перепрокладки).
+	if not _set_nav_target(chosen):
+		_store_crowd_cache(final_target, chosen, now_msec)
+		return chosen
 	if not navagent.is_target_reachable():
 		var other: Vector2 = right_wp if chosen == left_wp else left_wp
-		navagent.target_position = other
-		if navagent.is_target_reachable():
+		if _set_nav_target(other) and navagent.is_target_reachable():
 			_crowd_commit_side = 1 if other == right_wp else -1
 			_store_crowd_cache(final_target, other, now_msec)
 			return other
-		navagent.target_position = prev_target
+		_set_nav_target(prev_target)
 		_store_crowd_cache(final_target, final_target, now_msec)
 		return final_target
 	
@@ -2971,7 +2992,7 @@ func _get_crowd_detour_waypoint(final_target: Vector2) -> Vector2:
 
 func _store_crowd_cache(final_target: Vector2, wp: Vector2, now_msec: int) -> void:
 	_crowd_cache_final = final_target
-	_crowd_cache_wp = wp
+	_crowd_cache_wp = _stabilize_nav_point(wp) if wp.distance_squared_to(final_target) > 1.0 else wp
 	_crowd_cache_msec = now_msec
 
 

@@ -238,6 +238,11 @@ var _crowd_bias_tick_offset: int = 0
 ## Соседи, чей тик раньше, читают флаги с прошлого тика — для crowd это приемлемо.
 var is_stationary_blocker_flag: bool = true
 var is_soft_moving_blocker_flag: bool = false
+## Ячейка UnitSpatialIndex (OverlayMap local_to_map); обновляется после move_and_slide.
+var _spatial_cell: Vector2i = Vector2i(2147483647, 2147483647)
+var _spatial_registered: bool = false
+## Переиспользуемый буфер соседей для crowd bias/detour (без аллокаций на кадр).
+var _crowd_neighbor_buf: Array = []
 
 # Обход стоящих групп юнитов (маршрут, не только RVO)
 const CROWD_MIN_UNITS: int = 2
@@ -426,6 +431,7 @@ func on_velocity_computed(safe_velocity: Vector2) -> void:
 	else:
 		velocity = safe_velocity
 	move_and_slide()
+	_sync_spatial_index_cell()
 	# Jitter stuck — в medium-пассе с накопленной delta (пороги в секундах).
 
 func is_time_to_heavy_calculations() -> bool:
@@ -2029,6 +2035,24 @@ func _get_living_unit_servers() -> Array[BaseUnitServer]:
 	return fallback
 
 
+func _sync_spatial_index_cell() -> void:
+	"""Перекидывает юнит в бакет гекса, если ячейка сменилась (дешёвое сравнение Vector2i)."""
+	if Handlers.GameHandler == null or Handlers.GameHandler.unit_spatial_index == null:
+		return
+	Handlers.GameHandler.unit_spatial_index.upsert(self)
+
+
+func _fill_crowd_neighbor_buf() -> void:
+	"""Кандидаты в CROWD_SCAN_RADIUS через гекс-индекс; fallback — полный снапшот."""
+	var idx = Handlers.GameHandler.unit_spatial_index if Handlers.GameHandler else null
+	if idx != null and idx.is_ready():
+		idx.collect_in_radius_approx(global_position, CROWD_SCAN_RADIUS, _crowd_neighbor_buf)
+		return
+	_crowd_neighbor_buf.clear()
+	for u in _get_living_unit_servers():
+		_crowd_neighbor_buf.append(u)
+
+
 func server_reassign_owner(new_owner_id: int) -> void:
 	if not is_multiplayer_authority():
 		return
@@ -2821,7 +2845,8 @@ func _recalc_cached_crowd_bias(fwd: Vector2, left: Vector2) -> void:
 	"""Тяжёлый цикл по соседям; обновляет _cached_crowd_bias и _crowd_commit_side."""
 	var lateral_sum: float = 0.0
 	var samples: int = 0
-	for ou in _get_living_unit_servers():
+	_fill_crowd_neighbor_buf()
+	for ou in _crowd_neighbor_buf:
 		if ou == self or not is_instance_valid(ou):
 			continue
 		var dist_sq: float = global_position.distance_squared_to(ou.global_position)
@@ -2923,7 +2948,8 @@ func _get_crowd_detour_waypoint(final_target: Vector2) -> Vector2:
 	var left_dir: Vector2 = Vector2(-along.y, along.x)
 	var blockers: Array[Vector2] = []
 	
-	for ou in _get_living_unit_servers():
+	_fill_crowd_neighbor_buf()
+	for ou in _crowd_neighbor_buf:
 		if ou == self or not is_instance_valid(ou):
 			continue
 		if global_position.distance_squared_to(ou.global_position) > CROWD_SCAN_RADIUS_SQ:

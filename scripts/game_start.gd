@@ -3,12 +3,15 @@ class_name GameManager extends Node
 const _BattleLogServiceScript := preload("res://scripts/game_system/battle_log_service.gd")
 const _HexCoordinatesScript := preload("res://scripts/game_system/hex_coordinates.gd")
 const _SupplySystemScript := preload("res://scripts/supply/supply_system.gd")
+const _UnitSpatialIndexScript := preload("res://scripts/game_system/unit_spatial_index.gd")
 
 var game_type = "UNKNOWN"
 var map
 @onready var units_dict: Dictionary[String, BaseUnit] = {}
 ## Живые серверные юниты: обновляется на спавне/смерти, без get_nodes_in_group.
 var living_unit_servers: Array[BaseUnitServer] = []
+## Гекс-бакеты живых юнитов для crowd/detour (O(соседи), не O(все)).
+var unit_spatial_index: UnitSpatialIndex = _UnitSpatialIndexScript.new()
 var fobs_dict: Dictionary = {}
 
 # Словарь гексов карты: позиция_гекса -> объект Hex
@@ -896,11 +899,15 @@ func register_living_unit_server(unit: BaseUnitServer) -> void:
 		return
 	if not living_unit_servers.has(unit):
 		living_unit_servers.append(unit)
+	if unit_spatial_index != null:
+		unit_spatial_index.upsert(unit)
 
 
 func unregister_living_unit_server(unit: BaseUnitServer) -> void:
 	if unit == null:
 		return
+	if unit_spatial_index != null:
+		unit_spatial_index.remove(unit)
 	living_unit_servers.erase(unit)
 
 
@@ -1071,6 +1078,14 @@ func initialize_hexes() -> void:
 		Handlers.dprint("📍 DEBUG: OverlayMap position: ", overlay_map.position)
 
 	supply_overlay_map = map_node.get_node_or_null("SupplyOverlayMap") as TileMapLayer
+
+	# Пространственный индекс: те же координаты гекса, что get_hex_at_world_position.
+	if unit_spatial_index != null:
+		unit_spatial_index.setup(overlay_map)
+		for living: BaseUnitServer in living_unit_servers:
+			if living != null and is_instance_valid(living):
+				living._spatial_registered = false
+				unit_spatial_index.upsert(living)
 	
 	# Получаем все используемые ячейки из MainMap (фактические позиции гексов)
 	var used_cells = main_map.get_used_cells()

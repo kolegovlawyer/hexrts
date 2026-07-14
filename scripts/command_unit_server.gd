@@ -578,6 +578,7 @@ func _emergency_teleport_short() -> void:
 	var new_position = global_position + random_direction * teleport_distance
 	
 	global_position = new_position
+	_sync_spatial_index_cell()
 	
 	if not has_meta("short_teleport_logged"):
 		set_meta("short_teleport_logged", true)
@@ -602,6 +603,7 @@ func _emergency_teleport_to_ally() -> void:
 		# Телепортируемся рядом с союзником (не на него)
 		var offset = Vector2(randf_range(-60, 60), randf_range(-60, 60))
 		global_position = closest_ally.global_position + offset
+		_sync_spatial_index_cell()
 		
 		if not has_meta("ally_teleport_logged"):
 			set_meta("ally_teleport_logged", true)
@@ -619,6 +621,7 @@ func _emergency_teleport_random() -> void:
 	var new_position = global_position + random_direction * teleport_distance
 	
 	global_position = new_position
+	_sync_spatial_index_cell()
 	
 	if not has_meta("random_teleport_logged"):
 		set_meta("random_teleport_logged", true)

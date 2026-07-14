@@ -75,9 +75,9 @@ path_desired_distance = 8.0
 target_desired_distance = 14.0
 path_max_distance = 500.0
 avoidance_enabled = true
-radius = 20.0
-neighbor_distance = 140.0
-max_neighbors = 16
+radius = 17.25
+neighbor_distance = 180.0
+max_neighbors = 20
 time_horizon_obstacles = 0.35
 max_speed = 300.0
 

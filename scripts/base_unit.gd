@@ -66,6 +66,10 @@ var auto_attack_enabled: bool = true
 # Базовые методы, которые должны быть реализованы в наследниках
 func _ready() -> void:
 	add_to_group("units")
+	# Юнит остаётся на слое UNITS (снаряды/обзор/выделение видят слой);
+	# mask только WORLD — без взаимных CharacterBody столкновений (разведение = RVO).
+	collision_layer = PhysicsLayers.UNITS
+	collision_mask = PhysicsLayers.WORLD
 	# _ensure_unique_vision_shape вызывается явно из spawner_synchronizer/unit_spawner
 	# сразу после spawn, до первого чтения шейдером.
 	# Для юнитов вне MultiplayerSpawner (например, в редакторе) делаем deferred-вызов.

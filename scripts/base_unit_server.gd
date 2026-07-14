@@ -205,8 +205,20 @@ const STUCK_ABORT_SECONDS: float = 5.0
 const STUCK_ABORT_ROUTE_SECONDS: float = 14.0
 const STUCK_PROGRESS_EPS: float = 12.0  # сколько нужно приблизиться к цели, чтобы сбросить таймер
 var _route_abort_unstuck_used: bool = false
-# Ранний обход при упоре в StaticBody/юнита (было 10 кадров при 60 Гц ≈ 0.167 с).
+# Ранний обход при упоре в геометрию/юнита (было 10 кадров при 60 Гц ≈ 0.167 с).
 const BLOCK_UNSTUCK_SECONDS: float = 10.0 / 60.0
+## Физический радиус (из CollisionShape); кэшируется в _ready.
+var _physical_radius: float = 15.0
+## RVO radius = physical * margin (чуть шире физики, иначе после снятия unit-unit slide наложение).
+const RVO_RADIUS_OVER_PHYS: float = 1.15
+## Радиус учёта соседей RVO (должен покрывать реальное скучивание, не только agent.radius).
+const RVO_NEIGHBOR_DISTANCE: float = 180.0
+## Плотная толпа: 10 мало; 20 — компромисс качество/стоимость RVO.
+const RVO_MAX_NEIGHBORS: int = 20
+## Скан ближнего контакта юнит-юнит (вместо get_slide_collision после снятия маски).
+const UNIT_BLOCK_SCAN_RADIUS: float = 64.0
+## Порог «упёрся в юнита»: сумма радиусов * slack.
+const UNIT_CONTACT_RADIUS_SLACK: float = 1.08
 var _static_block_time: float = 0.0
 var _unit_block_time: float = 0.0
 var _desired_velocity: Vector2 = Vector2.ZERO
@@ -355,6 +367,7 @@ func _ready() -> void:
 		navagent.connect("velocity_computed", on_velocity_computed)
 		navagent.max_speed = float(speed)
 		navagent.avoidance_priority = CROWD_PRIORITY_IDLE
+		_configure_rvo_params()
 		# Avoidance всегда включён, чтобы idle-юниты оставались препятствиями для RVO
 		_set_navigation_avoidance(true)
 		_sync_facing_visual()
@@ -2171,6 +2184,26 @@ func _set_navigation_avoidance(enabled: bool) -> void:
 	if navagent and navagent.avoidance_enabled != enabled:
 		navagent.avoidance_enabled = enabled
 
+
+func _cache_physical_radius() -> void:
+	_physical_radius = 15.0
+	if collision != null and collision.shape is CircleShape2D:
+		_physical_radius = (collision.shape as CircleShape2D).radius
+
+
+func get_physical_radius() -> float:
+	return _physical_radius
+
+
+func _configure_rvo_params() -> void:
+	"""Подстройка RVO после снятия физического unit-unit: единственная защита от наложения."""
+	_cache_physical_radius()
+	if navagent == null:
+		return
+	navagent.radius = _physical_radius * RVO_RADIUS_OVER_PHYS
+	navagent.neighbor_distance = RVO_NEIGHBOR_DISTANCE
+	navagent.max_neighbors = RVO_MAX_NEIGHBORS
+
 func _unit_state_exit(state: int) -> void:
 	"""
 	Выход из состояния - очистка и завершение текущих действий
@@ -2516,7 +2549,7 @@ func _reset_jitter_stuck_tracking() -> void:
 
 
 func _has_geometry_slide_collision() -> bool:
-	"""Контакт со статикой/картой, но не с другим юнитом."""
+	"""Контакт со статикой/картой, но не с другим юнитом (и не с FOB)."""
 	for i in range(get_slide_collision_count()):
 		var col := get_slide_collision(i)
 		if col == null:
@@ -2527,6 +2560,29 @@ func _has_geometry_slide_collision() -> bool:
 		if collider is fob:
 			continue
 		return true
+	return false
+
+
+func _has_unit_blocking_contact() -> bool:
+	"""
+	Ближний контакт с другим юнитом по дистанции (замена slide-коллизий unit-unit).
+	Порог = (r_self + r_other) * UNIT_CONTACT_RADIUS_SLACK.
+	"""
+	var idx = Handlers.GameHandler.unit_spatial_index if Handlers.GameHandler else null
+	if idx != null and idx.is_ready():
+		idx.collect_in_radius_approx(global_position, UNIT_BLOCK_SCAN_RADIUS, _crowd_neighbor_buf)
+	else:
+		_crowd_neighbor_buf.clear()
+		for u in _get_living_unit_servers():
+			_crowd_neighbor_buf.append(u)
+	var my_r: float = _physical_radius
+	for ou in _crowd_neighbor_buf:
+		if ou == self or not is_instance_valid(ou):
+			continue
+		var other_r: float = ou.get_physical_radius() if ou.has_method("get_physical_radius") else 15.0
+		var thresh: float = (my_r + other_r) * UNIT_CONTACT_RADIUS_SLACK
+		if global_position.distance_squared_to(ou.global_position) <= thresh * thresh:
+			return true
 	return false
 
 
@@ -2722,22 +2778,13 @@ func _execute_smart_unstuck_maneuver(original_target: Vector2) -> void:
 
 func _check_early_block_unstuck(delta: float) -> void:
 	"""
-	Ранний detour при упирании в статику/юнитов — без сброса стороны и без random thrash.
+	Ранний detour при упоре в статику (slide / WORLD) или юнитов (дистанция) —
+	без сброса стороны и без random thrash.
 	MEDIUM_PASS: delta — сумма секунд за пропущенные тики; BLOCK_UNSTUCK_SECONDS без изменений.
 	"""
-	var hit_static := false
-	var hit_unit := false
-	for i in range(get_slide_collision_count()):
-		var col := get_slide_collision(i)
-		if col == null:
-			continue
-		var collider = col.get_collider()
-		if collider is fob:
-			continue
-		if collider is StaticBody2D:
-			hit_static = true
-		elif collider is BaseUnitServer and collider != self:
-			hit_unit = true
+	# Геометрия карты: slide остаётся (mask WORLD). Юнит-юнит slide больше нет → дистанция.
+	var hit_static: bool = _has_geometry_slide_collision()
+	var hit_unit: bool = _has_unit_blocking_contact()
 	if hit_static:
 		_static_block_time += delta
 		if _static_block_time >= BLOCK_UNSTUCK_SECONDS:

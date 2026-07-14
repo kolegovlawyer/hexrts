@@ -54,6 +54,10 @@ var move_speed_max: int = 300
 ## Текущий ранг (0..5). Реплицируется клиентам для шевронов; опыт только на сервере.
 var rank: int = 0
 
+## Кэш цвета точки на минимапе (пересчёт при смене team/owner/rank).
+var _minimap_dot_color: Color = Color.WHITE
+var _minimap_dot_cache_key: int = -999999
+
 # Сигнал смерти (общий для client/server)
 signal unit_died(dead_unit: BaseUnit)
 
@@ -70,10 +74,48 @@ func _ready() -> void:
 	# mask только WORLD — без взаимных CharacterBody столкновений (разведение = RVO).
 	collision_layer = PhysicsLayers.UNITS
 	collision_mask = PhysicsLayers.WORLD
+	_invalidate_fog_ally_vision_cache()
 	# _ensure_unique_vision_shape вызывается явно из spawner_synchronizer/unit_spawner
 	# сразу после spawn, до первого чтения шейдером.
 	# Для юнитов вне MultiplayerSpawner (например, в редакторе) делаем deferred-вызов.
 	call_deferred("_ensure_unique_vision_shape")
+
+
+func _invalidate_fog_ally_vision_cache() -> void:
+	if not is_inside_tree():
+		return
+	for fog_node in get_tree().get_nodes_in_group("fog_of_war_managers"):
+		if fog_node.has_method("invalidate_ally_vision_sources_cache"):
+			fog_node.invalidate_ally_vision_sources_cache()
+
+
+func invalidate_minimap_dot_cache() -> void:
+	_minimap_dot_cache_key = -999999
+
+
+func get_minimap_dot_color() -> Color:
+	var team_key: int = int(owner_team) if owner_team != null else -2
+	var key: int = owner_id * 10007 + team_key * 131 + rank
+	if key == _minimap_dot_cache_key:
+		return _minimap_dot_color
+	_minimap_dot_cache_key = key
+	_minimap_dot_color = _compute_minimap_dot_color()
+	return _minimap_dot_color
+
+
+func _compute_minimap_dot_color() -> Color:
+	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
+		return Color.WHITE
+	if owner_id == Handlers.TeamHandler.my_profile.PlayerId:
+		return GameTypes.own_color
+	var unit_team = owner_team
+	if unit_team == null:
+		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
+		if player:
+			unit_team = player.team
+	if unit_team != null and unit_team == Handlers.TeamHandler.my_profile.team:
+		return GameTypes.ally_color
+	return GameTypes.enemy_color
 	
 func is_valid_unit(unit) -> bool:
 	"""Проверяет, что объект существует и является BaseUnit"""

@@ -2,7 +2,7 @@ class_name MiniMap extends PanelContainer
 
 const MARKER_TEX_SIZE := 16
 const UPDATE_INTERVAL := 0.1 ## Гексовый слой ~10 Hz
-const UNIT_MARKER_UPDATE_INTERVAL := 0.066 ## Маркеры юнитов ~15 Hz
+const MINIMAP_REFRESH_SEC := 0.1 ## Маркеры юнитов ~10 Hz
 const BACKGROUND_COLOR := Color(0.12, 0.12, 0.16, 1.0)
 const HEX_FILL_ALPHA := 0.38
 const HEX_RADIUS_TILE_FRACTION := 0.32 * 1.8
@@ -30,6 +30,8 @@ var _unit_marker_world_size: float = 48.0
 var _update_timer: float = 0.0
 var _unit_marker_timer: float = 0.0
 var _camera_connected: bool = false
+var _cached_marker_scale: Vector2 = Vector2.ONE
+var _marker_scale_ready: bool = false
 
 
 func _ready() -> void:
@@ -78,6 +80,11 @@ func notify_map_data_ready() -> void:
 	refresh_view_rect()
 
 
+func notify_hex_intel_updated() -> void:
+	"""Только гексовый слой — не дёргаем маркеры каждый intel-тик."""
+	_refresh_hex_layer()
+
+
 func refresh_view_rect() -> void:
 	if _view_rect_overlay == null:
 		return
@@ -113,7 +120,7 @@ func _process(delta: float) -> void:
 		return
 	_unit_marker_timer -= delta
 	if _unit_marker_timer <= 0.0:
-		_unit_marker_timer = UNIT_MARKER_UPDATE_INTERVAL
+		_unit_marker_timer = MINIMAP_REFRESH_SEC
 		_refresh_unit_markers()
 	_update_timer -= delta
 	if _update_timer <= 0.0:
@@ -234,7 +241,7 @@ func _refresh_unit_markers() -> void:
 			continue
 		var marker := _get_marker(active_count)
 		marker.position = unit.global_position
-		marker.modulate = _get_unit_dot_color(unit)
+		marker.modulate = _get_unit_dot_color(unit as BaseUnit)
 		_apply_marker_scale(marker)
 		marker.visible = true
 		active_count += 1
@@ -244,12 +251,16 @@ func _refresh_unit_markers() -> void:
 
 func _update_unit_marker_world_size(overlay_map: TileMapLayer) -> void:
 	var tile_size := Vector2(overlay_map.tile_set.tile_size)
-	_unit_marker_world_size = minf(tile_size.x, tile_size.y) * UNIT_MARKER_TILE_FRACTION
+	var new_size: float = minf(tile_size.x, tile_size.y) * UNIT_MARKER_TILE_FRACTION
+	if absf(new_size - _unit_marker_world_size) > 0.01 or not _marker_scale_ready:
+		_unit_marker_world_size = new_size
+		var scale_factor := _unit_marker_world_size / float(MARKER_TEX_SIZE)
+		_cached_marker_scale = Vector2(scale_factor, scale_factor)
+		_marker_scale_ready = true
 
 
 func _apply_marker_scale(marker: Sprite2D) -> void:
-	var scale_factor := _unit_marker_world_size / float(MARKER_TEX_SIZE)
-	marker.scale = Vector2(scale_factor, scale_factor)
+	marker.scale = _cached_marker_scale
 
 
 func _refresh_hex_layer() -> void:
@@ -280,9 +291,11 @@ func _collect_hex_entries(overlay_map: TileMapLayer) -> Array:
 		if hex == null or my_team == -1 or hex.team_owner != my_team:
 			continue
 		shown[hex_pos] = true
-		var world_center := overlay_map.to_global(
-			overlay_map.map_to_local(hex_pos) + tile_size * 0.5
-		)
+		var world_center: Vector2 = Handlers.GameHandler._hex_tile_to_world_center(hex_pos)
+		if world_center == Vector2.ZERO:
+			world_center = overlay_map.to_global(
+				overlay_map.map_to_local(hex_pos) + tile_size * 0.5
+			)
 		entries.append({
 			"position": world_center,
 			"color": _get_hex_fill_color(hex.team_owner, my_team),
@@ -295,9 +308,11 @@ func _collect_hex_entries(overlay_map: TileMapLayer) -> Array:
 		var known_owner = Handlers.GameHandler.last_known_hex_owner[hex_pos]
 		if known_owner == null or int(known_owner) == -1:
 			continue
-		var world_center2 := overlay_map.to_global(
-			overlay_map.map_to_local(hex_pos) + tile_size * 0.5
-		)
+		var world_center2: Vector2 = Handlers.GameHandler._hex_tile_to_world_center(hex_pos)
+		if world_center2 == Vector2.ZERO:
+			world_center2 = overlay_map.to_global(
+				overlay_map.map_to_local(hex_pos) + tile_size * 0.5
+			)
 		entries.append({
 			"position": world_center2,
 			"color": _get_hex_fill_color(int(known_owner), my_team),
@@ -334,6 +349,13 @@ func _should_show_unit(unit: Node) -> bool:
 
 
 func _get_unit_dot_color(unit: BaseUnit) -> Color:
+	## Цвет кэшируется на юните; пересчёт при смене team / owner / rank.
+	if unit.has_method("get_minimap_dot_color"):
+		return unit.get_minimap_dot_color()
+	return _compute_unit_dot_color(unit)
+
+
+func _compute_unit_dot_color(unit: BaseUnit) -> Color:
 	if not Handlers.TeamHandler or not Handlers.TeamHandler.my_profile:
 		return Color.WHITE
 	if unit.owner_id == Handlers.TeamHandler.my_profile.PlayerId:

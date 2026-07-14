@@ -4,6 +4,8 @@ extends Node2D
 ## Один canvas item на юнита: все сегменты следа рисуются в _draw без дочерних нод.
 
 const TRACK_FOG_REFRESH_SEC: float = 0.15
+## Пересчёт fade/цвета при изменении фактора больше порога (или вместе с fog-тиком).
+const TRACK_FADE_RECALC_EPS: float = 0.02
 
 var _settings: UnitTrackSettings = UnitTrackSettings.new()
 var _segments: Array[UnitTrackSegmentData] = []
@@ -39,6 +41,8 @@ func add_movement_sample(
 	segment.created_at = _now_sec()
 	segment.settings = segment_settings
 	segment.fog_visibility = _query_fog_visibility(from_global, to_global)
+	segment.color_dirty = true
+	_update_segment_draw_color(segment, 0.0)
 	_segments.append(segment)
 
 	var cap: int = _settings.max_segments if _settings != null else segment_settings.max_segments
@@ -56,20 +60,26 @@ func _process(delta: float) -> void:
 	if refresh_fog:
 		_fog_refresh_timer = TRACK_FOG_REFRESH_SEC
 
+	var needs_redraw: bool = refresh_fog
 	var i := _segments.size() - 1
 	while i >= 0:
 		var seg: UnitTrackSegmentData = _segments[i]
 		if seg.settings == null:
 			_segments.remove_at(i)
+			needs_redraw = true
 			i -= 1
 			continue
 		var age: float = now - seg.created_at
 		if age >= seg.settings.lifetime_sec:
 			_segments.remove_at(i)
+			needs_redraw = true
 			i -= 1
 			continue
 		if refresh_fog:
 			seg.fog_visibility = _query_fog_visibility(seg.from_global, seg.to_global)
+			seg.color_dirty = true
+		if _update_segment_draw_color(seg, age):
+			needs_redraw = true
 		i -= 1
 
 	if not _sampling_enabled and _segments.is_empty():
@@ -80,25 +90,38 @@ func _process(delta: float) -> void:
 		queue_redraw()
 		return
 
-	queue_redraw()
+	if needs_redraw:
+		queue_redraw()
+
+
+func _update_segment_draw_color(seg: UnitTrackSegmentData, age: float) -> bool:
+	"""Обновляет cached_draw_color; true если цвет изменился заметно."""
+	if seg.settings == null:
+		return false
+	var fade: float = UnitTrackSettings.fade_factor_for_age(
+		age, seg.settings.lifetime_sec, seg.settings.fade_window_sec
+	)
+	if not seg.color_dirty and absf(fade - seg.cached_fade) < TRACK_FADE_RECALC_EPS:
+		return false
+	var color: Color = UnitTrackSettings.color_for_fade(
+		seg.settings.track_color, seg.settings.dissolve_color, fade
+	)
+	color.a *= seg.fog_visibility
+	seg.cached_fade = fade
+	seg.cached_draw_color = color
+	seg.color_dirty = false
+	return true
 
 
 func _draw() -> void:
-	var now := _now_sec()
 	for seg in _segments:
 		if seg.settings == null:
 			continue
 		if seg.fog_visibility <= 0.01:
 			continue
-
-		var age: float = now - seg.created_at
-		var fade: float = UnitTrackSettings.fade_factor_for_age(
-			age, seg.settings.lifetime_sec, seg.settings.fade_window_sec
-		)
-		var color: Color = UnitTrackSettings.color_for_fade(
-			seg.settings.track_color, seg.settings.dissolve_color, fade
-		)
-		color.a *= seg.fog_visibility
+		var color: Color = seg.cached_draw_color
+		if color.a <= 0.001:
+			continue
 
 		var from_local: Vector2 = to_local(seg.from_global)
 		var to_local_pos: Vector2 = to_local(seg.to_global)

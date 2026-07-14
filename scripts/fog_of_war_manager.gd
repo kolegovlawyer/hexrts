@@ -38,7 +38,8 @@ var _unit_positions: PackedFloat32Array
 var _unit_radii: PackedFloat32Array
 var _active_unit_count: int = 0
 
-## Кэш союзных источников зрения: пересобирается раз за обновление тумана.
+## Кэш союзных источников зрения: пересобирается раз за тик тумана.
+## Элемент: { "node": Node, "radius": float } — радиус без пересчёта на каждый get_visibility.
 var _ally_vision_sources_cache: Array = []
 var _ally_vision_cache_built: bool = false
 
@@ -57,6 +58,7 @@ func _ready() -> void:
 		return
 
 	Handlers.dprint("🌫️ FOG_MANAGER: Инициализация")
+	add_to_group("fog_of_war_managers")
 	
 	# Инициализируем массивы для данных юнитов
 	_unit_positions = PackedFloat32Array()
@@ -165,7 +167,10 @@ func _rebuild_ally_vision_sources_cache() -> void:
 			continue
 		if not _is_ally_fob(fob_node, player_team):
 			continue
-		_ally_vision_sources_cache.append(fob_node)
+		_ally_vision_sources_cache.append({
+			"node": fob_node,
+			"radius": float((fob_node as fob).vision_radius),
+		})
 
 	# Группа units есть и на клиенте, и на сервере; living_unit_servers — только authority.
 	for unit in get_tree().get_nodes_in_group("units"):
@@ -175,10 +180,19 @@ func _rebuild_ally_vision_sources_cache() -> void:
 			continue
 		if not _is_ally_unit(unit, player_team):
 			continue
-		_ally_vision_sources_cache.append(unit)
+		_ally_vision_sources_cache.append({
+			"node": unit,
+			"radius": float((unit as BaseUnit).vision_radius),
+		})
+
+
+func invalidate_ally_vision_sources_cache() -> void:
+	"""Событие: спавн/смерть/смена владельца — пересборка на следующем тике тумана."""
+	_ally_vision_cache_built = false
 
 
 func _get_ally_vision_sources() -> Array:
+	"""Возвращает кэш записей {node, radius}. Без пересборки на каждом вызове."""
 	if not _ally_vision_cache_built:
 		_rebuild_ally_vision_sources_cache()
 	return _ally_vision_sources_cache
@@ -192,12 +206,14 @@ func get_visibility_at_world(world_pos: Vector2) -> float:
 		return 0.0
 
 	var viewport_pos: Vector2 = camera.get_viewport().get_canvas_transform() * world_pos
+	var zoom_x: float = camera.zoom.x
 	var max_vis := 0.0
-	for source in sources:
+	for entry in sources:
+		var source: Node = entry.get("node")
 		if not is_instance_valid(source):
 			continue
 		var source_vp: Vector2 = camera.get_viewport().get_canvas_transform() * source.global_position
-		var radius: float = _get_source_vision_radius(source) * camera.zoom.x
+		var radius: float = float(entry.get("radius", 400.0)) * zoom_x
 		var dist_sq: float = viewport_pos.distance_squared_to(source_vp)
 		if dist_sq > radius * radius:
 			continue
@@ -227,11 +243,17 @@ func _collect_unit_data() -> void:
 	_active_unit_count = min(visible_sources.size(), max_units_processed)
 	
 	for i in range(_active_unit_count):
-		var source = visible_sources[i]
+		var entry = visible_sources[i]
+		var source: Node = entry.get("node") if entry is Dictionary else entry
+		if not is_instance_valid(source):
+			_unit_positions[i * 2] = 0.0
+			_unit_positions[i * 2 + 1] = 0.0
+			_unit_radii[i] = 0.0
+			continue
 		var viewport_pos = camera.get_viewport().get_canvas_transform() * source.global_position
 		_unit_positions[i * 2] = viewport_pos.x
 		_unit_positions[i * 2 + 1] = viewport_pos.y
-		var src_radius := _get_source_vision_radius(source)
+		var src_radius: float = float(entry.get("radius", 400.0)) if entry is Dictionary else _get_source_vision_radius(source)
 		_unit_radii[i] = src_radius * camera.zoom.x
 
 func _update_shader_data() -> void:

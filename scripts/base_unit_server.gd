@@ -106,7 +106,9 @@ func _initialize_team_and_visibility() -> void:
 		else:
 			Handlers.dprint("⚠️ TEAM INIT: %s - игрок не найден! owner_id = %s" % [name, owner_id])
 			return
-	
+
+	invalidate_minimap_dot_cache()
+	_invalidate_fog_ally_vision_cache()
 	update_visibility()
 
 ### Характеристики, которые должны заполняться из unit_profile
@@ -388,6 +390,7 @@ func _ready() -> void:
 	last_move_position = global_position
 	
 func _exit_tree() -> void:
+	_invalidate_fog_ally_vision_cache()
 	# Безопасная очистка регистрации при удалении из дерева
 	if Handlers.GameHandler and Handlers.GameHandler.has_method("get"):
 		if Handlers.GameHandler.units_dict.has(UID):
@@ -1145,15 +1148,30 @@ func _build_order_queue_snapshot() -> Array:
 				})
 	return snapshot
 
+
+## Host / audio: кэш снапшота очереди; dirty при мутации orders.
+var _order_queue_snapshot_cache: Array = []
+var _order_queue_snapshot_dirty: bool = true
+
+
+func get_order_queue_snapshot() -> Array:
+	if _order_queue_snapshot_dirty:
+		_order_queue_snapshot_cache = _build_order_queue_snapshot()
+		_order_queue_snapshot_dirty = false
+	return _order_queue_snapshot_cache
+
+
 func _sync_order_queue_to_owner() -> void:
 	if not is_multiplayer_authority():
 		return
 	if _cached_is_bot:
 		return
-	rpc_id(owner_id, "sync_order_queue", _build_order_queue_snapshot())
+	_order_queue_snapshot_dirty = true
+	rpc_id(owner_id, "sync_order_queue", get_order_queue_snapshot())
 
 
 func _rebuild_order_cache() -> void:
+	_order_queue_snapshot_dirty = true
 	_first_order_by_type.clear()
 	_first_order_index_by_type.clear()
 	_current_order_type = ""
@@ -1902,6 +1920,7 @@ func _gain_experience(amount: int) -> void:
 	var new_rank: int = UnitPresetBalance.rank_from_experience(experience)
 	if new_rank > rank:
 		rank = new_rank
+		invalidate_minimap_dot_cache()
 		_apply_rank_bonuses()
 		_push_vitals_to_clients()
 		Handlers.dprint("⭐ RANK UP: %s xp=%d rank=%d mult=%.2f" % [name, experience, rank, rank_multiplier])
@@ -2076,6 +2095,8 @@ func server_reassign_owner(new_owner_id: int) -> void:
 	_team_resolve_error_logged = false
 	_last_enemy_visibility_valid = false
 	_refresh_cached_is_bot()
+	invalidate_minimap_dot_cache()
+	_invalidate_fog_ally_vision_cache()
 
 
 func force_update_visibility() -> void:
@@ -2478,9 +2499,11 @@ func _apply_supply_indicator_visual(is_supplied_flag: bool) -> void:
 		return
 	if is_supplied_flag:
 		set_process(false)
+		_host_last_supply_pulse = -1.0
 		unit_sprite.self_modulate = _host_supply_base_tint()
 		return
 	set_process(true)
+	_host_last_supply_pulse = -1.0
 	_update_host_supply_pulse()
 
 
@@ -2504,13 +2527,21 @@ func _supply_pulse_amount() -> float:
 	return 0.5 * (1.0 - cos(t * TAU / period))
 
 
+const HOST_SUPPLY_PULSE_EPS: float = 0.02
+var _host_last_supply_pulse: float = -1.0
+
+
 func _update_host_supply_pulse() -> void:
 	if unit_sprite == null:
 		return
+	var pulse: float = _supply_pulse_amount()
+	if absf(pulse - _host_last_supply_pulse) < HOST_SUPPLY_PULSE_EPS:
+		return
+	_host_last_supply_pulse = pulse
 	var base: Color = _host_supply_base_tint()
 	unit_sprite.self_modulate = base.lerp(
 		_SupplySystemScript.OUT_OF_SUPPLY_SPRITE_MODULATE,
-		_supply_pulse_amount()
+		pulse
 	)
 
 

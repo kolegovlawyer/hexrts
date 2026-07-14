@@ -23,6 +23,14 @@ var UID: String = ""
 var owner_team = null
 var is_destroyed: bool = false
 
+
+func _invalidate_fog_ally_vision_cache() -> void:
+	if not is_inside_tree():
+		return
+	for fog_node in get_tree().get_nodes_in_group("fog_of_war_managers"):
+		if fog_node.has_method("invalidate_ally_vision_sources_cache"):
+			fog_node.invalidate_ally_vision_sources_cache()
+
 @export var max_health: int = DEFAULT_MAX_HEALTH
 @export var max_shield: int = DEFAULT_MAX_SHIELD
 var health: int = DEFAULT_MAX_HEALTH
@@ -84,6 +92,7 @@ func _ready() -> void:
 	add_to_group("fobs")
 	_init_vitals_ui()
 	_setup_pick_only_collision()
+	_invalidate_fog_ally_vision_cache()
 
 	if is_multiplayer_authority():
 		_health = max_health
@@ -144,19 +153,18 @@ func _resolve_owner_team() -> void:
 	owner_team = null
 	if owner_id == 0:
 		owner_team = team
-		return
-	if Handlers.GameHandler:
+	elif Handlers.GameHandler:
 		var bot_team = Handlers.GameHandler.get_bot_team_by_id(owner_id)
 		if bot_team != -1:
 			owner_team = bot_team
-			return
-	if Handlers.TeamHandler:
+	if owner_team == null and Handlers.TeamHandler:
 		var player = Handlers.TeamHandler.find_player_by_id(owner_id)
 		if player:
 			owner_team = player.team
-			return
-	# Fallback: карта уже знает команду FOB через export / группу
-	owner_team = team
+	if owner_team == null:
+		# Fallback: карта уже знает команду FOB через export / группу
+		owner_team = team
+	_invalidate_fog_ally_vision_cache()
 
 func get_owner_team():
 	if owner_team == null:
@@ -293,6 +301,7 @@ func _destroy_fob(_from: BaseUnitServer = null) -> void:
 	if is_undeploying:
 		_cancel_undeploy()
 	is_destroyed = true
+	_invalidate_fog_ally_vision_cache()
 	_clear_vision_links()
 	if Handlers.GameHandler and Handlers.GameHandler.battle_log:
 		Handlers.GameHandler.battle_log.on_fob_destroyed(self)
@@ -319,6 +328,7 @@ func pack_fob() -> void:
 		ui_update_timer.stop()
 	if is_in_group("fobs"):
 		remove_from_group("fobs")
+	_invalidate_fog_ally_vision_cache()
 	if Handlers.GameHandler and Handlers.GameHandler.has_method("unregister_fob"):
 		Handlers.GameHandler.unregister_fob(self)
 	if is_network_spawned:

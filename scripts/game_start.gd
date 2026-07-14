@@ -24,7 +24,15 @@ var last_known_hex_owner: Dictionary = {}
 var _ever_owned_hexes: Dictionary = {}
 
 const HEX_INTEL_INTERVAL: float = 0.15
+## Прореживание клиентского hex-intel (было полное сканирование карты каждый тик).
+const HEX_INTEL_REFRESH_SEC: float = 0.2
+## Запас вокруг вьюпорта камеры (мир) для обновления чужих гексов.
+const HEX_INTEL_VIEWPORT_MARGIN: float = 512.0
 var _hex_intel_timer: float = 0.0
+## Предвычисленные мировые центры гексов (Vector2i -> Vector2), карта не двигается.
+var _hex_world_centers: Dictionary = {}
+## Источники зрения на один проход intel: { "pos": Vector2, "radius_sq": float }.
+var _intel_vision_sources: Array = []
 
 # Ссылка на OverlayMap для обновления тайлов захвата
 var overlay_map: TileMapLayer
@@ -1112,6 +1120,8 @@ func initialize_hexes() -> void:
 		var hex = preload("res://scripts/singletons/hex.gd").new(cell_pos, initial_team)
 		hexes_dict[cell_pos] = hex
 		#Handlers.dprint("🎯 DEBUG: Создан гекс ", cell_pos, " команда ", initial_team)
+
+	_rebuild_hex_world_centers_cache()
 	
 	Handlers.dprint("🗺️ ГЕКСЫ: Инициализировано ", hexes_dict.size(), " гексов на ", server_or_client)
 	if hexes_dict.size() <= 20:  # Показываем список только если гексов немного
@@ -1181,7 +1191,7 @@ func _process(delta: float) -> void:
 	_hex_intel_timer -= delta
 	if _hex_intel_timer > 0.0:
 		return
-	_hex_intel_timer = HEX_INTEL_INTERVAL
+	_hex_intel_timer = HEX_INTEL_REFRESH_SEC
 	refresh_client_hex_intel()
 
 
@@ -1330,34 +1340,71 @@ func client_has_vision_at_hex(hex_tile: Vector2i) -> bool:
 	if player_team == null:
 		return false
 	var world_pos := _hex_tile_to_world_center(hex_tile)
-	return _client_has_ally_vision_at_world(world_pos, player_team)
+	_rebuild_intel_vision_sources(player_team)
+	return _client_has_ally_vision_at_world_cached(world_pos)
 
 
 func _hex_tile_to_world_center(hex_tile: Vector2i) -> Vector2:
+	var cached = _hex_world_centers.get(hex_tile)
+	if cached != null:
+		return cached
 	if overlay_map == null or overlay_map.tile_set == null:
 		return Vector2.ZERO
 	var half_size := Vector2(overlay_map.tile_set.tile_size) * 0.5
-	return overlay_map.to_global(overlay_map.map_to_local(hex_tile) + half_size)
+	var world := overlay_map.to_global(overlay_map.map_to_local(hex_tile) + half_size)
+	_hex_world_centers[hex_tile] = world
+	return world
 
 
-func _client_has_ally_vision_at_world(world_pos: Vector2, player_team) -> bool:
+func _rebuild_hex_world_centers_cache() -> void:
+	_hex_world_centers.clear()
+	if overlay_map == null or overlay_map.tile_set == null:
+		return
+	var half_size := Vector2(overlay_map.tile_set.tile_size) * 0.5
+	for hex_tile in hexes_dict.keys():
+		_hex_world_centers[hex_tile] = overlay_map.to_global(
+			overlay_map.map_to_local(hex_tile) + half_size
+		)
+
+
+func _rebuild_intel_vision_sources(player_team) -> void:
+	"""Один список источников на проход hex-intel (не на каждый гекс)."""
+	_intel_vision_sources.clear()
 	for unit in get_tree().get_nodes_in_group("units"):
 		if not is_instance_valid(unit) or not (unit is BaseUnit):
 			continue
 		if not _is_ally_vision_source(unit, player_team):
 			continue
-		var radius: float = unit.vision_radius
-		if unit.global_position.distance_squared_to(world_pos) <= radius * radius:
-			return true
+		var radius: float = (unit as BaseUnit).vision_radius
+		_intel_vision_sources.append({
+			"pos": unit.global_position,
+			"radius_sq": radius * radius,
+		})
 	for fob_node in get_tree().get_nodes_in_group("fobs"):
 		if not is_instance_valid(fob_node):
 			continue
 		if not _is_ally_fob_vision_source(fob_node, player_team):
 			continue
-		var fob_radius: float = fob_node.vision_radius
-		if fob_node.global_position.distance_squared_to(world_pos) <= fob_radius * fob_radius:
+		var fob_radius: float = float(fob_node.get("vision_radius"))
+		_intel_vision_sources.append({
+			"pos": fob_node.global_position,
+			"radius_sq": fob_radius * fob_radius,
+		})
+
+
+func _client_has_ally_vision_at_world_cached(world_pos: Vector2) -> bool:
+	for entry in _intel_vision_sources:
+		var pos: Vector2 = entry.get("pos", Vector2.ZERO)
+		var radius_sq: float = float(entry.get("radius_sq", 0.0))
+		if pos.distance_squared_to(world_pos) <= radius_sq:
 			return true
 	return false
+
+
+func _client_has_ally_vision_at_world(world_pos: Vector2, player_team) -> bool:
+	## Редкий одиночный запрос: собирает источники локально.
+	_rebuild_intel_vision_sources(player_team)
+	return _client_has_ally_vision_at_world_cached(world_pos)
 
 
 func _is_ally_vision_source(unit: BaseUnit, player_team) -> bool:
@@ -1387,6 +1434,16 @@ func _is_ally_fob_vision_source(fob_node: Node, player_team) -> bool:
 	return false
 
 
+func _get_hex_intel_viewport_rect() -> Rect2:
+	"""Вьюпорт камеры + запас; пустой Rect2 = без отсечения."""
+	if Handlers.UIHandler == null or Handlers.UIHandler.camera == null:
+		return Rect2()
+	var cam = Handlers.UIHandler.camera
+	if not cam.has_method("get_visible_world_rect"):
+		return Rect2()
+	return cam.get_visible_world_rect().grow(HEX_INTEL_VIEWPORT_MARGIN)
+
+
 func refresh_client_hex_intel() -> void:
 	"""Клиент: свои — всегда live; чужие — last-known на карте, в обзоре только актуализация."""
 	if is_multiplayer_authority():
@@ -1397,32 +1454,41 @@ func refresh_client_hex_intel() -> void:
 	if Handlers.TeamHandler and Handlers.TeamHandler.my_profile:
 		my_team = Handlers.TeamHandler.my_profile.team
 
+	_rebuild_intel_vision_sources(my_team)
+	var view_rect: Rect2 = _get_hex_intel_viewport_rect()
+	var cull_by_view: bool = view_rect.size.x > 0.0 and view_rect.size.y > 0.0
+
 	for hex_pos in hexes_dict.keys():
 		var hex: Hex = hexes_dict[hex_pos]
 		if hex == null:
 			continue
 		var is_own: bool = my_team != -1 and hex.team_owner == my_team
-		var in_vision: bool = client_has_vision_at_hex(hex_pos)
 		if is_own:
 			_ever_owned_hexes[hex_pos] = true
 
 		if is_own or _ever_owned_hexes.has(hex_pos):
-			# Свои (и когда-либо свои) — всегда актуальный статус сквозь туман.
+			# Свои (и когда-либо свои) — всегда актуальный статус; vision не нужен.
 			last_known_hex_owner[hex_pos] = hex.team_owner
 			_paint_or_clear_overlay_cell(hex_pos, hex.team_owner, my_team)
-		elif in_vision:
-			# Разведка: актуализируем last-known и рисуем.
+			continue
+
+		var world_pos: Vector2 = _hex_tile_to_world_center(hex_pos)
+		# Чужие гексы вне камеры: не трогаем last-known / overlay (следующий кадр камеры догонит).
+		if cull_by_view and not view_rect.has_point(world_pos):
+			continue
+
+		var in_vision: bool = _client_has_ally_vision_at_world_cached(world_pos)
+		if in_vision:
 			last_known_hex_owner[hex_pos] = hex.team_owner
 			_paint_or_clear_overlay_cell(hex_pos, hex.team_owner, my_team)
 		elif last_known_hex_owner.has(hex_pos):
-			# Вне обзора: оставляем последнюю известную окраску на основной карте.
 			_paint_or_clear_overlay_cell(hex_pos, int(last_known_hex_owner[hex_pos]), my_team)
 		else:
 			overlay_map.erase_cell(hex_pos)
 
 	overlay_map.notify_runtime_tile_data_update()
 	if Handlers.UIHandler and Handlers.UIHandler.minimap:
-		Handlers.UIHandler.minimap.notify_map_data_ready()
+		Handlers.UIHandler.minimap.notify_hex_intel_updated()
 
 
 func _paint_or_clear_overlay_cell(hex_pos: Vector2i, team_owner: int, viewer_team: int) -> void:

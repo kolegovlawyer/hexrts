@@ -29,6 +29,9 @@ var _is_hit_flashing: bool = false
 
 const HIT_FLASH_DURATION: float = 0.2
 const _VitalsBarStyle := preload("res://scripts/UI/unit_vitals_bar_style.gd")
+## Пропуск кадров мерцания снабжения при почти том же pulse.
+const SUPPLY_PULSE_EPS: float = 0.02
+var _last_supply_pulse: float = -1.0
 
 var _vitals_bars_styled: bool = false
 
@@ -85,6 +88,7 @@ func _ready() -> void:
 	call_deferred("update_visual")
 
 func _exit_tree() -> void:
+	_invalidate_fog_ally_vision_cache()
 	_kill_hit_flash()
 	if Handlers.UIHandler and UID != "":
 		Handlers.UIHandler.unregister_unit_preview(UID)
@@ -283,6 +287,8 @@ func get_current_shield() -> int:
 func sync_supply_state(is_supplied_flag: bool) -> void:
 	"""RPC от сервера: смена эффективного статуса снабжения (после гистерезиса)."""
 	_client_is_supplied = is_supplied_flag
+	_last_supply_pulse = -1.0
+	invalidate_minimap_dot_cache()
 	set_process(not _client_is_supplied)
 	_apply_sprite_tint()
 
@@ -367,10 +373,15 @@ func _apply_supply_modulate_from_base() -> void:
 		return
 	if _client_is_supplied:
 		sprite.self_modulate = _supply_base_tint
+		_last_supply_pulse = -1.0
 		return
+	var pulse: float = _supply_pulse_amount()
+	if absf(pulse - _last_supply_pulse) < SUPPLY_PULSE_EPS:
+		return
+	_last_supply_pulse = pulse
 	sprite.self_modulate = _supply_base_tint.lerp(
 		_SupplySystemScript.OUT_OF_SUPPLY_SPRITE_MODULATE,
-		_supply_pulse_amount()
+		pulse
 	)
 
 func _kill_hit_flash() -> void:
